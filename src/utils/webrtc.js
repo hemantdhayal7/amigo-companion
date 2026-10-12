@@ -4,7 +4,21 @@ const RTC_CONFIG = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export class PeerCallManager {
@@ -27,7 +41,6 @@ export class PeerCallManager {
     this.videoSender = null;
     this.audioSender = null;
 
-    this.isInitiator = false;
     this.isMakingOffer = false;
 
     this.setupSocketListeners();
@@ -79,7 +92,7 @@ export class PeerCallManager {
   }
 
   refreshRemoteStream() {
-    // Reconstruct fresh MediaStream instance with active live tracks to force video element re-render
+    // Reconstruct fresh MediaStream instance with active live tracks to force video/audio element re-render
     const liveTracks = this.remoteStream.getTracks().filter((t) => t.readyState === 'live');
     const freshStream = new MediaStream(liveTracks.length > 0 ? liveTracks : this.remoteStream.getTracks());
     this.onRemoteStreamUpdate(freshStream);
@@ -111,13 +124,6 @@ export class PeerCallManager {
     if (withTrack) {
       this.videoSender = withTrack;
       return withTrack;
-    }
-
-    const audioSender = this.findAudioSender();
-    const candidate = senders.find((s) => s !== audioSender);
-    if (candidate) {
-      this.videoSender = candidate;
-      return candidate;
     }
 
     return null;
@@ -159,13 +165,47 @@ export class PeerCallManager {
       return this.peerConnection;
     }
 
-    console.log('[WebRTC] Initializing new RTCPeerConnection');
+    console.log('[WebRTC] Initializing new RTCPeerConnection with STUN & TURN relay');
     const pc = new RTCPeerConnection(RTC_CONFIG);
 
-    // Add local tracks to peer connection
-    this.localStream.getTracks().forEach((track) => {
-      pc.addTrack(track, this.localStream);
-    });
+    // Pre-create transceivers for both audio and video so SDP negotiation
+    // always includes both media lines with sendrecv capability.
+    // This allows either peer to turn on mic/camera at any time without
+    // asymmetric SDP renegotiation failures!
+    let audioTransceiver = pc.getTransceivers().find(
+      (t) => t.receiver?.track?.kind === 'audio' || t.sender?.track?.kind === 'audio'
+    );
+    if (!audioTransceiver) {
+      try {
+        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      } catch (e) {
+        console.warn('[WebRTC] Error adding audio transceiver:', e);
+      }
+    }
+
+    let videoTransceiver = pc.getTransceivers().find(
+      (t) => t.receiver?.track?.kind === 'video' || t.sender?.track?.kind === 'video'
+    );
+    if (!videoTransceiver) {
+      try {
+        videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+      } catch (e) {
+        console.warn('[WebRTC] Error adding video transceiver:', e);
+      }
+    }
+
+    // Attach any existing active local tracks
+    const activeAudioTrack = this.localStream.getAudioTracks().find((t) => t.readyState === 'live');
+    if (activeAudioTrack && audioTransceiver?.sender) {
+      audioTransceiver.sender.replaceTrack(activeAudioTrack).catch(console.warn);
+      this.audioSender = audioTransceiver.sender;
+    }
+
+    const activeVideoTrack = this.localStream.getVideoTracks().find((t) => t.readyState === 'live');
+    if (activeVideoTrack && videoTransceiver?.sender) {
+      videoTransceiver.sender.replaceTrack(activeVideoTrack).catch(console.warn);
+      this.videoSender = videoTransceiver.sender;
+    }
 
     // Handle remote tracks (audio, webcam, and screen share)
     pc.ontrack = (event) => {
@@ -194,6 +234,10 @@ export class PeerCallManager {
         this.refreshRemoteStream();
       };
 
+      incomingTrack.onmute = () => {
+        console.log('[WebRTC] Remote track muted:', incomingTrack.id);
+      };
+
       incomingTrack.onunmute = () => {
         console.log('[WebRTC] Remote track unmuted, refreshing stream:', incomingTrack.id);
         this.refreshRemoteStream();
@@ -209,10 +253,19 @@ export class PeerCallManager {
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE Connection state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed') {
+        console.warn('[WebRTC] ICE connection failed, restarting ICE...');
+        this.restartIce();
+      }
+    };
+
     pc.onconnectionstatechange = () => {
-      console.log('[WebRTC] Connection state:', pc.connectionState);
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        console.warn('[WebRTC] Connection disconnected, ready to re-establish');
+      console.log('[WebRTC] PeerConnection state:', pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        console.warn('[WebRTC] PeerConnection failed, restarting ICE...');
+        this.restartIce();
       }
     };
 
@@ -220,63 +273,98 @@ export class PeerCallManager {
     return pc;
   }
 
+  async restartIce() {
+    if (!this.peerConnection || this.peerConnection.signalingState === 'closed') return;
+    try {
+      if (this.peerConnection.restartIce) {
+        this.peerConnection.restartIce();
+      }
+      await this.negotiate({ iceRestart: true });
+    } catch (err) {
+      console.warn('[WebRTC] Error during ICE restart:', err);
+    }
+  }
+
+  async initiateCall() {
+    console.log('[WebRTC] Initiating P2P WebRTC call with partner...');
+    this.getOrCreatePeerConnection();
+    await this.negotiate();
+  }
+
   async handleRemoteOffer(offer, senderId) {
     const pc = this.getOrCreatePeerConnection();
+    const isPolite = this.socket?.id ? this.socket.id < senderId : true;
 
     // Check collision / polite peer handling
     const offerCollision = this.isMakingOffer || pc.signalingState !== 'stable';
     if (offerCollision) {
-      console.log('[WebRTC] Offer collision detected, rolling back to stable...');
-      if (pc.signalingState !== 'stable') {
+      if (!isPolite) {
+        console.log('[WebRTC] Impolite peer ignoring offer collision');
+        return;
+      }
+      console.log('[WebRTC] Polite peer rolling back local offer');
+      try {
+        await pc.setLocalDescription({ type: 'rollback' });
+      } catch (e) {
+        console.warn('[WebRTC] Rollback error:', e);
+      }
+    }
+
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Drain queued ICE candidates
+      while (this.iceCandidateQueue.length > 0) {
+        const candidate = this.iceCandidateQueue.shift();
         try {
-          await pc.setLocalDescription({ type: 'rollback' });
+          if (candidate && candidate.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
         } catch (e) {
-          console.warn('[WebRTC] Rollback error:', e);
+          console.warn('[WebRTC] Failed to add queued ICE:', e);
         }
       }
-    }
 
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
 
-    // Drain queued ICE candidates
-    while (this.iceCandidateQueue.length > 0) {
-      const candidate = this.iceCandidateQueue.shift();
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {
-        console.warn('[WebRTC] Failed to add queued ICE:', e);
+      if (this.socket) {
+        this.socket.emit('signal-answer', {
+          targetUserId: senderId,
+          answer,
+        });
       }
-    }
-
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    if (this.socket) {
-      this.socket.emit('signal-answer', {
-        targetUserId: senderId,
-        answer
-      });
+    } catch (err) {
+      console.error('[WebRTC] Error handling remote offer:', err);
     }
   }
 
   async handleRemoteAnswer(answer) {
     if (!this.peerConnection) return;
-    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    try {
+      if (this.peerConnection.signalingState === 'have-local-offer') {
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 
-    // Drain queued ICE candidates
-    while (this.iceCandidateQueue.length > 0) {
-      const candidate = this.iceCandidateQueue.shift();
-      try {
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {
-        console.warn('[WebRTC] Failed to add queued ICE:', e);
+        // Drain queued ICE candidates
+        while (this.iceCandidateQueue.length > 0) {
+          const candidate = this.iceCandidateQueue.shift();
+          try {
+            if (candidate && candidate.candidate) {
+              await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+          } catch (e) {
+            console.warn('[WebRTC] Failed to add queued ICE:', e);
+          }
+        }
       }
+    } catch (err) {
+      console.error('[WebRTC] Error handling remote answer:', err);
     }
   }
 
   async handleRemoteIceCandidate(candidate) {
-    if (!candidate) return;
-    if (this.peerConnection && this.peerConnection.remoteDescription) {
+    if (!candidate || !candidate.candidate) return;
+    if (this.peerConnection && this.peerConnection.remoteDescription && this.peerConnection.remoteDescription.type) {
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
@@ -287,11 +375,16 @@ export class PeerCallManager {
     }
   }
 
-  async negotiate() {
+  async negotiate(options = {}) {
     const pc = this.getOrCreatePeerConnection();
+    if (pc.signalingState !== 'stable') {
+      console.log('[WebRTC] Negotiate postponed: signalingState is', pc.signalingState);
+      return;
+    }
     try {
       this.isMakingOffer = true;
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer(options);
+      if (pc.signalingState !== 'stable') return;
       await pc.setLocalDescription(offer);
 
       if (this.socket) {
@@ -358,18 +451,27 @@ export class PeerCallManager {
         this.isMicOn = true;
 
         const pc = this.getOrCreatePeerConnection();
-        const audioSender = this.findAudioSender();
+        let audioTransceiver = pc.getTransceivers().find(
+          (t) => t.receiver?.track?.kind === 'audio' || t.sender?.track?.kind === 'audio'
+        );
 
-        if (audioSender) {
+        if (audioTransceiver) {
           console.log('[WebRTC] Resuming audio: replacing track on existing sender');
-          await audioSender.replaceTrack(newAudioTrack);
-          this.audioSender = audioSender;
+          await audioTransceiver.sender.replaceTrack(newAudioTrack);
+          this.audioSender = audioTransceiver.sender;
+          if (audioTransceiver.direction !== 'sendrecv') {
+            audioTransceiver.direction = 'sendrecv';
+          }
         } else {
-          console.log('[WebRTC] Adding initial audio track to PeerConnection');
-          this.audioSender = pc.addTrack(newAudioTrack, this.localStream);
-          await this.negotiate();
+          console.log('[WebRTC] Adding initial audio transceiver');
+          audioTransceiver = pc.addTransceiver(newAudioTrack, {
+            direction: 'sendrecv',
+            streams: [this.localStream],
+          });
+          this.audioSender = audioTransceiver.sender;
         }
 
+        await this.negotiate();
         this.broadcastMediaStatus();
         return { isMicOn: true, stream: this.localStream };
       } catch (err) {
@@ -430,18 +532,27 @@ export class PeerCallManager {
         this.isVideoOn = true;
 
         const pc = this.getOrCreatePeerConnection();
-        const videoSender = this.findVideoSender();
+        let videoTransceiver = pc.getTransceivers().find(
+          (t) => t.receiver?.track?.kind === 'video' || t.sender?.track?.kind === 'video'
+        );
 
-        if (videoSender) {
+        if (videoTransceiver) {
           console.log('[WebRTC] Resuming video: replacing track on existing sender');
-          await videoSender.replaceTrack(newVideoTrack);
-          this.videoSender = videoSender;
+          await videoTransceiver.sender.replaceTrack(newVideoTrack);
+          this.videoSender = videoTransceiver.sender;
+          if (videoTransceiver.direction !== 'sendrecv') {
+            videoTransceiver.direction = 'sendrecv';
+          }
         } else {
-          console.log('[WebRTC] Adding initial video track to PeerConnection');
-          this.videoSender = pc.addTrack(newVideoTrack, this.localStream);
-          await this.negotiate();
+          console.log('[WebRTC] Adding initial video transceiver');
+          videoTransceiver = pc.addTransceiver(newVideoTrack, {
+            direction: 'sendrecv',
+            streams: [this.localStream],
+          });
+          this.videoSender = videoTransceiver.sender;
         }
 
+        await this.negotiate();
         this.broadcastMediaStatus();
         return { isVideoOn: true, stream: this.localStream };
       } catch (err) {
@@ -478,17 +589,27 @@ export class PeerCallManager {
     if (!screenTrack) throw new Error('No video track available in screen stream');
 
     const pc = this.getOrCreatePeerConnection();
-    const videoSender = this.findVideoSender();
+    let videoTransceiver = pc.getTransceivers().find(
+      (t) => t.receiver?.track?.kind === 'video' || t.sender?.track?.kind === 'video'
+    );
 
-    if (videoSender) {
+    if (videoTransceiver) {
       console.log('[WebRTC] Replacing video sender track with screen share track');
-      await videoSender.replaceTrack(screenTrack);
-      this.videoSender = videoSender;
+      await videoTransceiver.sender.replaceTrack(screenTrack);
+      this.videoSender = videoTransceiver.sender;
+      if (videoTransceiver.direction !== 'sendrecv') {
+        videoTransceiver.direction = 'sendrecv';
+      }
     } else {
       console.log('[WebRTC] Adding screen share track to PeerConnection');
-      this.videoSender = pc.addTrack(screenTrack, this.localStream);
-      await this.negotiate();
+      videoTransceiver = pc.addTransceiver(screenTrack, {
+        direction: 'sendrecv',
+        streams: [this.localStream],
+      });
+      this.videoSender = videoTransceiver.sender;
     }
+
+    await this.negotiate();
 
     // Handle when user stops sharing via OS or browser floating toolbar
     screenTrack.onended = () => {
@@ -519,6 +640,7 @@ export class PeerCallManager {
           await videoSender.replaceTrack(null);
         } catch {}
       }
+      await this.negotiate();
     }
 
     if (this.socket) {

@@ -1050,10 +1050,20 @@ export default function FloatingCompanion({
                   {/* Remote Partner Video */}
                   {isPeerVideoOn && remoteCamStream ? (
                     <video
-                      ref={remoteVideoRef}
+                      ref={(el) => {
+                        remoteVideoRef.current = el;
+                        if (el && remoteCamStream && el.srcObject !== remoteCamStream) {
+                          el.srcObject = remoteCamStream;
+                          el.play().catch(() => {});
+                        }
+                      }}
                       autoPlay
                       playsInline
+                      muted
                       onLoadedMetadata={(e) => {
+                        e.target.play().catch(() => {});
+                      }}
+                      onCanPlay={(e) => {
                         e.target.play().catch(() => {});
                       }}
                       className="w-full h-full object-cover scale-105 pointer-events-none"

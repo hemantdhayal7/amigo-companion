@@ -276,6 +276,21 @@ export default function App() {
     members.length,
   ]);
 
+  // Unlock browser audio autoplay policy on any user interaction gesture
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+        remoteAudioRef.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener('click', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio, { passive: true });
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
   // Connect to signaling server with aggressive auto-reconnect
   useEffect(() => {
     setAuthError(null);
@@ -353,6 +368,11 @@ export default function App() {
       if (data.doubts) {
         setDoubts(data.doubts);
       }
+      // If partner is already present in room, prepare WebRTC peer connection
+      if (data.members && data.members.length > 1 && peerCallManagerRef.current) {
+        console.log('[App] Partner already present in room, ensuring WebRTC peer connection is ready...');
+        peerCallManagerRef.current.getOrCreatePeerConnection();
+      }
     });
 
     socket.on('user-joined', (newUser) => {
@@ -362,6 +382,11 @@ export default function App() {
         detail: 'Study buddy is online',
         icon: newUser.avatar || '🌸',
       });
+      // Partner joined: proactively initiate WebRTC peer connection so media channels are established immediately
+      if (peerCallManagerRef.current) {
+        console.log('[App] Partner joined room, initiating WebRTC connection...');
+        peerCallManagerRef.current.initiateCall().catch(console.warn);
+      }
     });
 
     socket.on('user-left', ({ userId }) => {
@@ -1072,8 +1097,21 @@ export default function App() {
           }
         />
 
-        {/* Hidden audio element to play remote partner's voice */}
-        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+        {/* Off-screen audio element to play remote partner's voice without being suspended by WebKit display:none */}
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            width: 1,
+            height: 1,
+            opacity: 0.01,
+            pointerEvents: 'none',
+          }}
+        />
       </div>
     </div>
   );
