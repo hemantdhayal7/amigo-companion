@@ -71,6 +71,24 @@ export function setIgnoreCursorEvents(ignore) {
 }
 
 /**
+ * Native Tauri window hide/show for System Tray / Menu Bar Mode
+ */
+export function hideAppWindow() {
+  if (!isTauri()) return;
+  invoke('hide_app_window').catch(() => {});
+}
+
+export function showAppWindow() {
+  if (!isTauri()) return;
+  invoke('show_app_window').catch(() => {});
+}
+
+export function toggleAppWindowVisibility() {
+  if (!isTauri()) return Promise.resolve(false);
+  return invoke('toggle_window_visibility').catch(() => false);
+}
+
+/**
  * Automatically observes the DOM and syncs interactive regions on resize,
  * mutations, and periodic animations.
  */

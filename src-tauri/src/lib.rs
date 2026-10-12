@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewWindow};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Copy, Debug, Default)]
@@ -46,6 +48,32 @@ fn set_ignore_cursor_events(
     Ok(())
 }
 
+#[tauri::command]
+fn toggle_window_visibility(window: WebviewWindow) -> Result<bool, String> {
+    let is_visible = window.is_visible().map_err(|e| e.to_string())?;
+    if is_visible {
+        window.hide().map_err(|e| e.to_string())?;
+        Ok(false)
+    } else {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+fn show_app_window(window: WebviewWindow) -> Result<(), String> {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_app_window(window: WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let interactive_state = InteractiveState::default();
@@ -59,9 +87,65 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_interactive_regions,
             set_force_interactive,
-            set_ignore_cursor_events
+            set_ignore_cursor_events,
+            toggle_window_visibility,
+            show_app_window,
+            hide_app_window
         ])
         .setup(move |app| {
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Amigo", true, None::<&str>)?;
+            let toggle_item =
+                MenuItem::with_id(app, "toggle", "Show/Hide Amigo 🥬", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&toggle_item, &quit_item])?;
+
+            if let Some(icon) = app.default_window_icon() {
+                let _tray = TrayIconBuilder::new()
+                    .menu(&tray_menu)
+                    .tooltip("Amigo Study Companion 🥬")
+                    .icon(icon.clone())
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| {
+                        match event.id.as_ref() {
+                            "quit" => {
+                                app.exit(0);
+                            }
+                            "toggle" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    if let Ok(is_visible) = window.is_visible() {
+                                        if is_visible {
+                                            let _ = window.hide();
+                                        } else {
+                                            let _ = window.show();
+                                            let _ = window.set_focus();
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                if let Ok(is_visible) = window.is_visible() {
+                                    if is_visible {
+                                        let _ = window.hide();
+                                    } else {
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .build(app)?;
+            }
             if let Some(win) = app.get_webview_window("main") {
                 let win_clone = win.clone();
                 std::thread::spawn(move || {

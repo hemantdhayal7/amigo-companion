@@ -93,6 +93,14 @@ export default function FloatingCompanion({
   remoteCamStream = null,
   mediaPermissionError = null,
   onDismissMediaError = () => {},
+  displayMode = 'autopop',
+  onToggleDisplayMode = () => {},
+  popoutEvent = null,
+  popoutCountdown = 5,
+  isCallActive = false,
+  onPinToScreen = () => {},
+  onMouseEnter = () => {},
+  onMouseLeave = () => {},
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCabbageBouncing, setIsCabbageBouncing] = useState(false);
@@ -558,8 +566,50 @@ export default function FloatingCompanion({
         /* 3: OUTER  = EMOJI ORBIT CIRCLE                                 */
         <div
           data-amigo-interactive="true"
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
           className="group/dial flex flex-col items-center select-none relative animate-scaleIn"
         >
+          {/* Active Call Banner: Kept continuously on screen for voice/video/screen sharing */}
+          {isCallActive && (
+            <div className="mb-2 px-3 py-1 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-400/30 text-[8.5px] font-mono font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md animate-fadeIn z-50">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>LIVE CALL ACTIVE (KEEPING ON SCREEN)</span>
+            </div>
+          )}
+
+          {/* 5-Second Auto-Dismiss Popout Banner */}
+          {displayMode === 'autopop' && !isCallActive && popoutEvent && (
+            <div className="mb-2 px-3 py-1.5 rounded-full bg-slate-900/95 text-white font-mono text-[9px] font-bold shadow-2xl border border-emerald-400/40 animate-scaleIn z-50 flex items-center justify-between gap-2.5 backdrop-blur-2xl max-w-[280px] w-full">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-base shrink-0 animate-bounce-short">{popoutEvent.icon || '✨'}</span>
+                <div className="flex flex-col text-left truncate">
+                  <span className="text-emerald-400 font-extrabold text-[9px] truncate">{popoutEvent.title}</span>
+                  {popoutEvent.detail && (
+                    <span className="text-[7.5px] text-slate-300 font-normal truncate">{popoutEvent.detail}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[8px] text-amber-300 font-mono px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                  ⏱️ {popoutCountdown}s
+                </span>
+                <button
+                  data-tauri-drag-region="false"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPinToScreen();
+                  }}
+                  className="px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[8px] font-black hover:bg-emerald-400 transition shadow-sm tauri-no-drag"
+                  title="Keep Amigo permanently on screen"
+                >
+                  PIN
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Gesture Feedback Floating Pill */}
           {feedbackToast && (
             <div className="absolute -top-8 px-3 py-1 rounded-full bg-slate-900/90 text-white font-mono text-[9px] font-bold shadow-2xl border border-white/20 animate-scaleIn z-50 flex items-center gap-1.5 backdrop-blur-2xl">
@@ -628,6 +678,38 @@ export default function FloatingCompanion({
                 <GripHorizontal className="w-2.5 h-2.5 pointer-events-none" />
                 <span className="pointer-events-none">DRAG</span>
               </div>
+
+              {/* Center Right: Keep on Screen (Pin) vs 5s Auto-Pop Mode Toggle */}
+              <button
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleDisplayMode();
+                }}
+                className={`flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full border transition shrink-0 select-none shadow-xs tauri-no-drag ${
+                  displayMode === 'pinned'
+                    ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/25'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                }`}
+                title={
+                  displayMode === 'pinned'
+                    ? 'Currently Pinned (Click to enable Menu / 5s Auto-Pop Mode)'
+                    : 'Currently Menu / 5s Auto-Pop Mode (Click to Pin permanently)'
+                }
+              >
+                {displayMode === 'pinned' ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                    <span>PINNED</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>5s POP</span>
+                  </>
+                )}
+              </button>
 
               {/* Right: Theme Switcher & Collapse Capsule */}
               <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-black/5 dark:bg-white/10 shrink-0 border border-black/5 dark:border-white/10">

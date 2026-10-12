@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import FloatingCompanion from './components/FloatingCompanion';
 import ScreenShareModal from './components/ScreenShareModal';
@@ -9,10 +9,11 @@ import GoalReminderToast from './components/GoalReminderToast';
 import EmojiCustomizerModal from './components/EmojiCustomizerModal';
 import ConnectModal from './components/ConnectModal';
 import DoubtModal from './components/DoubtModal';
+import CabbageLogo from './components/CabbageLogo';
 import { sounds } from './utils/audio';
 import { PeerCallManager } from './utils/webrtc';
 import confetti from 'canvas-confetti';
-import { setupHitTestSync, updateInteractiveRegions } from './utils/hitTesting';
+import { setupHitTestSync, updateInteractiveRegions, showAppWindow, hideAppWindow } from './utils/hitTesting';
 
 const INITIAL_TASKS = [
   { id: '1', text: 'Review Chapter 3 formulas & summary notes', completed: true },
@@ -108,6 +109,86 @@ export default function App() {
   const [peerSharingUser, setPeerSharingUser] = useState(null);
   const [currentStatus, setCurrentStatus] = useState('studying');
   const [sosAlert, setSosAlert] = useState(null);
+
+  // Display Mode:
+  // 'pinned' = Keep permanently on screen (optional)
+  // 'autopop' = Menu mode: hides, pops out for 5s on updates, stays open during calls
+  const [displayMode, setDisplayMode] = useState(() => {
+    return localStorage.getItem('amigo_display_mode') || 'autopop';
+  });
+
+  const isKeepOnScreen = displayMode === 'pinned';
+
+  // Active call or screen share state: keeps companion on screen continuously
+  const isCallActive = Boolean(
+    isVideoOn ||
+    isPeerVideoOn ||
+    isMicOn ||
+    isPeerMicOn ||
+    isSharingScreen ||
+    peerSharingUser ||
+    peerStream ||
+    remoteCamStream
+  );
+
+  const [popoutEvent, setPopoutEvent] = useState(null);
+  const [isPopoutVisible, setIsPopoutVisible] = useState(true);
+  const [popoutCountdown, setPopoutCountdown] = useState(5);
+  const [isHovered, setIsHovered] = useState(false);
+  const autoDismissTimerRef = useRef(null);
+
+  const triggerAutoPopout = useCallback((eventData) => {
+    setPopoutEvent({
+      ...eventData,
+      id: Date.now(),
+    });
+    setPopoutCountdown(5);
+    setIsPopoutVisible(true);
+    showAppWindow();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('amigo_display_mode', displayMode);
+  }, [displayMode]);
+
+  // Handle 5-second auto-dismiss for Auto-Pop Menu Mode
+  useEffect(() => {
+    // If user chose 'pinned' OR an active call/screenshare is ongoing, ALWAYS keep on screen!
+    if (isKeepOnScreen || isCallActive) {
+      if (autoDismissTimerRef.current) clearInterval(autoDismissTimerRef.current);
+      if (!isPopoutVisible) {
+        setIsPopoutVisible(true);
+        showAppWindow();
+      }
+      return;
+    }
+
+    // In 'autopop' mode and not in a call:
+    if (isPopoutVisible) {
+      if (autoDismissTimerRef.current) clearInterval(autoDismissTimerRef.current);
+
+      autoDismissTimerRef.current = setInterval(() => {
+        // Pause countdown while user hovers with mouse
+        if (isHovered) return;
+
+        setPopoutCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(autoDismissTimerRef.current);
+            setIsPopoutVisible(false);
+            hideAppWindow();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => {
+        if (autoDismissTimerRef.current) clearInterval(autoDismissTimerRef.current);
+      };
+    } else {
+      hideAppWindow();
+    }
+  }, [isPopoutVisible, isKeepOnScreen, isCallActive, isHovered, popoutEvent?.id]);
 
   // Check if running in Tauri native app or standard browser
   const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
@@ -205,6 +286,11 @@ export default function App() {
         if (prev <= 1) {
           setShowNudgeToast(true);
           sounds.playGentleAlert();
+          triggerAutoPopout({
+            title: '10-Min Target Check-in ⏰',
+            detail: 'How is your goal progressing?',
+            icon: '🎯',
+          });
           return reminderInterval * 60;
         }
         return prev - 1;
@@ -212,7 +298,7 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [reminderInterval]);
+  }, [reminderInterval, triggerAutoPopout]);
 
   // Set up native hit testing sync so transparent areas let clicks pass through to background apps
   useEffect(() => {
@@ -309,6 +395,11 @@ export default function App() {
 
     socket.on('user-joined', (newUser) => {
       setMembers((prev) => [...prev.filter((m) => m.id !== newUser.id), newUser]);
+      triggerAutoPopout({
+        title: `${newUser.name} joined!`,
+        detail: 'Study buddy is online',
+        icon: newUser.avatar || '🌸',
+      });
     });
 
     socket.on('user-left', ({ userId }) => {
@@ -317,12 +408,22 @@ export default function App() {
         setPeerSharingUser(null);
         setPeerStream(null);
       }
+      triggerAutoPopout({
+        title: 'Study buddy left',
+        detail: 'Disconnected from study date',
+        icon: '👋',
+      });
     });
 
     socket.on('peer-goal-updated', ({ userId, target: peerTarget, tasks: peerTasks, progress: peerProg }) => {
       setMembers((prev) =>
         prev.map((m) => (m.id === userId ? { ...m, target: peerTarget, tasks: peerTasks, progress: peerProg } : m))
       );
+      triggerAutoPopout({
+        title: 'Goal Progress Updated! 🎯',
+        detail: `${peerTarget || 'Milestone'} (${peerProg}%)`,
+        icon: '🎯',
+      });
     });
 
     socket.on('emoji-received', ({ id, emoji, sender, isFountain, direction }) => {
@@ -337,6 +438,11 @@ export default function App() {
           zIndex: 999999,
         });
       }
+      triggerAutoPopout({
+        title: `${sender} reacted!`,
+        detail: `${emoji} reaction received`,
+        icon: emoji,
+      });
     });
 
     socket.on('peer-screen-status', ({ name, isSharing }) => {
@@ -351,12 +457,22 @@ export default function App() {
     socket.on('sos-alert-received', (data) => {
       sounds.playGentleAlert();
       setSosAlert(data);
+      triggerAutoPopout({
+        title: `SOS from ${data.senderName || 'Peer'}! 🚨`,
+        detail: data.note || 'Urgent lifeline check-in',
+        icon: '🚨',
+      });
     });
 
     // Ephemeral Doubts Sync
     socket.on('doubt-created', (newDoubt) => {
       setDoubts((prev) => [newDoubt, ...prev.filter((d) => d.id !== newDoubt.id)]);
       sounds.playPop();
+      triggerAutoPopout({
+        title: 'New Doubt Asked 💡',
+        detail: newDoubt.question,
+        icon: '💡',
+      });
     });
 
     socket.on('doubt-deleted', ({ doubtId }) => {
@@ -420,6 +536,11 @@ export default function App() {
     if (taskBefore && !taskBefore.completed) {
       spawnFloatingEmoji(null, '🎉', 'You', true, 'down');
       sounds.playCelebration();
+      triggerAutoPopout({
+        title: 'Task Checked Off! 🎉',
+        detail: `Progress: ${newProg}% complete`,
+        icon: '✅',
+      });
     }
   };
 
@@ -709,10 +830,38 @@ export default function App() {
         ))}
       </div>
 
+      {/* Discrete Top Menu Bar Pill (Shown when Amigo is tucked into Menu Mode) */}
+      {!isPopoutVisible && !isKeepOnScreen && !isCallActive && (
+        <div
+          data-amigo-interactive="true"
+          onClick={() => {
+            setIsPopoutVisible(true);
+            triggerAutoPopout({
+              title: 'Amigo Opened',
+              detail: 'Click to interact with dial',
+              icon: '🥬',
+            });
+          }}
+          className="fixed top-4 right-6 z-50 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white border border-white/20 shadow-2xl backdrop-blur-2xl cursor-pointer hover:border-emerald-400 hover:scale-105 transition-all text-xs font-semibold select-none group"
+          title="Amigo in Menu Mode (Click to open or wait for updates)"
+        >
+          <CabbageLogo size={18} animated />
+          <span className="font-extrabold tracking-tight text-emerald-400 text-[11px]">AMIGO</span>
+          <span className="text-[9px] text-white/60 font-mono">| ⏱️ Menu Mode</span>
+          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+            {progress}%
+          </span>
+        </div>
+      )}
+
       {/* Floating / Side-Docked Companion Widget */}
       <div
         id="amigo-floating-container"
-        className="w-full max-w-sm pointer-events-auto"
+        className={`w-full max-w-sm pointer-events-auto transition-all duration-300 ${
+          !isPopoutVisible && !isKeepOnScreen && !isCallActive
+            ? 'opacity-0 pointer-events-none scale-95 select-none'
+            : 'opacity-100 scale-100'
+        }`}
         style={getContainerStyle()}
       >
         {/* 10-Minute Target Hover Check-in Toast */}
@@ -877,6 +1026,14 @@ export default function App() {
           remoteCamStream={remoteCamStream}
           mediaPermissionError={mediaPermissionError}
           onDismissMediaError={() => setMediaPermissionError(null)}
+          displayMode={displayMode}
+          onToggleDisplayMode={() => setDisplayMode((prev) => (prev === 'pinned' ? 'autopop' : 'pinned'))}
+          popoutEvent={popoutEvent}
+          popoutCountdown={popoutCountdown}
+          isCallActive={isCallActive}
+          onPinToScreen={() => setDisplayMode('pinned')}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         />
 
         {/* Ephemeral Doubt Hub Modal (3-Hour Self-Destruct & Local Gemma AI) */}
