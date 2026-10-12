@@ -107,7 +107,13 @@ export default function ConnectModal({
     e.preventDefault();
     if (roomInput.trim()) onSaveRoomId(roomInput.trim());
     if (secretInput.trim()) onSaveRoomSecret(secretInput.trim());
-    if (serverInput.trim()) onSaveServerUrl(serverInput.trim());
+    if (serverInput.trim()) {
+      let cleanServer = serverInput.trim().replace(/\/+$/, '');
+      if (!cleanServer.startsWith('http://') && !cleanServer.startsWith('https://')) {
+        cleanServer = `http://${cleanServer}`;
+      }
+      onSaveServerUrl(cleanServer);
+    }
     if (nameInput.trim()) onSaveNickname(nameInput.trim());
     sounds.playPop();
     onClose();
