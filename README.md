@@ -39,6 +39,7 @@ Amigo is your cute kawaii study mascot:
 - Bounces with celebration joy and emoji rainfall when clicked or when tasks are completed.
 - Sits in the center of your floating circular companion hub, keeping study sessions warm and encouraging.
 - Cheers you on during 10-minute accountability goal check-ins.
+- connect to your study buddies with a real time webcame
 
 ---
 
