@@ -1,7 +1,35 @@
 # Amigo 🥬✨
-### Always-On-Top Circular Study Date Companion for macOS & Linux
+### Always-On-Top Circular Study Date Companion for Windows, macOS & Linux
+
+[![GitHub Release](https://img.shields.io/github/v/release/hemantdhayal7/amigo-companion?color=success&label=Official%20Release)](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0)
+[![Website Status](https://img.shields.io/website?url=https%3A%2F%2Fstudy-companion-overlay.vercel.app&label=Live%20Web%20App)](https://study-companion-overlay.vercel.app)
 
 **Amigo** is a cross-platform desktop study companion designed in a sleek **Circle Format (Circular Hub & Floating Orb)** that floats gracefully above all your windows (IDEs, browsers, PDFs, lecture notes). Featuring our cute cabbage mascot **Amigo 🥬**, it keeps you and your study partner connected with real-time face-to-face video calls, crisp voice chat, animated celebration showers, target checklist sync, and caring emotional support.
+
+---
+
+## 📥 Direct Downloads (Official Builds)
+
+You do **not** need to open a terminal or run build commands! Download your installer directly below:
+
+| Platform | Format | Direct 1-Click Download | How to Run |
+| :--- | :--- | :--- | :--- |
+| **🪟 Windows** | 64-bit Installer (`.exe`) | [**Download Amigo for Windows (.exe)**](https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_x64-setup.exe) | Double-click `Amigo_1.0.0_x64-setup.exe` to install and launch. |
+| **🍎 macOS** | Apple Silicon (`.dmg`) | [**Download Amigo for macOS (.dmg)**](https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_aarch64.dmg) | Open `.dmg` and drag `Amigo` to your Applications folder. |
+| **🐧 Linux** | Universal AppImage | [**Download Amigo for Linux (Releases)**](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0) | Make executable (`chmod +x Amigo*.AppImage`) and run. |
+| **🐧 Linux** | Debian / Ubuntu (`.deb`) | [**Download Amigo .deb (Releases)**](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0) | Install via `sudo dpkg -i amigo*.deb` |
+| **🌐 Web App** | Browser (No install needed) | [**Launch Live Web App (Vercel)**](https://study-companion-overlay.vercel.app) | Instant access in Chrome, Edge, Safari, Brave. |
+
+> 📦 **All Release Packages**: Browse all files, checksums, and updates on the [**GitHub Releases Page**](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0).
+
+---
+
+## 🖥️ System Tray / Menu Bar & 5s Auto-Pop System
+Amigo sits quietly in your **Menu Bar** (macOS) or **System Tray** (Windows & Linux):
+- **5-Second Auto-Popout**: Whenever an update occurs (10-minute check-in, emoji shower, goal accomplished, or buddy joining), Amigo automatically pops onto your screen with a 5-second countdown timer, then slides away so it never clutters your workspace.
+- **Active Call Persistence**: When Camera, Microphone, or Screen Sharing is in use, Amigo automatically stays visible on screen without timing out.
+- **Toggle Modes**: Switch between `[📌 PINNED]` (always floating) and `[⏱️ 5s POP]` mode anytime with one click.
+- **Tray Menu**: Left-click or right-click the Amigo tray icon anytime to show or hide the companion.
 
 ---
 
@@ -49,25 +77,25 @@ Amigo is your cute kawaii study mascot:
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Development & Local Build
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Run Amigo
-**Desktop Floating App (macOS & Linux Tauri 2):**
+### 2. Run Locally
+**Desktop Floating App (Tauri 2):**
 ```bash
-./run.sh
+npm run tauri dev
 ```
 
-**Web Mode with HTTPS (For Cross-Computer Video & Mic on Wi-Fi):**
+**Web Mode:**
 ```bash
-./run.sh --web --https
+npm run dev
 ```
 
-### 3. Connect Her Computer
+### 3. Connect Across Computers
 1. Click `[ 🔒 #room ]` on the top bar.
 2. Click **Copy** next to `1-Click Link For Her`.
 3. Send the link to her. Her browser opens Amigo, saves the passcode, and connects automatically!
