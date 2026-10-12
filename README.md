@@ -16,8 +16,8 @@ You do **not** need to open a terminal or run build commands! Download your inst
 | :--- | :--- | :--- | :--- |
 | **🪟 Windows** | 64-bit Installer (`.exe`) | [**Download Amigo for Windows (.exe)**](https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_x64-setup.exe) | Double-click `Amigo_1.0.0_x64-setup.exe` to install and launch. |
 | **🍎 macOS** | Apple Silicon (`.dmg`) | [**Download Amigo for macOS (.dmg)**](https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_aarch64.dmg) | Open `.dmg` and drag `Amigo` to your Applications folder. |
-| **🐧 Linux** | Universal AppImage | [**Download Amigo for Linux (Releases)**](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0) | Make executable (`chmod +x Amigo*.AppImage`) and run. |
-| **🐧 Linux** | Debian / Ubuntu (`.deb`) | [**Download Amigo .deb (Releases)**](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0) | Install via `sudo dpkg -i amigo*.deb` |
+| **🐧 Linux** | Universal AppImage | [**Download Amigo AppImage (.AppImage)**](https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_amd64.AppImage) | Make executable (`chmod +x Amigo*.AppImage`) and run. |
+| **🐧 Linux** | Debian / Ubuntu (`.deb`) | [**Download Amigo Debian/Ubuntu (.deb)**](https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_amd64.deb) | Install via `sudo dpkg -i Amigo*.deb` |
 | **🌐 Web App** | Browser (No install needed) | [**Launch Live Web App (Vercel)**](https://study-companion-overlay.vercel.app) | Instant access in Chrome, Edge, Safari, Brave. |
 
 > 📦 **All Release Packages**: Browse all files, checksums, and updates on the [**GitHub Releases Page**](https://github.com/hemantdhayal7/amigo-companion/releases/tag/v1.0.0).

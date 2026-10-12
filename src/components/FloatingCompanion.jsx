@@ -578,9 +578,9 @@ export default function FloatingCompanion({
             </div>
           )}
 
-          {/* 5-Second Auto-Dismiss Popout Banner */}
-          {displayMode === 'autopop' && !isCallActive && popoutEvent && (
-            <div className="mb-2 px-3 py-1.5 rounded-full bg-slate-900/95 text-white font-mono text-[9px] font-bold shadow-2xl border border-emerald-400/40 animate-scaleIn z-50 flex items-center justify-between gap-2.5 backdrop-blur-2xl max-w-[280px] w-full">
+          {/* 5-Second Auto-Dismiss Popout Banner (Shows only when options pill is closed) */}
+          {displayMode === 'autopop' && !isCallActive && popoutEvent && !isOptionsCircleOpen && (
+            <div className="mb-2 px-3 py-1.5 rounded-full bg-slate-900/95 text-white font-mono text-[9px] font-bold shadow-2xl border border-emerald-400/40 animate-scaleIn z-50 flex items-center justify-between gap-2.5 backdrop-blur-2xl max-w-[340px] w-full">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-base shrink-0 animate-bounce-short">{popoutEvent.icon || '✨'}</span>
                 <div className="flex flex-col text-left truncate">
@@ -638,7 +638,7 @@ export default function FloatingCompanion({
             <div
               data-tauri-drag-region
               onMouseDown={handleDragButtonMouseDown}
-              className={`mb-2 w-full max-w-[280px] px-3 py-1.5 rounded-full flex items-center justify-between gap-1.5 shadow-lg backdrop-blur-2xl border transition-all cursor-grab active:cursor-grabbing text-[10px] select-none animate-fadeIn ${
+              className={`mb-2 w-full max-w-[340px] px-3 py-1.5 rounded-full flex items-center justify-between gap-1.5 shadow-lg backdrop-blur-2xl border transition-all cursor-grab active:cursor-grabbing text-[10px] select-none animate-fadeIn ${
                 isWhite
                   ? 'bg-white/90 border-white/95 text-slate-700 shadow-slate-300/40'
                   : isBlush
@@ -706,7 +706,7 @@ export default function FloatingCompanion({
                 ) : (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>5s POP</span>
+                    <span>{popoutCountdown > 0 ? `⏱️ ${popoutCountdown}s` : '5s POP'}</span>
                   </>
                 )}
               </button>

@@ -795,7 +795,7 @@ export default function App() {
     <div
       className={
         isTauri
-          ? "w-full h-full flex flex-col justify-end p-2 select-none relative"
+          ? "w-full h-full flex flex-col justify-end items-center p-2 select-none relative"
           : "fixed inset-0 pointer-events-none select-none z-50 overflow-hidden"
       }
     >
@@ -857,7 +857,7 @@ export default function App() {
       {/* Floating / Side-Docked Companion Widget */}
       <div
         id="amigo-floating-container"
-        className={`w-full max-w-sm pointer-events-auto transition-all duration-300 ${
+        className={`w-full max-w-[360px] mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center ${
           !isPopoutVisible && !isKeepOnScreen && !isCallActive
             ? 'opacity-0 pointer-events-none scale-95 select-none'
             : 'opacity-100 scale-100'
