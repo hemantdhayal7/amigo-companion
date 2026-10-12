@@ -24,6 +24,8 @@ export class PeerCallManager {
     this.isPeerMicOn = false;
     this.isPeerVideoOn = false;
     this.screenStream = null;
+    this.videoSender = null;
+    this.audioSender = null;
 
     this.isInitiator = false;
     this.isMakingOffer = false;
@@ -61,6 +63,10 @@ export class PeerCallManager {
     this.socket.on('peer-media-status', ({ userId, isMicOn, isVideoOn }) => {
       this.isPeerMicOn = Boolean(isMicOn);
       this.isPeerVideoOn = Boolean(isVideoOn);
+      if (this.isPeerVideoOn) {
+        // Partner turned camera back on: immediately refresh remote stream to un-freeze video
+        this.refreshRemoteStream();
+      }
       this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: this.isPeerVideoOn });
     });
 
@@ -70,6 +76,82 @@ export class PeerCallManager {
       this.onPeerMediaStatus({ isPeerMicOn: false, isPeerVideoOn: false });
       this.resetPeerConnection();
     });
+  }
+
+  refreshRemoteStream() {
+    // Reconstruct fresh MediaStream instance with active live tracks to force video element re-render
+    const liveTracks = this.remoteStream.getTracks().filter((t) => t.readyState === 'live');
+    const freshStream = new MediaStream(liveTracks.length > 0 ? liveTracks : this.remoteStream.getTracks());
+    this.onRemoteStreamUpdate(freshStream);
+  }
+
+  findVideoSender() {
+    if (!this.peerConnection) return null;
+    const pc = this.peerConnection;
+    const senders = pc.getSenders();
+
+    if (this.videoSender && senders.includes(this.videoSender)) {
+      return this.videoSender;
+    }
+
+    if (pc.getTransceivers) {
+      const videoTransceiver = pc.getTransceivers().find(
+        (t) =>
+          (t.receiver?.track?.kind === 'video') ||
+          (t.sender?.track?.kind === 'video') ||
+          (t.sender === this.videoSender)
+      );
+      if (videoTransceiver && videoTransceiver.sender) {
+        this.videoSender = videoTransceiver.sender;
+        return this.videoSender;
+      }
+    }
+
+    const withTrack = senders.find((s) => s.track && s.track.kind === 'video');
+    if (withTrack) {
+      this.videoSender = withTrack;
+      return withTrack;
+    }
+
+    const audioSender = this.findAudioSender();
+    const candidate = senders.find((s) => s !== audioSender);
+    if (candidate) {
+      this.videoSender = candidate;
+      return candidate;
+    }
+
+    return null;
+  }
+
+  findAudioSender() {
+    if (!this.peerConnection) return null;
+    const pc = this.peerConnection;
+    const senders = pc.getSenders();
+
+    if (this.audioSender && senders.includes(this.audioSender)) {
+      return this.audioSender;
+    }
+
+    if (pc.getTransceivers) {
+      const audioTransceiver = pc.getTransceivers().find(
+        (t) =>
+          (t.receiver?.track?.kind === 'audio') ||
+          (t.sender?.track?.kind === 'audio') ||
+          (t.sender === this.audioSender)
+      );
+      if (audioTransceiver && audioTransceiver.sender) {
+        this.audioSender = audioTransceiver.sender;
+        return this.audioSender;
+      }
+    }
+
+    const withTrack = senders.find((s) => s.track && s.track.kind === 'audio');
+    if (withTrack) {
+      this.audioSender = withTrack;
+      return withTrack;
+    }
+
+    return null;
   }
 
   getOrCreatePeerConnection() {
@@ -88,19 +170,36 @@ export class PeerCallManager {
     // Handle remote tracks (audio, webcam, and screen share)
     pc.ontrack = (event) => {
       console.log('[WebRTC] Remote track received:', event.track?.kind, event.track?.id);
-      if (event.track) {
-        if (!this.remoteStream.getTracks().some((t) => t.id === event.track.id)) {
-          this.remoteStream.addTrack(event.track);
+      const incomingTrack = event.track;
+      if (!incomingTrack) return;
+
+      // Clean out any stale or ended tracks of the same kind to prevent video freeze
+      this.remoteStream.getTracks().forEach((existingTrack) => {
+        if (
+          existingTrack.kind === incomingTrack.kind &&
+          (existingTrack.readyState === 'ended' || existingTrack.id !== incomingTrack.id)
+        ) {
+          console.log('[WebRTC] Removing stale/replaced remote track:', existingTrack.id);
+          this.remoteStream.removeTrack(existingTrack);
         }
+      });
+
+      if (!this.remoteStream.getTracks().some((t) => t.id === incomingTrack.id)) {
+        this.remoteStream.addTrack(incomingTrack);
       }
-      if (event.streams && event.streams[0]) {
-        event.streams[0].getTracks().forEach((track) => {
-          if (!this.remoteStream.getTracks().some((t) => t.id === track.id)) {
-            this.remoteStream.addTrack(track);
-          }
-        });
-      }
-      this.onRemoteStreamUpdate(this.remoteStream);
+
+      incomingTrack.onended = () => {
+        console.log('[WebRTC] Remote track ended:', incomingTrack.id);
+        this.remoteStream.removeTrack(incomingTrack);
+        this.refreshRemoteStream();
+      };
+
+      incomingTrack.onunmute = () => {
+        console.log('[WebRTC] Remote track unmuted, refreshing stream:', incomingTrack.id);
+        this.refreshRemoteStream();
+      };
+
+      this.refreshRemoteStream();
     };
 
     // Send ICE candidates to partner
@@ -127,7 +226,14 @@ export class PeerCallManager {
     // Check collision / polite peer handling
     const offerCollision = this.isMakingOffer || pc.signalingState !== 'stable';
     if (offerCollision) {
-      console.log('[WebRTC] Offer collision detected, resolving...');
+      console.log('[WebRTC] Offer collision detected, rolling back to stable...');
+      if (pc.signalingState !== 'stable') {
+        try {
+          await pc.setLocalDescription({ type: 'rollback' });
+        } catch (e) {
+          console.warn('[WebRTC] Rollback error:', e);
+        }
+      }
     }
 
     await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -252,13 +358,15 @@ export class PeerCallManager {
         this.isMicOn = true;
 
         const pc = this.getOrCreatePeerConnection();
-        // Replace or add track to PeerConnection
-        const senders = pc.getSenders();
-        const audioSender = senders.find((s) => s.track && s.track.kind === 'audio');
+        const audioSender = this.findAudioSender();
+
         if (audioSender) {
+          console.log('[WebRTC] Resuming audio: replacing track on existing sender');
           await audioSender.replaceTrack(newAudioTrack);
+          this.audioSender = audioSender;
         } else {
-          pc.addTrack(newAudioTrack, this.localStream);
+          console.log('[WebRTC] Adding initial audio track to PeerConnection');
+          this.audioSender = pc.addTrack(newAudioTrack, this.localStream);
           await this.negotiate();
         }
 
@@ -275,12 +383,13 @@ export class PeerCallManager {
         this.localStream.removeTrack(t);
       });
 
-      if (this.peerConnection) {
-        const audioSender = this.peerConnection.getSenders().find((s) => s.track && s.track.kind === 'audio');
-        if (audioSender) {
-          try {
-            await audioSender.replaceTrack(null);
-          } catch {}
+      const audioSender = this.findAudioSender();
+      if (audioSender) {
+        try {
+          console.log('[WebRTC] Setting audio sender to null (mic off)');
+          await audioSender.replaceTrack(null);
+        } catch (e) {
+          console.warn('[WebRTC] Error clearing audio track:', e);
         }
       }
 
@@ -321,13 +430,15 @@ export class PeerCallManager {
         this.isVideoOn = true;
 
         const pc = this.getOrCreatePeerConnection();
-        // Replace or add track to PeerConnection
-        const senders = pc.getSenders();
-        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+        const videoSender = this.findVideoSender();
+
         if (videoSender) {
+          console.log('[WebRTC] Resuming video: replacing track on existing sender');
           await videoSender.replaceTrack(newVideoTrack);
+          this.videoSender = videoSender;
         } else {
-          pc.addTrack(newVideoTrack, this.localStream);
+          console.log('[WebRTC] Adding initial video track to PeerConnection');
+          this.videoSender = pc.addTrack(newVideoTrack, this.localStream);
           await this.negotiate();
         }
 
@@ -344,12 +455,13 @@ export class PeerCallManager {
         this.localStream.removeTrack(t);
       });
 
-      if (this.peerConnection) {
-        const videoSender = this.peerConnection.getSenders().find((s) => s.track && s.track.kind === 'video');
-        if (videoSender) {
-          try {
-            await videoSender.replaceTrack(null);
-          } catch {}
+      const videoSender = this.findVideoSender();
+      if (videoSender) {
+        try {
+          console.log('[WebRTC] Setting video sender to null (cam off)');
+          await videoSender.replaceTrack(null);
+        } catch (e) {
+          console.warn('[WebRTC] Error clearing video track:', e);
         }
       }
 
@@ -366,15 +478,15 @@ export class PeerCallManager {
     if (!screenTrack) throw new Error('No video track available in screen stream');
 
     const pc = this.getOrCreatePeerConnection();
-    const senders = pc.getSenders();
-    const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+    const videoSender = this.findVideoSender();
 
     if (videoSender) {
       console.log('[WebRTC] Replacing video sender track with screen share track');
       await videoSender.replaceTrack(screenTrack);
+      this.videoSender = videoSender;
     } else {
       console.log('[WebRTC] Adding screen share track to PeerConnection');
-      pc.addTrack(screenTrack, this.localStream);
+      this.videoSender = pc.addTrack(screenTrack, this.localStream);
       await this.negotiate();
     }
 
@@ -395,20 +507,17 @@ export class PeerCallManager {
       this.screenStream = null;
     }
 
-    if (this.peerConnection) {
-      const senders = this.peerConnection.getSenders();
-      const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-      if (videoSender) {
-        // If webcam was active before screen share, restore camera track
-        const camTrack = this.localStream.getVideoTracks().find((t) => t.readyState === 'live');
-        if (this.isVideoOn && camTrack) {
-          console.log('[WebRTC] Restoring camera track after screen share');
-          await videoSender.replaceTrack(camTrack);
-        } else {
-          try {
-            await videoSender.replaceTrack(null);
-          } catch {}
-        }
+    const videoSender = this.findVideoSender();
+    if (videoSender) {
+      // If webcam was active before screen share, restore camera track
+      const camTrack = this.localStream.getVideoTracks().find((t) => t.readyState === 'live');
+      if (this.isVideoOn && camTrack) {
+        console.log('[WebRTC] Restoring camera track after screen share');
+        await videoSender.replaceTrack(camTrack);
+      } else {
+        try {
+          await videoSender.replaceTrack(null);
+        } catch {}
       }
     }
 
@@ -448,6 +557,8 @@ export class PeerCallManager {
       } catch {}
       this.peerConnection = null;
     }
+    this.videoSender = null;
+    this.audioSender = null;
     this.remoteStream = new MediaStream();
     this.onRemoteStreamUpdate(this.remoteStream);
   }

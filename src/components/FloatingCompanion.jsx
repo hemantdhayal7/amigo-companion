@@ -120,19 +120,34 @@ export default function FloatingCompanion({
   const clickTimerRef = useRef(null);
 
   const localVideoRef = useRef(null);
+  const pipVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
   // Attach local webcam stream
   useEffect(() => {
-    if (localVideoRef.current && localCamStream) {
-      localVideoRef.current.srcObject = localCamStream;
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = localCamStream || null;
+      if (localCamStream && isVideoOn) {
+        localVideoRef.current.play().catch(() => {});
+      }
     }
-  }, [localCamStream, isVideoOn]);
+    if (pipVideoRef.current) {
+      pipVideoRef.current.srcObject = localCamStream || null;
+      if (localCamStream && isVideoOn) {
+        pipVideoRef.current.play().catch(() => {});
+      }
+    }
+  }, [localCamStream, isVideoOn, isPeerVideoOn]);
 
-  // Attach remote partner's webcam stream
+  // Attach remote partner's webcam stream and guarantee instant playback resumption
   useEffect(() => {
-    if (remoteVideoRef.current && remoteCamStream) {
-      remoteVideoRef.current.srcObject = remoteCamStream;
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteCamStream || null;
+      if (remoteCamStream && isPeerVideoOn) {
+        remoteVideoRef.current.play().catch((err) => {
+          console.debug('[FloatingCompanion] Remote video play postponed:', err);
+        });
+      }
     }
   }, [remoteCamStream, isPeerVideoOn]);
 
@@ -1038,6 +1053,9 @@ export default function FloatingCompanion({
                       ref={remoteVideoRef}
                       autoPlay
                       playsInline
+                      onLoadedMetadata={(e) => {
+                        e.target.play().catch(() => {});
+                      }}
                       className="w-full h-full object-cover scale-105 pointer-events-none"
                     />
                   ) : (
@@ -1047,6 +1065,9 @@ export default function FloatingCompanion({
                       autoPlay
                       playsInline
                       muted
+                      onLoadedMetadata={(e) => {
+                        e.target.play().catch(() => {});
+                      }}
                       className="w-full h-full object-cover mirror scale-105 pointer-events-none"
                     />
                   )}
@@ -1055,10 +1076,13 @@ export default function FloatingCompanion({
                   {isPeerVideoOn && isVideoOn && localCamStream && (
                     <div className="absolute bottom-1.5 right-1.5 w-10 h-10 rounded-full overflow-hidden border border-emerald-400 shadow-md bg-black z-20 pointer-events-none">
                       <video
-                        ref={localVideoRef}
+                        ref={pipVideoRef}
                         autoPlay
                         playsInline
                         muted
+                        onLoadedMetadata={(e) => {
+                          e.target.play().catch(() => {});
+                        }}
                         className="w-full h-full object-cover mirror scale-105 pointer-events-none"
                       />
                     </div>
