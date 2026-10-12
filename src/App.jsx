@@ -110,14 +110,9 @@ export default function App() {
   const [currentStatus, setCurrentStatus] = useState('studying');
   const [sosAlert, setSosAlert] = useState(null);
 
-  // Display Mode:
-  // 'pinned' = Keep permanently on screen (optional)
-  // 'autopop' = Menu mode: hides, pops out for 5s on updates, stays open during calls
-  const [displayMode, setDisplayMode] = useState(() => {
-    return localStorage.getItem('amigo_display_mode') || 'autopop';
-  });
-
-  const isKeepOnScreen = displayMode === 'pinned';
+  // Display Mode: Always kept on screen! No auto-hiding after 5 seconds.
+  const [displayMode, setDisplayMode] = useState('pinned');
+  const isKeepOnScreen = true;
 
   // Active call or screen share state: keeps companion on screen continuously
   const isCallActive = Boolean(
@@ -133,62 +128,22 @@ export default function App() {
 
   const [popoutEvent, setPopoutEvent] = useState(null);
   const [isPopoutVisible, setIsPopoutVisible] = useState(true);
-  const [popoutCountdown, setPopoutCountdown] = useState(5);
-  const [isHovered, setIsHovered] = useState(false);
-  const autoDismissTimerRef = useRef(null);
 
   const triggerAutoPopout = useCallback((eventData) => {
     setPopoutEvent({
       ...eventData,
       id: Date.now(),
     });
-    setPopoutCountdown(5);
     setIsPopoutVisible(true);
     showAppWindow();
   }, []);
 
+  // Ensure Amigo always stays on screen and never auto-hides
   useEffect(() => {
-    localStorage.setItem('amigo_display_mode', displayMode);
-  }, [displayMode]);
-
-  // Handle 5-second auto-dismiss for Auto-Pop Menu Mode
-  useEffect(() => {
-    // If user chose 'pinned' OR an active call/screenshare is ongoing, ALWAYS keep on screen!
-    if (isKeepOnScreen || isCallActive) {
-      if (autoDismissTimerRef.current) clearInterval(autoDismissTimerRef.current);
-      if (!isPopoutVisible) {
-        setIsPopoutVisible(true);
-        showAppWindow();
-      }
-      return;
-    }
-
-    // In 'autopop' mode and not in a call:
-    if (isPopoutVisible) {
-      if (autoDismissTimerRef.current) clearInterval(autoDismissTimerRef.current);
-
-      autoDismissTimerRef.current = setInterval(() => {
-        // Pause countdown while user hovers with mouse
-        if (isHovered) return;
-
-        setPopoutCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(autoDismissTimerRef.current);
-            setIsPopoutVisible(false);
-            hideAppWindow();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => {
-        if (autoDismissTimerRef.current) clearInterval(autoDismissTimerRef.current);
-      };
-    } else {
-      hideAppWindow();
-    }
-  }, [isPopoutVisible, isKeepOnScreen, isCallActive, isHovered, popoutEvent?.id]);
+    localStorage.setItem('amigo_display_mode', 'pinned');
+    setIsPopoutVisible(true);
+    showAppWindow();
+  }, []);
 
   // Check if running in Tauri native app or standard browser
   const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
@@ -1027,13 +982,9 @@ export default function App() {
           mediaPermissionError={mediaPermissionError}
           onDismissMediaError={() => setMediaPermissionError(null)}
           displayMode={displayMode}
-          onToggleDisplayMode={() => setDisplayMode((prev) => (prev === 'pinned' ? 'autopop' : 'pinned'))}
           popoutEvent={popoutEvent}
-          popoutCountdown={popoutCountdown}
           isCallActive={isCallActive}
-          onPinToScreen={() => setDisplayMode('pinned')}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          onHideToTray={hideAppWindow}
         />
 
         {/* Ephemeral Doubt Hub Modal (3-Hour Self-Destruct & Local Gemma AI) */}

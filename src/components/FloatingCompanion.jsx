@@ -10,6 +10,7 @@ import {
   MicOff,
   Video,
   VideoOff,
+  EyeOff,
   Sun,
   Moon,
   Flower2,
@@ -99,6 +100,7 @@ export default function FloatingCompanion({
   popoutCountdown = 5,
   isCallActive = false,
   onPinToScreen = () => {},
+  onHideToTray = () => {},
   onMouseEnter = () => {},
   onMouseLeave = () => {},
 }) {
@@ -578,38 +580,6 @@ export default function FloatingCompanion({
             </div>
           )}
 
-          {/* 5-Second Auto-Dismiss Popout Banner (Shows only when options pill is closed) */}
-          {displayMode === 'autopop' && !isCallActive && popoutEvent && !isOptionsCircleOpen && (
-            <div className="mb-2 px-3 py-1.5 rounded-full bg-slate-900/95 text-white font-mono text-[9px] font-bold shadow-2xl border border-emerald-400/40 animate-scaleIn z-50 flex items-center justify-between gap-2.5 backdrop-blur-2xl max-w-[340px] w-full">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-base shrink-0 animate-bounce-short">{popoutEvent.icon || '✨'}</span>
-                <div className="flex flex-col text-left truncate">
-                  <span className="text-emerald-400 font-extrabold text-[9px] truncate">{popoutEvent.title}</span>
-                  {popoutEvent.detail && (
-                    <span className="text-[7.5px] text-slate-300 font-normal truncate">{popoutEvent.detail}</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[8px] text-amber-300 font-mono px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
-                  ⏱️ {popoutCountdown}s
-                </span>
-                <button
-                  data-tauri-drag-region="false"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPinToScreen();
-                  }}
-                  className="px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[8px] font-black hover:bg-emerald-400 transition shadow-sm tauri-no-drag"
-                  title="Keep Amigo permanently on screen"
-                >
-                  PIN
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Gesture Feedback Floating Pill */}
           {feedbackToast && (
             <div className="absolute -top-8 px-3 py-1 rounded-full bg-slate-900/90 text-white font-mono text-[9px] font-bold shadow-2xl border border-white/20 animate-scaleIn z-50 flex items-center gap-1.5 backdrop-blur-2xl">
@@ -679,36 +649,19 @@ export default function FloatingCompanion({
                 <span className="pointer-events-none">DRAG</span>
               </div>
 
-              {/* Center Right: Keep on Screen (Pin) vs 5s Auto-Pop Mode Toggle */}
+              {/* Center Right: Hide to Tray button */}
               <button
                 data-tauri-drag-region="false"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggleDisplayMode();
+                  onHideToTray();
                 }}
-                className={`flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full border transition shrink-0 select-none shadow-xs tauri-no-drag ${
-                  displayMode === 'pinned'
-                    ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/25'
-                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                }`}
-                title={
-                  displayMode === 'pinned'
-                    ? 'Currently Pinned (Click to enable Menu / 5s Auto-Pop Mode)'
-                    : 'Currently Menu / 5s Auto-Pop Mode (Click to Pin permanently)'
-                }
+                className="flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full border transition shrink-0 select-none shadow-xs tauri-no-drag bg-black/5 dark:bg-white/10 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border-black/5 dark:border-white/10"
+                title="Hide Amigo into Menu Bar / System Tray (Click Menu Bar icon to restore)"
               >
-                {displayMode === 'pinned' ? (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                    <span>PINNED</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>{popoutCountdown > 0 ? `⏱️ ${popoutCountdown}s` : '5s POP'}</span>
-                  </>
-                )}
+                <EyeOff className="w-2.5 h-2.5" />
+                <span>HIDE</span>
               </button>
 
               {/* Right: Theme Switcher & Collapse Capsule */}
