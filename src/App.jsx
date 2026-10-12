@@ -284,7 +284,11 @@ export default function App() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 3000,
       randomizationFactor: 0.1,
-      timeout: 5000,
+      timeout: 8000,
+      transports: ['websocket', 'polling'],
+      extraHeaders: {
+        'Bypass-Tunnel-Reminder': 'true',
+      },
     });
     socketRef.current = socket;
 
