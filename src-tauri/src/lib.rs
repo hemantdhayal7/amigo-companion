@@ -74,6 +74,34 @@ fn hide_app_window(window: WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn resize_window_for_screenshare(window: WebviewWindow, mode: String) -> Result<(), String> {
+    match mode.as_str() {
+        "fullscreen" => {
+            let _ = window.maximize();
+        }
+        "theater" => {
+            let _ = window.unmaximize();
+            let _ = window.set_fullscreen(false);
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: 1060.0,
+                height: 720.0,
+            }));
+            let _ = window.center();
+        }
+        "compact" => {
+            let _ = window.unmaximize();
+            let _ = window.set_fullscreen(false);
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: 420.0,
+                height: 740.0,
+            }));
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let interactive_state = InteractiveState::default();
@@ -90,7 +118,8 @@ pub fn run() {
             set_ignore_cursor_events,
             toggle_window_visibility,
             show_app_window,
-            hide_app_window
+            hide_app_window,
+            resize_window_for_screenshare
         ])
         .setup(move |app| {
             let quit_item = MenuItem::with_id(app, "quit", "Quit Amigo", true, None::<&str>)?;

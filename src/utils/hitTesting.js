@@ -89,6 +89,16 @@ export function toggleAppWindowVisibility() {
 }
 
 /**
+ * Dynamically resize Tauri window for screen sharing modes: 'fullscreen', 'theater', 'compact'
+ */
+export function resizeWindowForScreenshare(mode) {
+  if (!isTauri()) return;
+  invoke('resize_window_for_screenshare', { mode }).catch((err) => {
+    console.debug('[Tauri] resize_window_for_screenshare:', err);
+  });
+}
+
+/**
  * Automatically observes the DOM and syncs interactive regions on resize,
  * mutations, and periodic animations.
  */

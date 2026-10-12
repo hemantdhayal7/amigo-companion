@@ -13,7 +13,7 @@ import CabbageLogo from './components/CabbageLogo';
 import { sounds } from './utils/audio';
 import { PeerCallManager } from './utils/webrtc';
 import confetti from 'canvas-confetti';
-import { setupHitTestSync, updateInteractiveRegions, showAppWindow, hideAppWindow } from './utils/hitTesting';
+import { setupHitTestSync, updateInteractiveRegions, showAppWindow, hideAppWindow, resizeWindowForScreenshare } from './utils/hitTesting';
 
 const INITIAL_TASKS = [
   { id: '1', text: 'Review Chapter 3 formulas & summary notes', completed: true },
@@ -107,6 +107,7 @@ export default function App() {
   const [localStream, setLocalStream] = useState(null);
   const [peerStream, setPeerStream] = useState(null);
   const [peerSharingUser, setPeerSharingUser] = useState(null);
+  const [screenViewMode, setScreenViewMode] = useState('theater'); // 'compact' | 'theater' | 'fullscreen' | 'minimized'
   const [currentStatus, setCurrentStatus] = useState('studying');
   const [sosAlert, setSosAlert] = useState(null);
 
@@ -297,7 +298,9 @@ export default function App() {
       socket,
       onRemoteStreamUpdate: (stream) => {
         console.log('[App] Remote media stream updated, tracks:', stream.getTracks().length);
-        setRemoteCamStream(new MediaStream(stream.getTracks()));
+        const newStream = new MediaStream(stream.getTracks());
+        setRemoteCamStream(newStream);
+        setPeerStream(newStream);
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
           remoteAudioRef.current.play().catch(() => {});
@@ -407,9 +410,19 @@ export default function App() {
     socket.on('peer-screen-status', ({ name, isSharing }) => {
       if (isSharing) {
         setPeerSharingUser(name);
+        setActiveModal('screen');
+        setScreenViewMode('theater');
+        resizeWindowForScreenshare('theater');
+        sounds.playCelebration();
+        triggerAutoPopout({
+          title: `${name} is sharing screen! 🖥️`,
+          detail: 'Screen share opened in Theater mode',
+          icon: '🖥️',
+        });
       } else {
         setPeerSharingUser(null);
         setPeerStream(null);
+        resizeWindowForScreenshare('compact');
       }
     });
 
@@ -607,35 +620,40 @@ export default function App() {
   const handleStartScreenShare = async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always' },
+        video: { cursor: 'always', frameRate: { ideal: 30 } },
         audio: true,
       });
 
       setLocalStream(stream);
       setIsSharingScreen(true);
+      setActiveModal('screen');
+      setScreenViewMode('theater');
+      resizeWindowForScreenshare('theater');
+
+      // Pipe through WebRTC to partner!
+      if (peerCallManagerRef.current) {
+        await peerCallManagerRef.current.startScreenShare(stream);
+      }
 
       stream.getVideoTracks()[0].onended = () => {
         handleStopScreenShare();
       };
-
-      if (socketRef.current && isConnected) {
-        socketRef.current.emit('screen-share-status', { isSharing: true });
-      }
     } catch (err) {
       console.warn('Screen share canceled or not permitted:', err);
     }
   };
 
   // Stop Screen Share
-  const handleStopScreenShare = () => {
+  const handleStopScreenShare = async () => {
+    if (peerCallManagerRef.current) {
+      await peerCallManagerRef.current.stopScreenShare();
+    }
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
       setLocalStream(null);
     }
     setIsSharingScreen(false);
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('screen-share-status', { isSharing: false });
-    }
+    resizeWindowForScreenshare('compact');
   };
 
   // Handle Crisis SOS
@@ -816,13 +834,45 @@ export default function App() {
       {/* Floating / Side-Docked Companion Widget */}
       <div
         id="amigo-floating-container"
-        className={`w-full max-w-[360px] mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center ${
+        className={`w-full mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center ${
+          activeModal === 'screen' && (screenViewMode === 'theater' || screenViewMode === 'fullscreen')
+            ? 'max-w-6xl px-4'
+            : 'max-w-[360px]'
+        } ${
           !isPopoutVisible && !isKeepOnScreen && !isCallActive
             ? 'opacity-0 pointer-events-none scale-95 select-none'
             : 'opacity-100 scale-100'
         }`}
-        style={getContainerStyle()}
+        style={
+          activeModal === 'screen' && (screenViewMode === 'theater' || screenViewMode === 'fullscreen')
+            ? { position: 'relative' }
+            : getContainerStyle()
+        }
       >
+        {/* Peer Screen Sharing Notification Banner (1-Click to view) */}
+        {peerSharingUser && activeModal !== 'screen' && (
+          <div data-amigo-interactive="true" className="w-full mb-2.5">
+            <button
+              onClick={() => {
+                setActiveModal('screen');
+                setScreenViewMode('theater');
+                resizeWindowForScreenshare('theater');
+              }}
+              className="w-full py-2.5 px-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-2xl text-xs font-semibold flex items-center justify-between shadow-xl shadow-indigo-600/30 border border-indigo-400/40 animate-pulse transition active:scale-95"
+            >
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span>🖥️ {peerSharingUser} is sharing screen</span>
+              </div>
+              <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-lg font-mono font-bold flex items-center gap-1">
+                View Screen ⤢
+              </span>
+            </button>
+          </div>
+        )}
         {/* 10-Minute Target Hover Check-in Toast */}
         {showNudgeToast && (
           <div data-amigo-interactive="true" className="mb-2">
@@ -912,7 +962,7 @@ export default function App() {
         )}
 
         {activeModal === 'screen' && (
-          <div data-amigo-interactive="true" className="mb-2">
+          <div data-amigo-interactive="true" className="w-full mb-2">
             <ScreenShareModal
               isSharing={isSharingScreen}
               localStream={localStream}
@@ -920,7 +970,12 @@ export default function App() {
               peerSharingUser={peerSharingUser}
               onStartShare={handleStartScreenShare}
               onStopShare={handleStopScreenShare}
-              onClose={() => setActiveModal('none')}
+              onClose={() => {
+                setActiveModal('none');
+                resizeWindowForScreenshare('compact');
+              }}
+              viewMode={screenViewMode}
+              onChangeViewMode={(mode) => setScreenViewMode(mode)}
             />
           </div>
         )}
@@ -964,8 +1019,17 @@ export default function App() {
           floatingEmojis={floatingEmojis}
           quickEmojis={quickEmojis}
           onOpenCustomizer={() => setActiveModal('customizer')}
-          onOpenScreenShare={() => setActiveModal(activeModal === 'screen' ? 'none' : 'screen')}
           onOpenSos={() => setActiveModal('sos')}
+          onOpenScreenShare={() => {
+            if (activeModal === 'screen') {
+              setActiveModal('none');
+              resizeWindowForScreenshare('compact');
+            } else {
+              setActiveModal('screen');
+              setScreenViewMode('theater');
+              resizeWindowForScreenshare('theater');
+            }
+          }}
           onOpenSession={() => setActiveModal(activeModal === 'session' ? 'none' : 'session')}
           onLeaveSession={handleLeaveSession}
           sosAlert={sosAlert}

@@ -23,6 +23,7 @@ export class PeerCallManager {
     this.isVideoOn = false;
     this.isPeerMicOn = false;
     this.isPeerVideoOn = false;
+    this.screenStream = null;
 
     this.isInitiator = false;
     this.isMakingOffer = false;
@@ -84,14 +85,21 @@ export class PeerCallManager {
       pc.addTrack(track, this.localStream);
     });
 
-    // Handle remote tracks
+    // Handle remote tracks (audio, webcam, and screen share)
     pc.ontrack = (event) => {
-      console.log('[WebRTC] Remote track received:', event.track.kind);
-      event.streams[0]?.getTracks().forEach((track) => {
-        if (!this.remoteStream.getTracks().some((t) => t.id === track.id)) {
-          this.remoteStream.addTrack(track);
+      console.log('[WebRTC] Remote track received:', event.track?.kind, event.track?.id);
+      if (event.track) {
+        if (!this.remoteStream.getTracks().some((t) => t.id === event.track.id)) {
+          this.remoteStream.addTrack(event.track);
         }
-      });
+      }
+      if (event.streams && event.streams[0]) {
+        event.streams[0].getTracks().forEach((track) => {
+          if (!this.remoteStream.getTracks().some((t) => t.id === track.id)) {
+            this.remoteStream.addTrack(track);
+          }
+        });
+      }
       this.onRemoteStreamUpdate(this.remoteStream);
     };
 
@@ -351,6 +359,64 @@ export class PeerCallManager {
     }
   }
 
+  // Start Screen Sharing via WebRTC
+  async startScreenShare(displayStream) {
+    this.screenStream = displayStream;
+    const screenTrack = displayStream.getVideoTracks()[0];
+    if (!screenTrack) throw new Error('No video track available in screen stream');
+
+    const pc = this.getOrCreatePeerConnection();
+    const senders = pc.getSenders();
+    const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+
+    if (videoSender) {
+      console.log('[WebRTC] Replacing video sender track with screen share track');
+      await videoSender.replaceTrack(screenTrack);
+    } else {
+      console.log('[WebRTC] Adding screen share track to PeerConnection');
+      pc.addTrack(screenTrack, this.localStream);
+      await this.negotiate();
+    }
+
+    // Handle when user stops sharing via OS or browser floating toolbar
+    screenTrack.onended = () => {
+      this.stopScreenShare();
+    };
+
+    if (this.socket) {
+      this.socket.emit('screen-share-status', { isSharing: true });
+    }
+  }
+
+  // Stop Screen Sharing via WebRTC
+  async stopScreenShare() {
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach((t) => t.stop());
+      this.screenStream = null;
+    }
+
+    if (this.peerConnection) {
+      const senders = this.peerConnection.getSenders();
+      const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+      if (videoSender) {
+        // If webcam was active before screen share, restore camera track
+        const camTrack = this.localStream.getVideoTracks().find((t) => t.readyState === 'live');
+        if (this.isVideoOn && camTrack) {
+          console.log('[WebRTC] Restoring camera track after screen share');
+          await videoSender.replaceTrack(camTrack);
+        } else {
+          try {
+            await videoSender.replaceTrack(null);
+          } catch {}
+        }
+      }
+    }
+
+    if (this.socket) {
+      this.socket.emit('screen-share-status', { isSharing: false });
+    }
+  }
+
   broadcastMediaStatus() {
     if (this.socket) {
       this.socket.emit('media-status-change', {
@@ -387,6 +453,10 @@ export class PeerCallManager {
   }
 
   destroy() {
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach((t) => t.stop());
+      this.screenStream = null;
+    }
     this.localStream.getTracks().forEach((t) => t.stop());
     this.resetPeerConnection();
   }
