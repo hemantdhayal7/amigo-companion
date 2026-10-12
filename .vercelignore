@@ -1,0 +1,10 @@
+node_modules
+src-tauri
+dist
+.git
+.github
+*.log
+run.sh
+run-windows.bat
+build-windows.bat
+create_icons.py
