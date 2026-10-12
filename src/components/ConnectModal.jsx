@@ -109,6 +109,12 @@ export default function ConnectModal({
     if (secretInput.trim()) onSaveRoomSecret(secretInput.trim());
     if (serverInput.trim()) {
       let cleanServer = serverInput.trim().replace(/\/+$/, '');
+      // Auto-correct accidental dot instead of colon before port (e.g. 192.168.1.3.4000 -> 192.168.1.3:4000)
+      cleanServer = cleanServer.replace(/\.([0-9]{4,5})$/, ':$1');
+      // If user typed https:// on a local IP, convert to http://
+      if (cleanServer.startsWith('https://192.168.') || cleanServer.startsWith('https://localhost') || cleanServer.startsWith('https://127.0.0.1')) {
+        cleanServer = cleanServer.replace(/^https:\/\//, 'http://');
+      }
       if (!cleanServer.startsWith('http://') && !cleanServer.startsWith('https://')) {
         cleanServer = `http://${cleanServer}`;
       }
