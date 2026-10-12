@@ -104,6 +104,18 @@ fn resize_window_for_screenshare(window: WebviewWindow, mode: String) -> Result<
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    {
+        // Fix WebKitGTK DMA-BUF renderer crash on Ubuntu / Linux Mesa & Nvidia drivers
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        // Prevent WebKitGTK sandbox crash in unprivileged user namespaces on Ubuntu 23.10 / 24.04
+        if std::env::var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1");
+        }
+    }
+
     let interactive_state = InteractiveState::default();
     let regions_arc = interactive_state.regions.clone();
     let force_arc = interactive_state.force_interactive.clone();
@@ -128,7 +140,7 @@ pub fn run() {
             let tray_menu = Menu::with_items(app, &[&toggle_item, &quit_item])?;
 
             if let Some(icon) = app.default_window_icon() {
-                let _tray = TrayIconBuilder::new()
+                let tray_res = TrayIconBuilder::new()
                     .menu(&tray_menu)
                     .tooltip("Amigo Study Companion 🥬")
                     .icon(icon.clone())
@@ -173,9 +185,18 @@ pub fn run() {
                             }
                         }
                     })
-                    .build(app)?;
+                    .build(app);
+
+                if let Err(err) = tray_res {
+                    eprintln!("[Tray] Notice: System tray icon skipped on this desktop environment: {}", err);
+                }
             }
+
+            // macOS only: background transparent window click-through polling thread
+            // On Linux / GTK and Windows, running off-thread cursor querying causes fatal GTK crash (SIGSEGV / Gdk-FATAL)
+            #[cfg(target_os = "macos")]
             if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_visible_on_all_workspaces(true);
                 let win_clone = win.clone();
                 std::thread::spawn(move || {
                     let mut currently_ignoring = false;
@@ -257,6 +278,12 @@ pub fn run() {
                     }
                 });
             }
+
+            #[cfg(not(target_os = "macos"))]
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_focus();
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
