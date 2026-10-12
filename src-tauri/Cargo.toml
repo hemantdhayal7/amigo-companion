@@ -1,0 +1,19 @@
+[package]
+name = "study-companion-overlay"
+version = "1.0.0"
+description = "Always-on-top floating study meet companion with emojis, screen sharing, and crisis support"
+authors = ["StudyFloat Team"]
+edition = "2021"
+
+[lib]
+name = "study_companion_overlay_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = ["tray-icon"] }
+tauri-plugin-opener = "2.0.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
