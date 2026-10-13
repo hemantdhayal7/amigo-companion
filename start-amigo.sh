@@ -20,8 +20,8 @@ echo "  🚀 Native Floating Desktop App         "
 echo "  ⏰ $(date)"
 echo "=========================================="
 
-# 0. Compile frontend if dist/ does not exist or if FORCE_BUILD=1
-if [ ! -f "$DIR/dist/index.html" ] || [ "$FORCE_BUILD" = "1" ]; then
+# 0. Compile frontend if dist/ does not exist, if FORCE_BUILD=1, or if src/ has newer changes
+if [ ! -f "$DIR/dist/index.html" ] || [ "$FORCE_BUILD" = "1" ] || [ -n "$(find "$DIR/src" -newer "$DIR/dist/index.html" 2>/dev/null)" ]; then
   echo "🔨 Compiling latest UI & WebRTC engine..."
   npm run build
 fi
