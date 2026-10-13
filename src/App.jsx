@@ -146,8 +146,15 @@ export default function App() {
     showAppWindow();
   }, []);
 
-  // Check if running in Tauri native app or standard browser
-  const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+  // Check if running in Tauri / Electron native floating app or standard browser
+  const isTauri =
+    typeof window !== 'undefined' &&
+    Boolean(
+      window.__TAURI_INTERNALS__ ||
+      window.__TAURI__ ||
+      window.__IS_DESKTOP__ ||
+      navigator.userAgent.includes('Electron')
+    );
 
   // Browser dragging coordinates fallback
   const [browserPos, setBrowserPos] = useState({
@@ -240,13 +247,15 @@ export default function App() {
     const timer = setInterval(() => {
       setSecondsToNextNudge((prev) => {
         if (prev <= 1) {
-          setShowNudgeToast(true);
-          sounds.playGentleAlert();
-          triggerAutoPopout({
-            title: '10-Min Target Check-in ⏰',
-            detail: 'How is your goal progressing?',
-            icon: '🎯',
-          });
+          setTimeout(() => {
+            setShowNudgeToast(true);
+            sounds.playGentleAlert();
+            triggerAutoPopout({
+              title: '10-Min Target Check-in ⏰',
+              detail: 'How is your goal progressing?',
+              icon: '🎯',
+            });
+          }, 0);
           return reminderInterval * 60;
         }
         return prev - 1;
@@ -312,13 +321,24 @@ export default function App() {
     peerCallManagerRef.current = new PeerCallManager({
       socket,
       onRemoteStreamUpdate: (stream) => {
-        console.log('[App] Remote media stream updated, tracks:', stream.getTracks().length);
-        const newStream = new MediaStream(stream.getTracks());
-        setRemoteCamStream(newStream);
-        setPeerStream(newStream);
+        const videoTracks = stream.getVideoTracks().filter((t) => t.readyState === 'live');
+        const audioTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
+        console.log('[App] Remote media stream updated — videoTracks:', videoTracks.length, 'audioTracks:', audioTracks.length);
+
+        // Separate Video-Only stream for <video> elements so GStreamer/WebKitGTK/Chromium never stalls waiting for muted audio sync
+        const videoOnlyStream = new MediaStream(videoTracks);
+        setRemoteCamStream(videoOnlyStream);
+        setPeerStream(videoOnlyStream);
+
+        // Separate Audio-Only stream for <audio> element so remote voice plays immediately even when camera is off
         if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(() => {});
+          if (audioTracks.length > 0) {
+            const audioOnlyStream = new MediaStream(audioTracks);
+            remoteAudioRef.current.srcObject = audioOnlyStream;
+            remoteAudioRef.current.play().catch(() => {});
+          } else {
+            remoteAudioRef.current.srcObject = null;
+          }
         }
       },
       onPeerMediaStatus: ({ isPeerMicOn: pMic, isPeerVideoOn: pVid }) => {
@@ -338,7 +358,16 @@ export default function App() {
       socket.emit('join-room', {
         roomId,
         secret: roomSecret,
-        user: { name: nickname, avatar, status: currentStatus, target, tasks, progress },
+        user: {
+          name: nickname,
+          avatar,
+          status: currentStatus,
+          target,
+          tasks,
+          progress,
+          isMicOn: Boolean(peerCallManagerRef.current?.isMicOn),
+          isVideoOn: Boolean(peerCallManagerRef.current?.isVideoOn),
+        },
       });
     });
 
@@ -364,14 +393,16 @@ export default function App() {
       setIsSecured(true);
       if (data.members && data.members.length > 0) {
         setMembers(data.members);
+        const partner = data.members.find((m) => m.id !== socket.id);
+        if (partner && peerCallManagerRef.current) {
+          peerCallManagerRef.current.setTargetPeerId(partner.id);
+          peerCallManagerRef.current.getOrCreatePeerConnection();
+          setIsPeerVideoOn(Boolean(partner.isVideoOn));
+          setIsPeerMicOn(Boolean(partner.isMicOn));
+        }
       }
       if (data.doubts) {
         setDoubts(data.doubts);
-      }
-      // If partner is already present in room, prepare WebRTC peer connection
-      if (data.members && data.members.length > 1 && peerCallManagerRef.current) {
-        console.log('[App] Partner already present in room, ensuring WebRTC peer connection is ready...');
-        peerCallManagerRef.current.getOrCreatePeerConnection();
       }
     });
 
@@ -382,10 +413,10 @@ export default function App() {
         detail: 'Study buddy is online',
         icon: newUser.avatar || '🌸',
       });
-      // Partner joined: proactively initiate WebRTC peer connection so media channels are established immediately
       if (peerCallManagerRef.current) {
-        console.log('[App] Partner joined room, initiating WebRTC connection...');
-        peerCallManagerRef.current.initiateCall().catch(console.warn);
+        console.log('[App] Partner joined room, initiating WebRTC connection to:', newUser.id);
+        peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
+        peerCallManagerRef.current.broadcastMediaStatus();
       }
     });
 

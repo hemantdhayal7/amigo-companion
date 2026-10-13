@@ -3,6 +3,11 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -14,6 +19,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -40,6 +46,7 @@ async function queryLocalAI(prompt, customSystem) {
     const res = await fetch(`${OLLAMA_HOST}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         model: DEFAULT_MODEL,
         system: systemPrompt,
@@ -241,6 +248,8 @@ io.on('connection', (socket) => {
       avatar: user?.avatar || '🎓',
       status: user?.status || 'studying',
       isSharing: false,
+      isMicOn: Boolean(user?.isMicOn),
+      isVideoOn: Boolean(user?.isVideoOn),
       target: user?.target || '',
       tasks: user?.tasks || [],
       progress: user?.progress || 0,
@@ -300,13 +309,21 @@ io.on('connection', (socket) => {
     const room = rooms.get(currentRoom);
     if (!room) return;
 
-    const target = targetUserId || Array.from(room.members.keys()).find((id) => id !== socket.id);
-    if (!target || !room.members.has(target)) return;
-
-    io.to(target).emit('signal-offer', {
-      senderId: socket.id,
-      offer
-    });
+    let target = targetUserId;
+    if (!target || !room.members.has(target)) {
+      target = Array.from(room.members.keys()).find((id) => id !== socket.id);
+    }
+    if (target && room.members.has(target)) {
+      io.to(target).emit('signal-offer', {
+        senderId: socket.id,
+        offer
+      });
+    } else {
+      socket.to(currentRoom).emit('signal-offer', {
+        senderId: socket.id,
+        offer
+      });
+    }
   });
 
   socket.on('signal-answer', ({ targetUserId, answer }) => {
@@ -314,13 +331,21 @@ io.on('connection', (socket) => {
     const room = rooms.get(currentRoom);
     if (!room) return;
 
-    const target = targetUserId || Array.from(room.members.keys()).find((id) => id !== socket.id);
-    if (!target || !room.members.has(target)) return;
-
-    io.to(target).emit('signal-answer', {
-      senderId: socket.id,
-      answer
-    });
+    let target = targetUserId;
+    if (!target || !room.members.has(target)) {
+      target = Array.from(room.members.keys()).find((id) => id !== socket.id);
+    }
+    if (target && room.members.has(target)) {
+      io.to(target).emit('signal-answer', {
+        senderId: socket.id,
+        answer
+      });
+    } else {
+      socket.to(currentRoom).emit('signal-answer', {
+        senderId: socket.id,
+        answer
+      });
+    }
   });
 
   socket.on('signal-ice', ({ targetUserId, candidate }) => {
@@ -328,13 +353,21 @@ io.on('connection', (socket) => {
     const room = rooms.get(currentRoom);
     if (!room) return;
 
-    const target = targetUserId || Array.from(room.members.keys()).find((id) => id !== socket.id);
-    if (!target || !room.members.has(target)) return;
-
-    io.to(target).emit('signal-ice', {
-      senderId: socket.id,
-      candidate
-    });
+    let target = targetUserId;
+    if (!target || !room.members.has(target)) {
+      target = Array.from(room.members.keys()).find((id) => id !== socket.id);
+    }
+    if (target && room.members.has(target)) {
+      io.to(target).emit('signal-ice', {
+        senderId: socket.id,
+        candidate
+      });
+    } else {
+      socket.to(currentRoom).emit('signal-ice', {
+        senderId: socket.id,
+        candidate
+      });
+    }
   });
 
   // Real-time Mic & Webcam Media Status synchronization
@@ -525,7 +558,21 @@ setInterval(() => {
   }
 }, 30 * 1000);
 
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) return next();
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
+});
+
 const PORT = process.env.PORT || 4000;
+
+httpServer.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`[Server] Port ${PORT} is already running. Reusing existing instance.`);
+  } else {
+    console.error('[Server Error]', err);
+  }
+});
+
 httpServer.listen(PORT, '0.0.0.0', () => {
   const net = getNetworkInfo();
   console.log(`\n======================================================`);

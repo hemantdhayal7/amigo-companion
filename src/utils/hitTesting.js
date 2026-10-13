@@ -71,27 +71,42 @@ export function setIgnoreCursorEvents(ignore) {
 }
 
 /**
- * Native Tauri window hide/show for System Tray / Menu Bar Mode
+ * Native desktop window hide/show for System Tray / Menu Bar Mode
  */
 export function hideAppWindow() {
+  if (typeof window !== 'undefined' && window.electronAPI?.hideWindow) {
+    window.electronAPI.hideWindow();
+    return;
+  }
   if (!isTauri()) return;
   invoke('hide_app_window').catch(() => {});
 }
 
 export function showAppWindow() {
+  if (typeof window !== 'undefined' && window.electronAPI?.showWindow) {
+    window.electronAPI.showWindow();
+    return;
+  }
   if (!isTauri()) return;
   invoke('show_app_window').catch(() => {});
 }
 
 export function toggleAppWindowVisibility() {
+  if (typeof window !== 'undefined' && window.electronAPI?.toggleWindow) {
+    return window.electronAPI.toggleWindow();
+  }
   if (!isTauri()) return Promise.resolve(false);
   return invoke('toggle_window_visibility').catch(() => false);
 }
 
 /**
- * Dynamically resize Tauri window for screen sharing modes: 'fullscreen', 'theater', 'compact'
+ * Dynamically resize window for screen sharing modes: 'fullscreen', 'theater', 'compact'
  */
 export function resizeWindowForScreenshare(mode) {
+  if (typeof window !== 'undefined' && window.electronAPI?.resizeWindow) {
+    window.electronAPI.resizeWindow(mode);
+    return;
+  }
   if (!isTauri()) return;
   invoke('resize_window_for_screenshare', { mode }).catch((err) => {
     console.debug('[Tauri] resize_window_for_screenshare:', err);

@@ -3,11 +3,22 @@
 @tailwind utilities;
 
 @layer utilities {
-  .tauri-drag {
-    -webkit-app-region: drag;
+  .tauri-drag,
+  .app-drag-pill,
+  [data-tauri-drag-region]:not([data-tauri-drag-region="false"]) {
+    -webkit-app-region: drag !important;
+    cursor: grab !important;
   }
-  .tauri-no-drag {
-    -webkit-app-region: no-drag;
+  .tauri-drag:active,
+  .app-drag-pill:active,
+  [data-tauri-drag-region]:not([data-tauri-drag-region="false"]):active {
+    cursor: grabbing !important;
+  }
+  .tauri-no-drag,
+  .app-no-drag,
+  [data-tauri-drag-region="false"] {
+    -webkit-app-region: no-drag !important;
+    cursor: default;
   }
 }
 

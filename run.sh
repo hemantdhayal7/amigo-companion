@@ -31,10 +31,13 @@ if [ "$1" == "--https" ] || [ "$2" == "--https" ]; then
   echo "🔒 Serving over HTTPS (Enables camera/mic across different computers on Wi-Fi)"
 fi
 
-# 2. Check if user wants native Tauri or Web preview
+# 2. Check if user wants native desktop overlay or Web preview
 if command -v cargo &> /dev/null && [ "$1" != "--web" ] && [ "$2" != "--web" ]; then
   echo "🖥️  Running as Native Desktop Floating Overlay (Tauri 2)..."
   npx @tauri-apps/cli dev
+elif [ "$1" != "--web" ] && [ "$2" != "--web" ] && [ -f "./electron-main.cjs" ]; then
+  echo "🖥️  Running as Native Desktop Floating Overlay (Electron)..."
+  npx electron electron-main.cjs
 else
   echo "🌐 Running in Web/Browser Mode (Vite on port 5173)..."
   npx vite --port 5173 --host

@@ -123,33 +123,46 @@ export default function FloatingCompanion({
   const pipVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
+  const showRemote = Boolean(
+    isPeerVideoOn &&
+    remoteCamStream &&
+    remoteCamStream.getVideoTracks &&
+    remoteCamStream.getVideoTracks().length > 0
+  );
+
   // Attach local webcam stream
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localCamStream || null;
-      if (localCamStream && isVideoOn) {
+    if (localVideoRef.current && localCamStream) {
+      if (localVideoRef.current.srcObject !== localCamStream) {
+        localVideoRef.current.srcObject = localCamStream;
+      }
+      if (isVideoOn) {
         localVideoRef.current.play().catch(() => {});
       }
     }
-    if (pipVideoRef.current) {
-      pipVideoRef.current.srcObject = localCamStream || null;
-      if (localCamStream && isVideoOn) {
+    if (pipVideoRef.current && localCamStream) {
+      if (pipVideoRef.current.srcObject !== localCamStream) {
+        pipVideoRef.current.srcObject = localCamStream;
+      }
+      if (isVideoOn) {
         pipVideoRef.current.play().catch(() => {});
       }
     }
-  }, [localCamStream, isVideoOn, isPeerVideoOn]);
+  }, [localCamStream, isVideoOn, isPeerVideoOn, showRemote]);
 
   // Attach remote partner's webcam stream and guarantee instant playback resumption
   useEffect(() => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteCamStream || null;
-      if (remoteCamStream && isPeerVideoOn) {
+    if (remoteVideoRef.current && remoteCamStream) {
+      if (remoteVideoRef.current.srcObject !== remoteCamStream) {
+        remoteVideoRef.current.srcObject = remoteCamStream;
+      }
+      if (isPeerVideoOn) {
         remoteVideoRef.current.play().catch((err) => {
           console.debug('[FloatingCompanion] Remote video play postponed:', err);
         });
       }
     }
-  }, [remoteCamStream, isPeerVideoOn]);
+  }, [remoteCamStream, isPeerVideoOn, showRemote]);
 
   // Selected date partner
   const datePartner = members.find((m) => m.id !== 'self' && m.id !== selfUser?.id) || {
@@ -253,6 +266,34 @@ export default function FloatingCompanion({
     if (e.button !== 0) return; // Only primary mouse button
     setForceInteractive(true);
 
+    if (typeof window !== 'undefined' && window.electronAPI?.setWindowPosition) {
+      try {
+        const startMouseX = e.screenX;
+        const startMouseY = e.screenY;
+        const initialPos = await window.electronAPI.getWindowPosition();
+        const startWinX = initialPos && Array.isArray(initialPos) ? initialPos[0] : 0;
+        const startWinY = initialPos && Array.isArray(initialPos) ? initialPos[1] : 0;
+
+        const onMouseMove = (moveEvent) => {
+          const dx = moveEvent.screenX - startMouseX;
+          const dy = moveEvent.screenY - startMouseY;
+          window.electronAPI.setWindowPosition(startWinX + dx, startWinY + dy);
+        };
+
+        const onMouseUp = () => {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          setForceInteractive(false);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      } catch (err) {
+        console.warn('Drag initialization error:', err);
+      }
+      return;
+    }
+
     if (typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__)) {
       try {
         const appWindow = getCurrentWindow();
@@ -268,26 +309,8 @@ export default function FloatingCompanion({
     }
   };
 
-  // Ambient drag handler for general widget background
-  const handleDragMouseDown = async (e) => {
-    if (e.button !== 0) return;
-    if (e.target.closest('button, input, select, textarea, a, video, .sector-wedge, .emoji-pod-btn')) return;
-    setForceInteractive(true);
-
-    if (typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__)) {
-      try {
-        const appWindow = getCurrentWindow();
-        await appWindow.startDragging();
-        return;
-      } catch (err) {
-        console.warn('Tauri startDragging failed:', err);
-      }
-    }
-
-    if (onBrowserDragStart) {
-      onBrowserDragStart(e);
-    }
-  };
+  // Ambient drag handler - no-op so buttons and dials never accidentally drag
+  const handleDragMouseDown = () => {};
 
   // Theme styling helpers
   const isWhite = theme === 'white';
@@ -608,7 +631,7 @@ export default function FloatingCompanion({
             <div
               data-tauri-drag-region
               onMouseDown={handleDragButtonMouseDown}
-              className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[8px] font-bold flex items-center gap-1 shadow-md z-40 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400 opacity-0 group-hover/dial:opacity-100 transition-opacity duration-200 select-none"
+              className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-slate-900/95 text-white font-mono text-[8px] font-bold flex items-center gap-1 shadow-lg z-40 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400 opacity-90 hover:opacity-100 transition-all select-none app-drag-pill"
               title="Hold & Drag to move Amigo"
             >
               <GripHorizontal className="w-2.5 h-2.5 text-emerald-400 pointer-events-none" />
@@ -621,9 +644,7 @@ export default function FloatingCompanion({
           {/* ============================================================ */}
           {isOptionsCircleOpen && (
             <div
-              data-tauri-drag-region
-              onMouseDown={handleDragButtonMouseDown}
-              className={`mb-2 w-full max-w-[340px] px-3 py-1.5 rounded-full flex items-center justify-between gap-1.5 shadow-lg backdrop-blur-2xl border transition-all cursor-grab active:cursor-grabbing text-[10px] select-none animate-fadeIn ${
+              className={`mb-2 w-full max-w-[340px] px-3 py-1.5 rounded-full flex items-center justify-between gap-1.5 shadow-lg backdrop-blur-2xl border transition-all text-[10px] select-none animate-fadeIn ${
                 isWhite
                   ? 'bg-white/90 border-white/95 text-slate-700 shadow-slate-300/40'
                   : isBlush
@@ -657,7 +678,7 @@ export default function FloatingCompanion({
               <div
                 data-tauri-drag-region
                 onMouseDown={handleDragButtonMouseDown}
-                className="flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-emerald-500 hover:bg-emerald-500/20 border border-black/5 dark:border-white/10 cursor-grab active:cursor-grabbing transition shrink-0 select-none shadow-xs"
+                className="flex items-center gap-1 font-mono text-[8px] font-extrabold px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-emerald-500 hover:bg-emerald-500/20 border border-black/5 dark:border-white/10 cursor-grab active:cursor-grabbing transition shrink-0 select-none shadow-xs app-drag-pill"
                 title="Hold & Drag to move Amigo"
               >
                 <GripHorizontal className="w-2.5 h-2.5 pointer-events-none" />
@@ -744,8 +765,6 @@ export default function FloatingCompanion({
           {/* 2. DYNAMIC CONCENTRIC CIRCULAR WIDGET (EXPANDS & CONTRACTS)  */}
           {/* ============================================================ */}
           <div
-            data-tauri-drag-region
-            onMouseDown={handleDragMouseDown}
             style={{ width: `${dialDiameter}px`, height: `${dialDiameter}px` }}
             className={`relative rounded-full shrink-0 flex items-center justify-center transition-all duration-400 ease-out ${
               isEmojiCircleOpen
@@ -1045,15 +1064,17 @@ export default function FloatingCompanion({
               title="Live Cam & Mascot Hub (Left click: Options & Menu | 2x: Emojis | Right click: Celebrate | 4x: Vanish)"
             >
               {/* MODE A: LIVE VIDEO COCKPIT (EXPANDED CRISP FEED) */}
-              {isVideoOn || isPeerVideoOn ? (
+              {isVideoOn || showRemote ? (
                 <div className="w-full h-full rounded-full overflow-hidden relative flex items-center justify-center bg-black">
                   {/* Remote Partner Video */}
-                  {isPeerVideoOn && remoteCamStream ? (
+                  {showRemote ? (
                     <video
                       ref={(el) => {
                         remoteVideoRef.current = el;
-                        if (el && remoteCamStream && el.srcObject !== remoteCamStream) {
-                          el.srcObject = remoteCamStream;
+                        if (el && remoteCamStream) {
+                          if (el.srcObject !== remoteCamStream) {
+                            el.srcObject = remoteCamStream;
+                          }
                           el.play().catch(() => {});
                         }
                       }}
@@ -1071,11 +1092,22 @@ export default function FloatingCompanion({
                   ) : (
                     /* Local Video */
                     <video
-                      ref={localVideoRef}
+                      ref={(el) => {
+                        localVideoRef.current = el;
+                        if (el && localCamStream) {
+                          if (el.srcObject !== localCamStream) {
+                            el.srcObject = localCamStream;
+                          }
+                          el.play().catch(() => {});
+                        }
+                      }}
                       autoPlay
                       playsInline
                       muted
                       onLoadedMetadata={(e) => {
+                        e.target.play().catch(() => {});
+                      }}
+                      onCanPlay={(e) => {
                         e.target.play().catch(() => {});
                       }}
                       className="w-full h-full object-cover mirror scale-105 pointer-events-none"
@@ -1083,14 +1115,25 @@ export default function FloatingCompanion({
                   )}
 
                   {/* PiP Local Floating Bubble */}
-                  {isPeerVideoOn && isVideoOn && localCamStream && (
+                  {showRemote && isVideoOn && localCamStream && (
                     <div className="absolute bottom-1.5 right-1.5 w-10 h-10 rounded-full overflow-hidden border border-emerald-400 shadow-md bg-black z-20 pointer-events-none">
                       <video
-                        ref={pipVideoRef}
+                        ref={(el) => {
+                          pipVideoRef.current = el;
+                          if (el && localCamStream) {
+                            if (el.srcObject !== localCamStream) {
+                              el.srcObject = localCamStream;
+                            }
+                            el.play().catch(() => {});
+                          }
+                        }}
                         autoPlay
                         playsInline
                         muted
                         onLoadedMetadata={(e) => {
+                          e.target.play().catch(() => {});
+                        }}
+                        onCanPlay={(e) => {
                           e.target.play().catch(() => {});
                         }}
                         className="w-full h-full object-cover mirror scale-105 pointer-events-none"
