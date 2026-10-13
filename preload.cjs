@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hideWindow: () => ipcRenderer.send('hide-window'),
   toggleWindow: () => ipcRenderer.invoke('toggle-window'),
   moveWindow: (deltaX, deltaY) => ipcRenderer.send('move-window', { deltaX, deltaY }),
+  startDrag: () => ipcRenderer.send('start-window-drag'),
+  dragMove: (deltaX, deltaY) => ipcRenderer.send('drag-move', { deltaX, deltaY }),
+  endDrag: () => ipcRenderer.send('end-window-drag'),
   getWindowPosition: () => ipcRenderer.invoke('get-window-position'),
   setWindowPosition: (x, y) => ipcRenderer.send('set-window-position', { x, y }),
 });

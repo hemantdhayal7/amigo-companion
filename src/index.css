@@ -4,21 +4,28 @@
 
 @layer utilities {
   .tauri-drag,
-  .app-drag-pill,
   [data-tauri-drag-region]:not([data-tauri-drag-region="false"]) {
     -webkit-app-region: drag !important;
     cursor: grab !important;
   }
   .tauri-drag:active,
-  .app-drag-pill:active,
   [data-tauri-drag-region]:not([data-tauri-drag-region="false"]):active {
     cursor: grabbing !important;
   }
   .tauri-no-drag,
   .app-no-drag,
+  .app-drag-pill,
   [data-tauri-drag-region="false"] {
     -webkit-app-region: no-drag !important;
     cursor: default;
+  }
+  .app-drag-pill {
+    cursor: grab !important;
+    touch-action: none;
+    user-select: none;
+  }
+  .app-drag-pill:active {
+    cursor: grabbing !important;
   }
 }
 

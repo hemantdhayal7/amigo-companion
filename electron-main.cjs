@@ -17,11 +17,13 @@ app.setName('Amigo');
 
 // 1. Prevent Linux GPU process crashes on Wayland/XWayland
 // Transparent frameless windows on Linux can trigger SIGSEGV (exit code 139) in GPU acceleration.
+// Using ozone-platform x11 ensures setPosition works smoothly on GNOME Wayland via XWayland.
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('enable-transparent-visuals');
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('ozone-platform', 'x11');
   app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
 }
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -261,20 +263,46 @@ function createTray() {
 }
 
 // IPC Handlers for Window Movement and Resizing
+let dragTargetPos = null;
+
 ipcMain.handle('get-window-position', () => {
   if (!mainWindow) return [0, 0];
   return mainWindow.getPosition();
 });
 
+ipcMain.on('start-window-drag', () => {
+  if (!mainWindow) return;
+  dragTargetPos = mainWindow.getPosition();
+});
+
+ipcMain.on('drag-move', (event, { deltaX, deltaY }) => {
+  if (!mainWindow) return;
+  if (!dragTargetPos) {
+    dragTargetPos = mainWindow.getPosition();
+  }
+  dragTargetPos[0] += deltaX;
+  dragTargetPos[1] += deltaY;
+  mainWindow.setPosition(Math.round(dragTargetPos[0]), Math.round(dragTargetPos[1]));
+});
+
+ipcMain.on('end-window-drag', () => {
+  dragTargetPos = null;
+});
+
 ipcMain.on('set-window-position', (event, { x, y }) => {
   if (!mainWindow) return;
-  mainWindow.setPosition(Math.round(x), Math.round(y));
+  dragTargetPos = [Math.round(x), Math.round(y)];
+  mainWindow.setPosition(dragTargetPos[0], dragTargetPos[1]);
 });
 
 ipcMain.on('move-window', (event, { deltaX, deltaY }) => {
   if (!mainWindow) return;
-  const [currentX, currentY] = mainWindow.getPosition();
-  mainWindow.setPosition(Math.round(currentX + deltaX), Math.round(currentY + deltaY));
+  if (!dragTargetPos) {
+    dragTargetPos = mainWindow.getPosition();
+  }
+  dragTargetPos[0] += deltaX;
+  dragTargetPos[1] += deltaY;
+  mainWindow.setPosition(Math.round(dragTargetPos[0]), Math.round(dragTargetPos[1]));
 });
 
 ipcMain.on('resize-window-for-screenshare', (event, mode) => {

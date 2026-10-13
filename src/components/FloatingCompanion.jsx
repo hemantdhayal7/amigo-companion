@@ -301,43 +301,73 @@ export default function FloatingCompanion({
     }, 280);
   };
 
-  // Dedicated Drag Button / Handle mousedown handler (100% reliable)
-  const handleDragButtonMouseDown = async (e) => {
+  // Dedicated Drag Button / Handle pointer handler (100% reliable across Linux X11/Wayland and desktop)
+  const handleDragButtonMouseDown = (e) => {
     if (e.button !== 0) return; // Only primary mouse button
+    e.preventDefault();
+    e.stopPropagation();
     setForceInteractive(true);
 
-    if (typeof window !== 'undefined' && window.electronAPI?.setWindowPosition) {
-      try {
-        const startMouseX = e.screenX;
-        const startMouseY = e.screenY;
-        const initialPos = await window.electronAPI.getWindowPosition();
-        const startWinX = initialPos && Array.isArray(initialPos) ? initialPos[0] : 0;
-        const startWinY = initialPos && Array.isArray(initialPos) ? initialPos[1] : 0;
-
-        const onMouseMove = (moveEvent) => {
-          const dx = moveEvent.screenX - startMouseX;
-          const dy = moveEvent.screenY - startMouseY;
-          window.electronAPI.setWindowPosition(startWinX + dx, startWinY + dy);
-        };
-
-        const onMouseUp = () => {
-          window.removeEventListener('mousemove', onMouseMove);
-          window.removeEventListener('mouseup', onMouseUp);
-          setForceInteractive(false);
-        };
-
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
-      } catch (err) {
-        console.warn('Drag initialization error:', err);
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      if (window.electronAPI.startDrag) {
+        window.electronAPI.startDrag();
       }
+
+      const targetEl = e.currentTarget || e.target;
+      const pointerId = e.pointerId;
+      const hasPointerCapture = targetEl && typeof targetEl.setPointerCapture === 'function' && pointerId !== undefined;
+      if (hasPointerCapture) {
+        try {
+          targetEl.setPointerCapture(pointerId);
+        } catch {}
+      }
+
+      let lastScreenX = e.screenX;
+      let lastScreenY = e.screenY;
+
+      const onPointerMove = (moveEvt) => {
+        const dx = moveEvt.screenX - lastScreenX;
+        const dy = moveEvt.screenY - lastScreenY;
+        if (dx !== 0 || dy !== 0) {
+          lastScreenX = moveEvt.screenX;
+          lastScreenY = moveEvt.screenY;
+          if (window.electronAPI.dragMove) {
+            window.electronAPI.dragMove(dx, dy);
+          } else if (window.electronAPI.moveWindow) {
+            window.electronAPI.moveWindow(dx, dy);
+          }
+        }
+      };
+
+      const onPointerUp = (upEvt) => {
+        if (hasPointerCapture && upEvt && upEvt.pointerId !== undefined) {
+          try {
+            targetEl.releasePointerCapture(upEvt.pointerId);
+          } catch {}
+        }
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+        window.removeEventListener('mousemove', onPointerMove);
+        window.removeEventListener('mouseup', onPointerUp);
+        if (window.electronAPI.endDrag) {
+          window.electronAPI.endDrag();
+        }
+        setForceInteractive(false);
+      };
+
+      window.addEventListener('pointermove', onPointerMove, { passive: true });
+      window.addEventListener('pointerup', onPointerUp, { passive: true });
+      window.addEventListener('pointercancel', onPointerUp, { passive: true });
+      window.addEventListener('mousemove', onPointerMove, { passive: true });
+      window.addEventListener('mouseup', onPointerUp, { passive: true });
       return;
     }
 
     if (typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__)) {
       try {
         const appWindow = getCurrentWindow();
-        await appWindow.startDragging();
+        appWindow.startDragging();
         return;
       } catch (err) {
         console.warn('Tauri startDragging fallback:', err);
@@ -387,7 +417,9 @@ export default function FloatingCompanion({
           tooltip: 'Hold & Drag to move Amigo',
           onClick: onToggleDock,
           onMouseDown: handleDragButtonMouseDown,
+          onPointerDown: handleDragButtonMouseDown,
           active: false,
+          isDrag: true,
         };
       case 'mic':
         return {
@@ -601,6 +633,7 @@ export default function FloatingCompanion({
       tooltip: 'Hold & Drag Amigo anywhere on screen',
       onClick: onToggleDock,
       onMouseDown: handleDragButtonMouseDown,
+      onPointerDown: handleDragButtonMouseDown,
       active: false,
       isDrag: true,
     },
@@ -808,12 +841,15 @@ export default function FloatingCompanion({
           >
             {/* Mini Drag Pill Indicator */}
             <div
-              data-tauri-drag-region
               onMouseDown={(e) => {
                 e.stopPropagation();
                 handleDragButtonMouseDown(e);
               }}
-              className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[8px] font-bold flex items-center gap-0.5 shadow-md z-30 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handleDragButtonMouseDown(e);
+              }}
+              className="app-drag-pill absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[8px] font-bold flex items-center gap-0.5 shadow-md z-30 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400"
               title="Hold & Drag to move mini orb"
             >
               <GripHorizontal className="w-2.5 h-2.5 text-emerald-400" />
@@ -1271,11 +1307,11 @@ export default function FloatingCompanion({
                     <path
                       key={sec.id}
                       d={pathD}
-                      className="sector-wedge cursor-pointer transition-colors pointer-events-auto"
+                      className={`sector-wedge cursor-pointer transition-colors pointer-events-auto ${sec.isDrag ? 'app-drag-pill' : ''}`}
                       fill={sec.active ? (isWhite ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.28)') : 'transparent'}
                       onClick={(e) => {
                         if (sec.isDrag) {
-                          onToggleDock && onToggleDock();
+                          e.stopPropagation();
                         } else {
                           sec.onClick && sec.onClick(e);
                         }
@@ -1287,7 +1323,11 @@ export default function FloatingCompanion({
                           e.stopPropagation();
                         }
                       }}
-                      data-tauri-drag-region={sec.isDrag ? "true" : "false"}
+                      onPointerDown={(e) => {
+                        if (sec.isDrag) {
+                          handleDragButtonMouseDown(e);
+                        }
+                      }}
                     >
                       <title>{sec.tooltip}</title>
                     </path>
@@ -1337,11 +1377,11 @@ export default function FloatingCompanion({
                     <path
                       key={sec.id}
                       d={pathD}
-                      className="sector-wedge cursor-pointer transition-colors pointer-events-auto"
+                      className={`sector-wedge cursor-pointer transition-colors pointer-events-auto ${sec.id === 'drag' ? 'app-drag-pill' : ''}`}
                       fill={sec.active ? (isWhite ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.25)') : 'transparent'}
                       onClick={(e) => {
                         if (sec.id === 'drag') {
-                          onToggleDock && onToggleDock();
+                          e.stopPropagation();
                         } else {
                           sec.onClick && sec.onClick(e);
                         }
@@ -1353,7 +1393,11 @@ export default function FloatingCompanion({
                           e.stopPropagation();
                         }
                       }}
-                      data-tauri-drag-region={sec.id === 'drag' ? "true" : "false"}
+                      onPointerDown={(e) => {
+                        if (sec.id === 'drag') {
+                          handleDragButtonMouseDown(e);
+                        }
+                      }}
                     >
                       <title>{sec.tooltip}</title>
                     </path>
@@ -1451,7 +1495,6 @@ export default function FloatingCompanion({
                   <button
                     key={`sys-${sec.id}`}
                     type="button"
-                    data-tauri-drag-region={sec.isDrag ? "true" : "false"}
                     onMouseDown={(e) => {
                       if (sec.isDrag) {
                         handleDragButtonMouseDown(e);
@@ -1459,10 +1502,15 @@ export default function FloatingCompanion({
                         e.stopPropagation();
                       }
                     }}
+                    onPointerDown={(e) => {
+                      if (sec.isDrag) {
+                        handleDragButtonMouseDown(e);
+                      }
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (sec.isDrag) {
-                        onToggleDock && onToggleDock();
+                        // Drag button release - do not toggle dock
                       } else {
                         sec.onClick && sec.onClick(e);
                       }
@@ -1515,7 +1563,6 @@ export default function FloatingCompanion({
                   <button
                     key={`opt-${sec.id}`}
                     type="button"
-                    data-tauri-drag-region={sec.id === 'drag' ? "true" : "false"}
                     onMouseDown={(e) => {
                       if (sec.id === 'drag') {
                         handleDragButtonMouseDown(e);
@@ -1523,10 +1570,15 @@ export default function FloatingCompanion({
                         e.stopPropagation();
                       }
                     }}
+                    onPointerDown={(e) => {
+                      if (sec.id === 'drag') {
+                        handleDragButtonMouseDown(e);
+                      }
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (sec.id === 'drag') {
-                        onToggleDock && onToggleDock();
+                        // Drag button release - do not toggle dock
                       } else {
                         sec.onClick && sec.onClick(e);
                       }

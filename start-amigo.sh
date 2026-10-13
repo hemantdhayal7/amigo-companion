@@ -48,13 +48,13 @@ trap cleanup EXIT INT TERM
 
 export AMIGO_URL="http://localhost:4000"
 
-# 2. Launch Native Floating App (Electron with --no-sandbox for Ubuntu 24.04 AppArmor compatibility)
+# 2. Launch Native Floating App (Electron with --no-sandbox and --ozone-platform=x11 for Linux dragging)
 if [ -x "$DIR/node_modules/.bin/electron" ]; then
   echo "🖥️  Running Amigo as always-on-top floating desktop companion..."
-  exec "$DIR/node_modules/.bin/electron" "$DIR/electron-main.cjs" --no-sandbox "$@"
+  exec "$DIR/node_modules/.bin/electron" "$DIR/electron-main.cjs" --no-sandbox --ozone-platform=x11 "$@"
 elif command -v npx &> /dev/null; then
   echo "🖥️  Running Amigo via npx electron..."
-  exec npx electron "$DIR/electron-main.cjs" --no-sandbox "$@"
+  exec npx electron "$DIR/electron-main.cjs" --no-sandbox --ozone-platform=x11 "$@"
 else
   echo "🌐 Falling back to default browser..."
   xdg-open "$AMIGO_URL"
