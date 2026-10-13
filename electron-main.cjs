@@ -37,15 +37,26 @@ const APP_URL = process.env.AMIGO_URL || 'http://localhost:4000';
 
 function ensureServerRunning() {
   return new Promise((resolve) => {
+    let resolved = false;
+    const done = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
     const req = http.get('http://127.0.0.1:4000/api/health', (res) => {
       if (res.statusCode === 200) {
         console.log('[Electron] Server already active on port 4000');
-        return resolve();
+        return done();
       }
-      spawnLocalServer(resolve);
+      spawnLocalServer(done);
+    });
+    req.setTimeout(2000, () => {
+      req.destroy();
+      spawnLocalServer(done);
     });
     req.on('error', () => {
-      spawnLocalServer(resolve);
+      spawnLocalServer(done);
     });
   });
 }
@@ -69,6 +80,12 @@ function spawnLocalServer(callback) {
     } catch (e) {
       console.error('[Electron] Failed to spawn server.js:', e);
     }
+  }
+
+  if (serverProcess) {
+    serverProcess.on('error', (err) => {
+      console.warn('[Electron] serverProcess warning:', err.message);
+    });
   }
 
   let attempts = 0;
@@ -296,6 +313,8 @@ app.on('second-instance', () => {
     if (mainWindow.isMinimized()) mainWindow.restore();
     if (!mainWindow.isVisible()) mainWindow.show();
     mainWindow.focus();
+  } else {
+    createWindow();
   }
 });
 
