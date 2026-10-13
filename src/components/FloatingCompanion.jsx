@@ -219,16 +219,26 @@ export default function FloatingCompanion({
     }
   }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo]);
 
-  // Selected date partner: find the real connected peer in the room (no mock Alex)
+  // Selected date partner: find the real connected peer in the room (no mock Alex and accurately filter local user)
+  const selfId = selfUser?.id;
+  const selfName = selfUser?.name?.trim()?.toLowerCase();
   const realPartner =
     members.length > 1
       ? members.find(
           (m) =>
             m.id !== 'self' &&
-            m.id !== selfUser?.id &&
+            (!selfId || m.id !== selfId) &&
+            (!selfName || m.name?.trim()?.toLowerCase() !== selfName) &&
             m.id !== 'peer1' &&
             m.id !== 'peer2'
-        ) || members.find((m) => m.id !== 'self' && m.id !== selfUser?.id)
+        ) ||
+        members.find(
+          (m) =>
+            m.id !== 'self' &&
+            (!selfId || m.id !== selfId) &&
+            (!selfName || m.name?.trim()?.toLowerCase() !== selfName)
+        ) ||
+        members.find((m) => m.id !== 'self' && (!selfId || m.id !== selfId))
       : null;
   const datePartner = realPartner || {
     id: 'waiting',
@@ -1736,31 +1746,40 @@ export default function FloatingCompanion({
                       <>
                         {/* MAIN VIDEO FEED (Remote partner or Local webcam) */}
                         {mainIsRemote ? (
-                          <video
-                            ref={(el) => {
-                              remoteVideoRef.current = el;
-                              if (el) {
-                                el.muted = true;
-                                el.playsInline = true;
-                                if (remoteCamStream && el.srcObject !== remoteCamStream) {
-                                  el.srcObject = remoteCamStream;
+                          hasRemoteVideo ? (
+                            <video
+                              ref={(el) => {
+                                remoteVideoRef.current = el;
+                                if (el && remoteCamStream) {
+                                  el.muted = true;
+                                  el.playsInline = true;
+                                  if (el.srcObject !== remoteCamStream) {
+                                    el.srcObject = remoteCamStream;
+                                  }
                                   el.play().catch(() => {});
                                 }
-                              }
-                            }}
-                            autoPlay
-                            playsInline
-                            muted
-                            onLoadedMetadata={(e) => {
-                              e.target.muted = true;
-                              e.target.play().catch(() => {});
-                            }}
-                            onCanPlay={(e) => {
-                              e.target.muted = true;
-                              e.target.play().catch(() => {});
-                            }}
-                            className="w-full h-full object-cover scale-105 pointer-events-none"
-                          />
+                              }}
+                              autoPlay
+                              playsInline
+                              muted
+                              onLoadedMetadata={(e) => {
+                                e.target.muted = true;
+                                e.target.play().catch(() => {});
+                              }}
+                              onCanPlay={(e) => {
+                                e.target.muted = true;
+                                e.target.play().catch(() => {});
+                              }}
+                              className="w-full h-full object-cover scale-105 pointer-events-none"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center bg-slate-950 text-white w-full h-full p-2 pointer-events-none">
+                              <CabbageLogo size={28} animated />
+                              <span className="text-[7.5px] font-mono font-bold mt-1 text-emerald-400 animate-pulse">
+                                {isPeerVideoOn ? 'Connecting Cam...' : 'Camera Off'}
+                              </span>
+                            </div>
+                          )
                         ) : (
                           <video
                             ref={(el) => {

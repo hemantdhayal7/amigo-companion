@@ -389,10 +389,10 @@ export class PeerCallManager {
         this.remoteStream.addTrack(incomingTrack);
       }
 
-      if (incomingTrack.kind === 'video' && !incomingTrack.muted) {
+      if (incomingTrack.kind === 'video') {
         this.isPeerVideoOn = true;
         this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: true });
-      } else if (incomingTrack.kind === 'audio' && !incomingTrack.muted) {
+      } else if (incomingTrack.kind === 'audio') {
         this.isPeerMicOn = true;
         this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
       }
@@ -411,11 +411,7 @@ export class PeerCallManager {
       };
 
       incomingTrack.onmute = () => {
-        console.log('[WebRTC] Remote track muted (packets stopped):', incomingTrack.kind, incomingTrack.id);
-        if (incomingTrack.kind === 'video') {
-          this.isPeerVideoOn = false;
-          this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: false });
-        }
+        console.log('[WebRTC] Remote track muted (packets temporarily delayed):', incomingTrack.kind, incomingTrack.id);
         this.refreshRemoteStream();
       };
 
@@ -823,9 +819,7 @@ export class PeerCallManager {
         }
 
         this.broadcastMediaStatus();
-        if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
-          await this.negotiate(this.targetPeerId);
-        }
+        await this.negotiate(this.targetPeerId);
         return { isVideoOn: true, stream: this.localStream };
       } catch (err) {
         this.handleMediaError(err, 'camera');
@@ -850,6 +844,7 @@ export class PeerCallManager {
 
       this.isVideoOn = false;
       this.broadcastMediaStatus();
+      await this.negotiate(this.targetPeerId);
       return { isVideoOn: false, stream: this.localStream };
     }
   }
