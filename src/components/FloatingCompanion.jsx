@@ -136,7 +136,6 @@ export default function FloatingCompanion({
 
   const [faceToFaceMode, setFaceToFaceMode] = useState(false);
   const [isSwappedVideo, setIsSwappedVideo] = useState(false);
-  const [isRemoteVideoPlaying, setIsRemoteVideoPlaying] = useState(false);
 
   const hasRemoteVideo = Boolean(
     remoteCamStream &&
@@ -153,12 +152,6 @@ export default function FloatingCompanion({
     remoteCamStream.getVideoTracks &&
     remoteCamStream.getVideoTracks().length > 0
   );
-
-  useEffect(() => {
-    if (!showRemote || !isPeerVideoOn) {
-      setIsRemoteVideoPlaying(false);
-    }
-  }, [showRemote, isPeerVideoOn]);
 
   // Synchronize dual face-to-face video elements
   useEffect(() => {
@@ -1678,45 +1671,31 @@ export default function FloatingCompanion({
                       <>
                         {/* MAIN VIDEO FEED (Remote partner or Local webcam) */}
                         {mainIsRemote ? (
-                          <>
-                            <video
-                              ref={(el) => {
-                                remoteVideoRef.current = el;
-                                if (el) {
-                                  el.muted = true;
-                                  el.playsInline = true;
-                                  if (remoteCamStream && el.srcObject !== remoteCamStream) {
-                                    el.srcObject = remoteCamStream;
-                                    el.play().catch(() => {});
-                                  }
+                          <video
+                            ref={(el) => {
+                              remoteVideoRef.current = el;
+                              if (el) {
+                                el.muted = true;
+                                el.playsInline = true;
+                                if (remoteCamStream && el.srcObject !== remoteCamStream) {
+                                  el.srcObject = remoteCamStream;
+                                  el.play().catch(() => {});
                                 }
-                              }}
-                              autoPlay
-                              playsInline
-                              muted
-                              onLoadedMetadata={(e) => {
-                                e.target.muted = true;
-                                e.target.play().catch(() => {});
-                              }}
-                              onCanPlay={(e) => {
-                                e.target.muted = true;
-                                e.target.play().catch(() => {});
-                                setIsRemoteVideoPlaying(true);
-                              }}
-                              onPlaying={() => setIsRemoteVideoPlaying(true)}
-                              onWaiting={() => setIsRemoteVideoPlaying(false)}
-                              className="w-full h-full object-cover scale-105 pointer-events-none"
-                            />
-                            {/* Visual indicator when remote video is connecting or frames not yet decoded */}
-                            {!isRemoteVideoPlaying && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs text-white z-10 pointer-events-none p-2">
-                                <CabbageLogo size={28} animated />
-                                <span className="text-[7px] font-mono font-bold mt-1 text-emerald-400 animate-pulse">
-                                  {isPeerVideoOn ? 'Connecting Cam...' : 'Camera Off'}
-                                </span>
-                              </div>
-                            )}
-                          </>
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            muted
+                            onLoadedMetadata={(e) => {
+                              e.target.muted = true;
+                              e.target.play().catch(() => {});
+                            }}
+                            onCanPlay={(e) => {
+                              e.target.muted = true;
+                              e.target.play().catch(() => {});
+                            }}
+                            className="w-full h-full object-cover scale-105 pointer-events-none"
+                          />
                         ) : (
                           <video
                             ref={(el) => {
