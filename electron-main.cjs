@@ -13,12 +13,15 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 
+app.setName('Amigo');
+
 // 1. Prevent Linux GPU process crashes on Wayland/XWayland
 // Transparent frameless windows on Linux can trigger SIGSEGV (exit code 139) in GPU acceleration.
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('enable-transparent-visuals');
   app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('no-sandbox');
   app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
 }
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');

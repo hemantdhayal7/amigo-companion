@@ -2,15 +2,22 @@
 # Amigo Study Companion - Native Floating Desktop Launcher
 set -e
 
+# If running non-interactively (e.g., from desktop launcher or autostart), log output
+if [ ! -t 1 ]; then
+  exec >> /tmp/amigo-desktop.log 2>&1
+fi
+
 DIR="$( cd "$( dirname "$( readlink -f "${BASH_SOURCE[0]}" )" )" && pwd )"
 cd "$DIR"
 
 export DISPLAY="${DISPLAY:-:0}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 echo "=========================================="
 echo "  🥬 Starting Amigo Study Companion      "
 echo "  🚀 Native Floating Desktop App         "
+echo "  ⏰ $(date)"
 echo "=========================================="
 
 # 0. Compile frontend if dist/ does not exist or if FORCE_BUILD=1
@@ -41,13 +48,13 @@ trap cleanup EXIT INT TERM
 
 export AMIGO_URL="http://localhost:4000"
 
-# 2. Launch Native Floating App (Electron)
+# 2. Launch Native Floating App (Electron with --no-sandbox for Ubuntu 24.04 AppArmor compatibility)
 if [ -x "$DIR/node_modules/.bin/electron" ]; then
   echo "🖥️  Running Amigo as always-on-top floating desktop companion..."
-  exec "$DIR/node_modules/.bin/electron" "$DIR/electron-main.cjs" "$@"
+  exec "$DIR/node_modules/.bin/electron" "$DIR/electron-main.cjs" --no-sandbox "$@"
 elif command -v npx &> /dev/null; then
   echo "🖥️  Running Amigo via npx electron..."
-  exec npx electron "$DIR/electron-main.cjs" "$@"
+  exec npx electron "$DIR/electron-main.cjs" --no-sandbox "$@"
 else
   echo "🌐 Falling back to default browser..."
   xdg-open "$AMIGO_URL"
