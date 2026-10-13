@@ -20,6 +20,7 @@ import {
   Send,
   Layers,
   Smile,
+  Link2,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -162,6 +163,14 @@ export const AVAILABLE_MENU_TOOLS = {
     icon: EyeOff,
     color: 'text-purple-400',
     desc: 'Vanish rings into a pure camera circle',
+  },
+  connect: {
+    id: 'connect',
+    label: 'URL',
+    name: 'Server URL & Room',
+    icon: Link2,
+    color: 'text-emerald-400',
+    desc: 'Paste server URL, change room & passcode',
   },
 };
 

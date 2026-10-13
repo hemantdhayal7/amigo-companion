@@ -860,12 +860,19 @@ export class PeerCallManager {
     const screenTrack = displayStream.getVideoTracks()[0];
     if (!screenTrack) throw new Error('No video track available in screen stream');
 
+    try {
+      if ('contentHint' in screenTrack) {
+        screenTrack.contentHint = 'detail';
+      }
+    } catch {}
+
     const pc = this.getOrCreatePeerConnection();
     const videoTransceiver = this.findVideoTransceiver();
 
     if (videoTransceiver) {
       console.log('[WebRTC] Replacing video sender track with screen share track');
       videoTransceiver.direction = 'sendrecv';
+      this.preferVP8(videoTransceiver);
       await videoTransceiver.sender.replaceTrack(screenTrack);
       this.videoSender = videoTransceiver.sender;
     } else {
@@ -874,6 +881,7 @@ export class PeerCallManager {
         direction: 'sendrecv',
         streams: [this.localStream],
       });
+      this.preferVP8(vt);
       this.videoSender = vt.sender;
     }
 

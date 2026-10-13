@@ -550,6 +550,7 @@ export default function App() {
       } else {
         setPeerSharingUser(null);
         setPeerStream(null);
+        setActiveModal((prev) => (prev === 'screen' ? 'none' : prev));
         resizeWindowForScreenshare('compact');
       }
     });
@@ -848,6 +849,9 @@ export default function App() {
       setLocalStream(null);
     }
     setIsSharingScreen(false);
+    if (!peerSharingUser) {
+      setActiveModal((prev) => (prev === 'screen' ? 'none' : prev));
+    }
     resizeWindowForScreenshare('compact');
   };
 

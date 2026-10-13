@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Maximize2,
   Star,
+  Link2,
 } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import CabbageLogo from './CabbageLogo';
@@ -142,7 +143,10 @@ export default function FloatingCompanion({
     remoteCamStream.getVideoTracks().some((t) => t.readyState === 'live')
   );
 
+  const isPartnerPresenting = Boolean(peerSharingUser);
+
   const showRemote = Boolean(
+    !isPartnerPresenting &&
     (isPeerVideoOn || hasRemoteVideo) &&
     remoteCamStream &&
     remoteCamStream.getVideoTracks &&
@@ -558,6 +562,18 @@ export default function FloatingCompanion({
           onClick: () => onChangeRingMode('none'),
           active: ringMode === 'none',
         };
+      case 'connect':
+        return {
+          id: 'connect',
+          label: 'URL',
+          icon: <Link2 className="w-3.5 h-3.5 text-emerald-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Paste Local Server URL or Change Room',
+          onClick: onOpenConnectModal,
+          active: false,
+        };
       default: {
         const toolMeta = AVAILABLE_MENU_TOOLS[toolId] || { label: toolId?.toUpperCase() || 'TOOL' };
         return {
@@ -821,6 +837,22 @@ export default function FloatingCompanion({
               <span className="pointer-events-none">DRAG</span>
             </div>
 
+            {/* Direct Connect / Server URL Button */}
+            <button
+              type="button"
+              data-tauri-drag-region="false"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenConnectModal && onOpenConnectModal();
+              }}
+              className="flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30 transition shrink-0 select-none cursor-pointer tauri-no-drag"
+              title="Paste Local Server URL or Change Room Passcode"
+            >
+              <Link2 className="w-2.5 h-2.5 pointer-events-none" />
+              <span className="pointer-events-none">URL</span>
+            </button>
+
             {/* Center: One-Ring-At-A-Time Switcher */}
             <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10">
               <button
@@ -941,10 +973,10 @@ export default function FloatingCompanion({
                     setIsOptionsDrawerOpen(false);
                     onOpenConnectModal();
                   }}
-                  className="py-1 px-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                  className="py-1 px-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer border border-emerald-500/30"
                 >
-                  <Lock className="w-3 h-3 text-emerald-400" />
-                  <span>Change Room</span>
+                  <Link2 className="w-3 h-3 text-emerald-400" />
+                  <span>Paste Server URL / Room</span>
                 </button>
               </div>
 
@@ -1556,105 +1588,19 @@ export default function FloatingCompanion({
                     <span>{duoProgress}%</span>
                   </div>
 
-                  {/* Partner First Name Subtitle */}
-                  <span className="text-[7.5px] font-mono tracking-wider opacity-50 uppercase mt-0.5">
-                    {datePartner.name.split(' ')[0]}
-                  </span>
+                  {/* Partner First Name or Presenting Subtitle */}
+                  {isPartnerPresenting ? (
+                    <span className="text-[7px] font-mono font-extrabold text-cyan-400 uppercase mt-0.5 animate-pulse">
+                      🖥️ Screen on Big Display
+                    </span>
+                  ) : (
+                    <span className="text-[7.5px] font-mono tracking-wider opacity-50 uppercase mt-0.5">
+                      {datePartner.name.split(' ')[0]}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
-          </div>
-
-          {/* ============================================================ */}
-          {/* 3. ALWAYS-VISIBLE QUICK VIDEO CONTROL BAR                    */}
-          {/* ============================================================ */}
-          <div
-            data-tauri-drag-region="false"
-            className={`mt-2.5 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl backdrop-blur-2xl border transition-all text-[10px] select-none z-40 tauri-no-drag ${
-              isWhite
-                ? 'bg-white/95 border-white text-slate-700 shadow-slate-300/40'
-                : isBlush
-                ? 'bg-rose-100/95 border-rose-200 text-rose-950 shadow-rose-300/30'
-                : 'bg-slate-900/95 border-white/10 text-slate-200 shadow-black/60'
-            }`}
-          >
-            {/* Quick Camera Toggle */}
-            <button
-              type="button"
-              data-tauri-drag-region="false"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleVideo && onToggleVideo();
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-[9px] transition-all duration-200 cursor-pointer shadow-xs tauri-no-drag ${
-                isVideoOn
-                  ? 'bg-emerald-500 text-white shadow-emerald-500/30 hover:bg-emerald-600'
-                  : 'bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20'
-              }`}
-              title={isVideoOn ? 'Turn Camera Off' : 'Turn Camera On'}
-            >
-              {isVideoOn ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
-              <span>{isVideoOn ? 'CAM ON' : 'CAM OFF'}</span>
-            </button>
-
-            {/* Quick Mic Toggle */}
-            <button
-              type="button"
-              data-tauri-drag-region="false"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleMic && onToggleMic();
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-[9px] transition-all duration-200 cursor-pointer shadow-xs tauri-no-drag ${
-                isMicOn
-                  ? 'bg-emerald-500 text-white shadow-emerald-500/30 hover:bg-emerald-600'
-                  : 'bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20'
-              }`}
-              title={isMicOn ? 'Mute Microphone' : 'Unmute Microphone'}
-            >
-              {isMicOn ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-              <span>{isMicOn ? 'MIC ON' : 'MIC OFF'}</span>
-            </button>
-
-            {/* Dual Face-to-Face Mode Toggle */}
-            <button
-              type="button"
-              data-tauri-drag-region="false"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setFaceToFaceMode((prev) => !prev);
-              }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-[9px] transition-all duration-200 cursor-pointer shadow-xs tauri-no-drag ${
-                faceToFaceMode
-                  ? 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-700'
-                  : 'bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20'
-              }`}
-              title={faceToFaceMode ? 'Close Side-by-Side Dual View' : 'Open Side-by-Side Dual View'}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>{faceToFaceMode ? 'DUAL ON' : 'DUAL VIEW'}</span>
-            </button>
-
-            {/* Swap Feeds Quick Button */}
-            {showRemote && isVideoOn && !faceToFaceMode && (
-              <button
-                type="button"
-                data-tauri-drag-region="false"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  sounds.playPop();
-                  setIsSwappedVideo((prev) => !prev);
-                }}
-                className="p-1 rounded-full bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20 transition cursor-pointer tauri-no-drag"
-                title="Swap Main & PiP Feeds"
-              >
-                <Move className="w-3 h-3" />
-              </button>
-            )}
           </div>
 
           {/* ============================================================ */}
@@ -1713,8 +1659,8 @@ export default function FloatingCompanion({
                   ) : (
                     <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
                       <CabbageLogo size={28} animated />
-                      <span className="text-[8px] font-mono mt-1 opacity-75">
-                        {isPeerVideoOn ? 'Connecting...' : 'Camera Off'}
+                      <span className="text-[8px] font-mono mt-1 opacity-75 text-cyan-300 font-bold">
+                        {isPartnerPresenting ? 'Screen on Big Display' : isPeerVideoOn ? 'Connecting...' : 'Camera Off'}
                       </span>
                     </div>
                   )}

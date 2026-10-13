@@ -15,11 +15,13 @@ const { spawn } = require('child_process');
 
 // 1. Prevent Linux GPU process crashes on Wayland/XWayland
 // Transparent frameless windows on Linux can trigger SIGSEGV (exit code 139) in GPU acceleration.
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('enable-transparent-visuals');
-app.commandLine.appendSwitch('disable-gpu');
+if (process.platform === 'linux') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('enable-transparent-visuals');
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+}
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
 
 // Enforce single instance so multiple launches focus the running floating companion
 const gotTheLock = app.requestSingleInstanceLock();
@@ -32,7 +34,9 @@ let mainWindow = null;
 let tray = null;
 let serverProcess = null;
 
-const iconPath = path.join(__dirname, 'src-tauri/icons/icon.png');
+const iconPath = process.platform === 'win32'
+  ? path.join(__dirname, 'src-tauri/icons/icon.ico')
+  : path.join(__dirname, 'src-tauri/icons/icon.png');
 const APP_URL = process.env.AMIGO_URL || 'http://localhost:4000';
 
 function ensureServerRunning() {
@@ -139,8 +143,12 @@ function createWindow() {
   });
 
   // Keep floating overlay above all workspace windows
-  mainWindow.setAlwaysOnTop(true, 'screen-saver');
-  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  if (process.platform === 'darwin') {
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  } else {
+    mainWindow.setAlwaysOnTop(true);
+  }
 
   // Grant camera, microphone, and screen share permissions seamlessly
   const ses = mainWindow.webContents.session;
@@ -159,7 +167,9 @@ function createWindow() {
       .getSources({ types: ['screen', 'window'] })
       .then((sources) => {
         if (sources.length > 0) {
-          callback({ video: sources[0] });
+          // Prefer entire primary display over arbitrary windows for full screen sharing
+          const primaryScreen = sources.find((s) => s.id.startsWith('screen:')) || sources[0];
+          callback({ video: primaryScreen });
         } else {
           callback({});
         }

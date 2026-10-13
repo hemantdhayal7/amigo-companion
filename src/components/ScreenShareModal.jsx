@@ -58,32 +58,73 @@ export default function ScreenShareModal({
     }
   };
 
+  const isLocalPresenting = Boolean(isSharing && localStream);
+  const isRemotePresenting = Boolean(peerSharingUser);
+
   // Determine which stream to display:
-  // Peer presentation has priority, then local screen share
-  const activeStream = peerStream || remoteCamStream || localStream;
-  const isDisplayingPeer = Boolean(peerStream || (peerSharingUser && remoteCamStream));
+  // If remote partner is sharing, show remote screen. If local user is sharing, show local screen preview.
+  let activeStream = null;
+  let isDisplayingPeer = false;
+
+  if (isRemotePresenting) {
+    activeStream = peerStream || remoteCamStream;
+    isDisplayingPeer = true;
+  } else if (isLocalPresenting) {
+    activeStream = localStream;
+    isDisplayingPeer = false;
+  } else {
+    activeStream = peerStream || remoteCamStream || localStream;
+    isDisplayingPeer = Boolean(peerSharingUser);
+  }
+
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.muted = true;
-      videoRef.current.playsInline = true;
-      if (videoRef.current.srcObject !== (activeStream || null)) {
-        videoRef.current.srcObject = activeStream || null;
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.playsInline = true;
+
+    if (activeStream) {
+      if (video.srcObject !== activeStream) {
+        video.srcObject = activeStream;
       }
-      if (activeStream) {
-        const playPromise = videoRef.current.play();
+
+      const tryPlay = () => {
+        if (!video) return;
+        video.muted = true;
+        const playPromise = video.play();
         if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.debug('[ScreenShareModal] Video play retry:', err);
-            setTimeout(() => {
-              if (videoRef.current) {
-                videoRef.current.muted = true;
-                videoRef.current.play().catch(() => {});
-              }
-            }, 300);
-          });
+          playPromise
+            .then(() => setIsPlaying(true))
+            .catch((err) => {
+              console.debug('[ScreenShareModal] Video play retry needed:', err);
+              setTimeout(() => {
+                if (video && activeStream) {
+                  video.muted = true;
+                  video.play().then(() => setIsPlaying(true)).catch(() => {});
+                }
+              }, 300);
+            });
         }
-      }
+      };
+
+      tryPlay();
+
+      // Listen for track unmute / active frames
+      const tracks = activeStream.getVideoTracks();
+      const onTrackUnmute = () => {
+        tryPlay();
+      };
+      tracks.forEach((t) => t.addEventListener('unmute', onTrackUnmute));
+
+      return () => {
+        tracks.forEach((t) => t.removeEventListener('unmute', onTrackUnmute));
+      };
+    } else {
+      video.srcObject = null;
+      setIsPlaying(false);
     }
   }, [activeStream]);
 
@@ -264,19 +305,38 @@ export default function ScreenShareModal({
         }`}
       >
         {activeStream ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            onLoadedMetadata={(e) => {
-              e.target.muted = true;
-              e.target.play().catch(() => {});
-            }}
-            className={`w-full h-full ${
-              fitMode === 'contain' ? 'object-contain' : 'object-cover'
-            } transition-all duration-200`}
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onLoadedMetadata={(e) => {
+                e.target.muted = true;
+                e.target.play().catch(() => {});
+              }}
+              onCanPlay={(e) => {
+                e.target.muted = true;
+                e.target.play().catch(() => {});
+                setIsPlaying(true);
+              }}
+              onPlaying={() => setIsPlaying(true)}
+              onWaiting={() => setIsPlaying(false)}
+              className={`w-full h-full ${
+                fitMode === 'contain' ? 'object-contain' : 'object-cover'
+              } transition-all duration-200`}
+            />
+            {!isPlaying && isDisplayingPeer && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-xs text-white z-10 pointer-events-none p-4">
+                <span className="relative flex h-4 w-4 mb-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-cyan-500"></span>
+                </span>
+                <span className="text-xs font-semibold text-cyan-300">Receiving Screen Stream...</span>
+                <span className="text-[10px] text-slate-400 mt-0.5">Connecting peer WebRTC feed</span>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center p-6 max-w-sm">
             <Eye className="w-10 h-10 mx-auto text-slate-500 mb-2 opacity-60" />
