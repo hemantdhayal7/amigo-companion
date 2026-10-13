@@ -2,17 +2,22 @@
 # Amigo Study Companion - Native Floating Desktop Launcher
 set -e
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$( cd "$( dirname "$( readlink -f "${BASH_SOURCE[0]}" )" )" && pwd )"
 cd "$DIR"
+
+export DISPLAY="${DISPLAY:-:0}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 
 echo "=========================================="
 echo "  🥬 Starting Amigo Study Companion      "
 echo "  🚀 Native Floating Desktop App         "
 echo "=========================================="
 
-# 0. Always compile latest frontend changes into dist/
-echo "🔨 Compiling latest UI & WebRTC engine..."
-npm run build
+# 0. Compile frontend if dist/ does not exist or if FORCE_BUILD=1
+if [ ! -f "$DIR/dist/index.html" ] || [ "$FORCE_BUILD" = "1" ]; then
+  echo "🔨 Compiling latest UI & WebRTC engine..."
+  npm run build
+fi
 
 # 1. Start backend server in background if not already running
 if ! curl -s -f http://localhost:4000/api/health >/dev/null 2>&1; then
