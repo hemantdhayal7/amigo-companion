@@ -219,17 +219,30 @@ export default function FloatingCompanion({
     }
   }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo]);
 
-  // Selected date partner
-  const datePartner = members.find((m) => m.id !== 'self' && m.id !== selfUser?.id) || {
-    id: 'partner1',
-    name: 'Alex (Study Date)',
-    avatar: '🌸',
-    status: 'studying',
-    target: 'Finish Chapter 4 Physics & Quiz',
-    progress: 75,
+  // Selected date partner: find the real connected peer in the room (no mock Alex)
+  const realPartner =
+    members.length > 1
+      ? members.find(
+          (m) =>
+            m.id !== 'self' &&
+            m.id !== selfUser?.id &&
+            m.id !== 'peer1' &&
+            m.id !== 'peer2'
+        ) || members.find((m) => m.id !== 'self' && m.id !== selfUser?.id)
+      : null;
+  const datePartner = realPartner || {
+    id: 'waiting',
+    name: isConnected ? 'Waiting for partner...' : 'Connecting to server...',
+    avatar: isConnected ? '⏳' : '📡',
+    status: isConnected ? 'waiting' : 'offline',
+    target: isConnected ? `Share Room #${roomId} to connect` : 'Connecting to signaling server...',
+    progress: 0,
+    isWaiting: true,
   };
 
-  const duoProgress = Math.round(((progress || 0) + (datePartner.progress || 0)) / 2);
+  const duoProgress = realPartner
+    ? Math.round(((progress || 0) + (datePartner.progress || 0)) / 2)
+    : progress || 0;
 
   // Celebration bounce & celebration emoji shower
   const handleCabbageClick = () => {
@@ -1854,15 +1867,15 @@ export default function FloatingCompanion({
                   </div>
 
                   {/* Partner First Name Badge - Prominent & Never Hidden! */}
-                  <div className="mt-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-400 text-[8px] font-mono font-extrabold tracking-wide uppercase flex items-center gap-1 shadow-xs">
-                    <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                    <span className="truncate max-w-[75px]">{datePartner.name.split(' ')[0]}</span>
+                  <div className={`mt-1 px-2.5 py-0.5 rounded-full ${realPartner ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-400' : 'bg-amber-500/15 border-amber-400/40 text-amber-300'} border text-[8px] font-mono font-extrabold tracking-wide uppercase flex items-center gap-1 shadow-xs`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${realPartner ? (isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400') : 'bg-amber-400 animate-pulse'}`} />
+                    <span className="truncate max-w-[80px]">{realPartner ? datePartner.name.split(' ')[0] : (isConnected ? 'WAITING' : 'OFFLINE')}</span>
                   </div>
 
                   {/* Duo Synergy Heart Pill */}
                   <div className="mt-0.5 px-2 py-0.2 rounded-full bg-black/10 dark:bg-white/10 text-[7.5px] font-mono font-bold flex items-center gap-1 opacity-90">
                     <Heart className="w-2 h-2 text-rose-500 fill-rose-500" />
-                    <span>{duoProgress}%</span>
+                    <span>{duoProgress}% {realPartner ? 'DUO' : 'GOAL'}</span>
                   </div>
                 </div>
               )}

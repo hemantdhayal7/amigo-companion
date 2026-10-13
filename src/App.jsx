@@ -14,6 +14,7 @@ import { sounds } from './utils/audio';
 import { PeerCallManager } from './utils/webrtc';
 import confetti from 'canvas-confetti';
 import { setupHitTestSync, updateInteractiveRegions, showAppWindow, hideAppWindow, resizeWindowForScreenshare } from './utils/hitTesting';
+import { parseInviteOrServerLink } from './utils/linkParser';
 
 const INITIAL_TASKS = [
   { id: '1', text: 'Review Chapter 3 formulas & summary notes', completed: true },
@@ -26,9 +27,12 @@ const DEFAULT_EMOJIS = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', 
 export default function App() {
   // Read room and server from URL query params (or localStorage / default)
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialRoom = urlParams?.get('room') || localStorage.getItem('study_room_id') || 'our-study-date';
-  const initialSecret = urlParams?.get('secret') || localStorage.getItem('study_room_secret') || 'date2026';
-  const initialServer = urlParams?.get('server') || localStorage.getItem('study_server_url') || 'http://localhost:4000';
+  const rawServer = urlParams?.get('server') || localStorage.getItem('study_server_url') || 'http://localhost:4000';
+  const parsedServerLink = parseInviteOrServerLink(rawServer);
+
+  const initialServer = parsedServerLink?.serverUrl || 'http://localhost:4000';
+  const initialRoom = urlParams?.get('room') || parsedServerLink?.roomId || localStorage.getItem('study_room_id') || 'our-study-date';
+  const initialSecret = urlParams?.get('secret') || parsedServerLink?.roomSecret || localStorage.getItem('study_room_secret') || 'date2026';
 
   const [roomId, setRoomId] = useState(initialRoom);
   const [roomSecret, setRoomSecret] = useState(initialSecret);
@@ -44,6 +48,7 @@ export default function App() {
   const [nickname, setNickname] = useState(() => localStorage.getItem('study_nickname') || 'Learner');
   const [avatar, setAvatar] = useState('🧠');
   const [isConnected, setIsConnected] = useState(false);
+  const [socketId, setSocketId] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isSecured, setIsSecured] = useState(false);
 
@@ -131,10 +136,8 @@ export default function App() {
   const [secondsToNextNudge, setSecondsToNextNudge] = useState(10 * 60);
   const [showNudgeToast, setShowNudgeToast] = useState(false);
 
-  const [members, setMembers] = useState([
-    { id: 'self', name: 'You', avatar: '🧠', status: 'studying', isSharing: false, target: 'Complete exam prep milestone', progress: 33 },
-    { id: 'peer1', name: 'Alex (Study Date)', avatar: '🌸', status: 'studying', isSharing: false, target: 'Finish Chapter 4 Physics & Quiz', progress: 75 },
-    { id: 'peer2', name: 'Maya', avatar: '📚', status: 'break', isSharing: false, target: 'Read 2 research papers', progress: 50 },
+  const [members, setMembers] = useState(() => [
+    { id: 'self', name: nickname || 'You', avatar: avatar || '🧠', status: 'studying', isSharing: false, target, tasks, progress },
   ]);
 
   const [activeModal, setActiveModal] = useState('none'); // 'none' | 'screen' | 'sos' | 'session' | 'target' | 'customizer' | 'connect'
@@ -406,6 +409,7 @@ export default function App() {
     socket.on('connect', () => {
       console.log(`[Socket] Connected to Amigo 🎉 signaling server at ${serverUrl}`);
       setIsConnected(true);
+      setSocketId(socket.id);
       setAuthError(null);
       // Pre-fetch dynamic TURN relay credentials from server
       socket.emit('get-ice-servers', (resp) => {
@@ -444,22 +448,30 @@ export default function App() {
       console.error('[Security Alert] Auth error from server:', err);
       setAuthError(err.message || 'Access denied');
       setIsConnected(false);
+      setSocketId(null);
+      setMembers([{ id: 'self', name: nickname, avatar, status: 'studying', isSharing: false, target, tasks, progress }]);
       sounds.playGentleAlert();
     });
 
     socket.on('connect_error', () => {
       setIsConnected(false);
+      setSocketId(null);
     });
 
     socket.on('disconnect', (reason) => {
       console.log('[Socket] Disconnected:', reason);
       setIsConnected(false);
+      setSocketId(null);
+      setMembers([{ id: 'self', name: nickname, avatar, status: 'studying', isSharing: false, target, tasks, progress }]);
     });
 
     socket.on('room-synced', (data) => {
       setAuthError(null);
       setIsConnected(true);
       setIsSecured(true);
+      if (data.self?.id) {
+        setSocketId(data.self.id);
+      }
       if (data.iceServers && peerCallManagerRef.current) {
         peerCallManagerRef.current.updateIceServers(data.iceServers);
       }
@@ -1110,7 +1122,11 @@ export default function App() {
               }}
               serverUrl={serverUrl}
               onSaveServerUrl={(newServer) => {
-                setServerUrl(newServer);
+                const parsed = parseInviteOrServerLink(newServer);
+                const cleanServer = parsed?.serverUrl || newServer.trim().replace(/\/+$/, '');
+                setServerUrl(cleanServer);
+                if (parsed?.roomId) setRoomId(parsed.roomId);
+                if (parsed?.roomSecret) setRoomSecret(parsed.roomSecret);
                 sounds.playPop();
               }}
               nickname={nickname}
@@ -1211,7 +1227,7 @@ export default function App() {
           authError={authError}
           isConnected={isConnected}
           members={members}
-          selfUser={{ name: nickname, avatar }}
+          selfUser={{ id: socketId || socketRef.current?.id || 'self', name: nickname, avatar }}
           isSharingScreen={isSharingScreen}
           peerSharingUser={peerSharingUser}
           target={target}

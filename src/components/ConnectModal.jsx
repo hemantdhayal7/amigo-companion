@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 import CabbageLogo from './CabbageLogo';
+import { parseInviteOrServerLink } from '../utils/linkParser';
 
 export default function ConnectModal({
   roomId,
@@ -112,23 +113,77 @@ export default function ConnectModal({
     sounds.playPop();
   };
 
+  const [linkParsedNotice, setLinkParsedNotice] = useState(false);
+
+  const handleServerInputChange = (val) => {
+    const parsed = parseInviteOrServerLink(val);
+    if (parsed && parsed.hasLinkParams) {
+      setServerInput(parsed.serverUrl);
+      if (parsed.roomId) {
+        setRoomInput(parsed.roomId);
+      }
+      if (parsed.roomSecret) {
+        setSecretInput(parsed.roomSecret);
+      }
+      setLinkParsedNotice(true);
+      setTimeout(() => setLinkParsedNotice(false), 4500);
+      sounds.playCelebration();
+    } else {
+      setServerInput(val);
+    }
+  };
+
+  const handleRoomInputChange = (val) => {
+    const parsed = parseInviteOrServerLink(val);
+    if (parsed && parsed.hasLinkParams) {
+      if (parsed.roomId) setRoomInput(parsed.roomId);
+      if (parsed.roomSecret) setSecretInput(parsed.roomSecret);
+      if (parsed.serverUrl) setServerInput(parsed.serverUrl);
+      setLinkParsedNotice(true);
+      setTimeout(() => setLinkParsedNotice(false), 4500);
+      sounds.playCelebration();
+    } else {
+      setRoomInput(val);
+    }
+  };
+
+  const handleQuickLinkPaste = (val) => {
+    const parsed = parseInviteOrServerLink(val);
+    if (parsed) {
+      if (parsed.serverUrl) setServerInput(parsed.serverUrl);
+      if (parsed.roomId) setRoomInput(parsed.roomId);
+      if (parsed.roomSecret) setSecretInput(parsed.roomSecret);
+      setLinkParsedNotice(true);
+      setTimeout(() => setLinkParsedNotice(false), 4500);
+      sounds.playCelebration();
+    }
+  };
+
   const handleSave = (e) => {
     e.preventDefault();
-    if (roomInput.trim()) onSaveRoomId(roomInput.trim());
-    if (secretInput.trim()) onSaveRoomSecret(secretInput.trim());
-    if (serverInput.trim()) {
-      let cleanServer = serverInput.trim().replace(/\/+$/, '');
-      // Auto-correct accidental dot instead of colon before port (e.g. 192.168.1.3.4000 -> 192.168.1.3:4000)
-      cleanServer = cleanServer.replace(/\.([0-9]{4,5})$/, ':$1');
-      // If user typed https:// on a local IP, convert to http://
-      if (cleanServer.startsWith('https://192.168.') || cleanServer.startsWith('https://localhost') || cleanServer.startsWith('https://127.0.0.1')) {
-        cleanServer = cleanServer.replace(/^https:\/\//, 'http://');
-      }
-      if (!cleanServer.startsWith('http://') && !cleanServer.startsWith('https://')) {
-        cleanServer = `http://${cleanServer}`;
-      }
-      onSaveServerUrl(cleanServer);
+    let finalRoom = roomInput.trim();
+    let finalSecret = secretInput.trim();
+    let finalServer = serverInput.trim();
+
+    // Check if user pasted full invite link in serverInput
+    const parsedServer = parseInviteOrServerLink(finalServer);
+    if (parsedServer) {
+      finalServer = parsedServer.serverUrl;
+      if (parsedServer.roomId) finalRoom = parsedServer.roomId;
+      if (parsedServer.roomSecret) finalSecret = parsedServer.roomSecret;
     }
+
+    // Check if user pasted full invite link in roomInput
+    const parsedRoom = parseInviteOrServerLink(finalRoom);
+    if (parsedRoom && parsedRoom.hasLinkParams) {
+      if (parsedRoom.roomId) finalRoom = parsedRoom.roomId;
+      if (parsedRoom.roomSecret) finalSecret = parsedRoom.roomSecret;
+      if (parsedRoom.serverUrl) finalServer = parsedRoom.serverUrl;
+    }
+
+    if (finalRoom) onSaveRoomId(finalRoom);
+    if (finalSecret) onSaveRoomSecret(finalSecret);
+    if (finalServer) onSaveServerUrl(finalServer);
     if (nameInput.trim()) onSaveNickname(nameInput.trim());
     sounds.playPop();
     onClose();
@@ -209,6 +264,43 @@ export default function ConnectModal({
         </div>
       </div>
 
+      {/* Success Banner when Link is Auto-Parsed */}
+      {linkParsedNotice && (
+        <div className="mb-3 p-2 rounded-2xl bg-emerald-500/20 border border-emerald-400 text-emerald-400 text-[10px] font-bold flex items-center gap-1.5 animate-bounce-short">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <span>✨ Link parsed! Room, passcode & server URL auto-filled.</span>
+        </div>
+      )}
+
+      {/* Quick Connect with Invite Link Box */}
+      <div className="mb-3 p-2.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 space-y-1.5">
+        <div className="flex items-center justify-between text-xs font-semibold text-indigo-400">
+          <span className="flex items-center gap-1">
+            <Link2 className="w-3.5 h-3.5" />
+            Paste Partner's Invite Link
+          </span>
+          <span className="text-[9px] bg-indigo-500/20 px-1.5 py-0.2 rounded font-normal text-indigo-300">Auto-Extract</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="text"
+            placeholder="Paste your partner's invite link here..."
+            onChange={(e) => handleQuickLinkPaste(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              if (text) {
+                e.preventDefault();
+                handleQuickLinkPaste(text);
+              }
+            }}
+            className={`flex-1 px-2 py-1 text-[10px] font-mono rounded-lg border border-indigo-500/20 focus:outline-none ${inputBg}`}
+          />
+        </div>
+        <p className="text-[9px] opacity-75 leading-tight">
+          Pasting the full link immediately auto-populates the Signaling Server URL, Room Code, and Passcode!
+        </p>
+      </div>
+
       <form onSubmit={handleSave} className="space-y-2.5">
         {/* Your Name */}
         <div>
@@ -219,7 +311,7 @@ export default function ConnectModal({
             type="text"
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
-            placeholder="e.g. Hemant"
+            placeholder="e.g. Learner"
             className={`w-full px-2.5 py-1.5 text-xs rounded-xl border focus:outline-none transition ${inputBg}`}
           />
         </div>
@@ -232,7 +324,14 @@ export default function ConnectModal({
           <input
             type="text"
             value={roomInput}
-            onChange={(e) => setRoomInput(e.target.value)}
+            onChange={(e) => handleRoomInputChange(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              if (text && (text.includes('?') || text.includes('http'))) {
+                e.preventDefault();
+                handleRoomInputChange(text);
+              }
+            }}
             placeholder="e.g. our-study-date"
             className={`w-full px-2.5 py-1.5 text-xs rounded-xl border focus:outline-none font-mono transition ${inputBg}`}
           />
@@ -285,12 +384,22 @@ export default function ConnectModal({
           <input
             type="text"
             value={serverInput}
-            onChange={(e) => setServerInput(e.target.value)}
-            placeholder="http://localhost:4000 or http://192.168.x.x:4000"
+            onChange={(e) => handleServerInputChange(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              if (text) {
+                const parsed = parseInviteOrServerLink(text);
+                if (parsed && parsed.hasLinkParams) {
+                  e.preventDefault();
+                  handleServerInputChange(text);
+                }
+              }
+            }}
+            placeholder="http://192.168.x.x:4000 or paste full invite link"
             className={`w-full px-2.5 py-1.5 text-[11px] rounded-xl border focus:outline-none font-mono transition ${inputBg}`}
           />
           <p className="text-[9px] opacity-60 mt-0.5">
-            Tip: Use your computer's local IP or host name (e.g. <span className="font-mono font-bold">192.168.1.3:4000</span>) so her computer reaches yours!
+            💡 Paste either the server address or the full invite link your partner sent you!
           </p>
         </div>
 
