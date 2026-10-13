@@ -272,15 +272,18 @@ export default function FloatingCompanion({
       clickCountRef.current = 0;
 
       if (count === 1) {
-        // Single Click: Toggle between Menu and Emoji ring! (Or restore if closed)
+        // Single Click: Cycle between Menu, Emoji, and System rings (1 ring at a time!)
         sounds.playPop();
         let nextMode;
-        if (ringMode === 'none') {
-          nextMode = 'menu';
-          setFeedbackToast('📋 Menu Ring Restored');
-        } else if (ringMode === 'menu') {
+        if (ringMode === 'menu') {
           nextMode = 'emoji';
           setFeedbackToast('🌟 Emoji Reactions Ring');
+        } else if (ringMode === 'emoji') {
+          nextMode = 'system';
+          setFeedbackToast('⚙️ System & Passwords Ring');
+        } else if (ringMode === 'system') {
+          nextMode = 'menu';
+          setFeedbackToast('📋 Menu Tools Ring');
         } else {
           nextMode = 'menu';
           setFeedbackToast('📋 Menu Tools Ring');
@@ -288,18 +291,18 @@ export default function FloatingCompanion({
         onChangeRingMode(nextMode);
         setTimeout(() => setFeedbackToast(null), 1800);
       } else if (count === 2) {
-        // Double Click (2 Taps): Direct switch between Menu and Emoji
+        // Double Click (2 Taps): Direct toggle between Menu Tools and System
         sounds.playPop();
-        const nextMode = ringMode === 'emoji' ? 'menu' : 'emoji';
+        const nextMode = ringMode === 'system' ? 'menu' : 'system';
         onChangeRingMode(nextMode);
-        setFeedbackToast(nextMode === 'emoji' ? '🌟 Emoji Reactions Ring' : '📋 Menu Tools Ring');
+        setFeedbackToast(nextMode === 'system' ? '⚙️ System & Passwords Ring' : '📋 Menu Tools Ring');
         setTimeout(() => setFeedbackToast(null), 1800);
       } else if (count >= 3) {
         // 3+ Taps: Vanish into pure minimalist camera orb or restore
         sounds.playCelebration();
         const nextMode = ringMode === 'none' ? 'menu' : 'none';
         onChangeRingMode(nextMode);
-        setFeedbackToast(nextMode === 'none' ? '🪄 Pure Minimalist Cam Orb' : '✨ Menu Restored');
+        setFeedbackToast(nextMode === 'none' ? '🪄 Pure Minimalist Cam Orb' : '✨ Ring Restored');
         setTimeout(() => setFeedbackToast(null), 1800);
       }
     }, 280);
@@ -360,12 +363,13 @@ export default function FloatingCompanion({
   const isWhite = theme === 'white';
   const isBlush = theme === 'blush';
 
+  const isSystemRingOpen = ringMode === 'system';
   const isMenuRingOpen = ringMode === 'menu';
   const isEmojiRingOpen = ringMode === 'emoji';
   const isRingOpen = ringMode !== 'none';
 
-  // Dynamic widget outer diameter: 308px for concentric rings, 116px for pure cam orb
-  const dialDiameter = isRingOpen ? 308 : 116;
+  // Dynamic widget outer diameter: exactly 248px for a single ring, 116px for pure cam orb
+  const dialDiameter = isRingOpen ? 248 : 116;
 
   // 8 Options in the Ring (45 degrees each)
   const dividerAngles = [-112.5, -67.5, -22.5, 22.5, 67.5, 112.5, 157.5, 202.5];
@@ -643,22 +647,20 @@ export default function FloatingCompanion({
       ),
     },
     {
-      id: 'fixed-ring',
-      label: ringMode === 'emoji' ? 'TOOLS' : 'EMOJI',
-      icon: <Layers className="w-3.5 h-3.5 text-amber-400" />,
+      id: 'sys-tools',
+      label: 'TOOLS',
+      icon: <Sliders className="w-3.5 h-3.5 text-indigo-400" />,
       angle: 45,
       start: 22.5,
       end: 67.5,
-      tooltip: ringMode === 'emoji' ? 'Switch Middle Ring to Menu Tools' : 'Switch Middle Ring to Emoji Reactions',
+      tooltip: 'Switch to Menu Tools Ring',
       onClick: () => {
         sounds.playPop();
-        const nextMode = ringMode === 'emoji' ? 'menu' : 'emoji';
-        onChangeRingMode(nextMode);
-        setFeedbackToast(nextMode === 'emoji' ? '🌟 Emoji Ring Active' : '📋 Tools Ring Active');
+        onChangeRingMode('menu');
+        setFeedbackToast('📋 Menu Tools Ring');
         setTimeout(() => setFeedbackToast(null), 1800);
       },
-      active: ringMode === 'emoji',
-      activeColor: 'amber',
+      active: false,
     },
     {
       id: 'fixed-url',
@@ -686,21 +688,20 @@ export default function FloatingCompanion({
       active: false,
     },
     {
-      id: 'fixed-orb',
-      label: 'ORB',
-      icon: <EyeOff className="w-3.5 h-3.5 text-purple-400" />,
+      id: 'sys-emoji',
+      label: 'EMOJI',
+      icon: <Smile className="w-3.5 h-3.5 text-amber-400" />,
       angle: 180,
       start: 157.5,
       end: 202.5,
-      tooltip: 'Vanish into pure minimalist Camera Orb',
+      tooltip: 'Switch to Emoji Reactions Ring',
       onClick: () => {
-        sounds.playCelebration();
-        onChangeRingMode('none');
-        setFeedbackToast('🪄 Pure Minimalist Cam Orb');
+        sounds.playPop();
+        onChangeRingMode('emoji');
+        setFeedbackToast('🌟 Emoji Reactions Ring');
         setTimeout(() => setFeedbackToast(null), 1800);
       },
-      active: ringMode === 'none',
-      activeColor: 'purple',
+      active: false,
     },
     {
       id: 'fixed-amigo',
@@ -1045,10 +1046,70 @@ export default function FloatingCompanion({
                 </div>
               </div>
 
+              {/* 2.5. Active Ring (1 Ring At A Time) */}
+              <div className="mb-2.5 p-2 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
+                <div className="text-[9px] font-mono font-bold opacity-70 mb-1.5 uppercase tracking-wide">
+                  Active Ring (1 Ring At A Time)
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playPop();
+                      onChangeRingMode('menu');
+                      setFeedbackToast('📋 Menu Tools Ring');
+                      setTimeout(() => setFeedbackToast(null), 1800);
+                    }}
+                    className={`py-1.5 px-1 rounded-xl text-[9px] font-mono font-bold flex items-center justify-center gap-1 transition cursor-pointer border ${
+                      ringMode === 'menu'
+                        ? 'bg-indigo-600 text-white border-indigo-400 font-extrabold shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                    }`}
+                  >
+                    <Sliders className="w-2.5 h-2.5" />
+                    <span>Tools</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playPop();
+                      onChangeRingMode('system');
+                      setFeedbackToast('⚙️ System & Passwords Ring');
+                      setTimeout(() => setFeedbackToast(null), 1800);
+                    }}
+                    className={`py-1.5 px-1 rounded-xl text-[9px] font-mono font-bold flex items-center justify-center gap-1 transition cursor-pointer border ${
+                      ringMode === 'system'
+                        ? 'bg-emerald-600 text-white border-emerald-400 font-extrabold shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                    }`}
+                  >
+                    <Settings className="w-2.5 h-2.5" />
+                    <span>System</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playPop();
+                      onChangeRingMode('emoji');
+                      setFeedbackToast('🌟 Emoji Reactions Ring');
+                      setTimeout(() => setFeedbackToast(null), 1800);
+                    }}
+                    className={`py-1.5 px-1 rounded-xl text-[9px] font-mono font-bold flex items-center justify-center gap-1 transition cursor-pointer border ${
+                      ringMode === 'emoji'
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                    }`}
+                  >
+                    <Smile className="w-2.5 h-2.5" />
+                    <span>Emoji</span>
+                  </button>
+                </div>
+              </div>
+
               {/* 3. Both Rings Customizers */}
               <div className="mb-2.5 p-2 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
                 <div className="text-[9px] font-mono font-bold opacity-70 mb-1.5 uppercase tracking-wide">
-                  Customize Both Rings
+                  Customize Rings
                 </div>
                 <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                   <button
@@ -1149,10 +1210,9 @@ export default function FloatingCompanion({
           )}
 
           {/* ============================================================ */}
-          {/* 4. DYNAMIC 3-RING CONCENTRIC CIRCULAR RADIAL DIAL            */}
-          {/* RING 1: CENTER HUB (LIVE WEBCAM / MASCOT ORB)                */}
-          {/* RING 2: MIDDLE ACTION RING (MENU TOOLS OR EMOJI REACTIONS)   */}
-          {/* RING 3: OUTER FIXED RING (8 ESSENTIAL SYSTEM CONTROLS)       */}
+          {/* 4. DYNAMIC CIRCULAR RADIAL DIAL (EXACTLY 1 RING AT A TIME)   */}
+          {/* CENTER: CAM/MASCOT HUB (116px)                               */}
+          {/* RING: EITHER MENU TOOLS, SYSTEM/PASSWORDS, OR EMOJIS (248px) */}
           {/* ============================================================ */}
           <div
             style={{
@@ -1183,16 +1243,13 @@ export default function FloatingCompanion({
                 </linearGradient>
               </defs>
 
-              {/* ======================================================== */}
-              {/* RING 3 (OUTER FIXED SYSTEM RING) SVG WEDGES (r=110 to 151)*/}
-              {/* ======================================================== */}
+              {/* Outer Rim Border of the Single Ring at r=119 */}
               {isRingOpen && (
-                <g className="transition-all duration-300">
-                  {/* Outer Rim Border at r=152 */}
+                <g className="transition-all duration-300 pointer-events-none">
                   <circle
                     cx="170"
                     cy="170"
-                    r="152"
+                    r="119"
                     stroke={isWhite ? 'rgba(15, 23, 42, 0.1)' : isBlush ? 'rgba(159, 18, 57, 0.12)' : 'rgba(0, 0, 0, 0.7)'}
                     strokeWidth="1.5"
                     fill="none"
@@ -1200,98 +1257,81 @@ export default function FloatingCompanion({
                   <circle
                     cx="170"
                     cy="170"
-                    r="153"
+                    r="120"
                     stroke={isWhite ? 'rgba(255, 255, 255, 0.95)' : isBlush ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.18)'}
                     strokeWidth="1"
                     fill="none"
                   />
-
-                  {/* Ring 3 Wedges */}
-                  {systemRingSectors.map((sec) => {
-                    const pathD = describeDonutSegment(170, 170, 110, 151, sec.start, sec.end);
-                    return (
-                      <path
-                        key={sec.id}
-                        d={pathD}
-                        className="sector-wedge cursor-pointer transition-colors pointer-events-auto"
-                        fill={sec.active ? (isWhite ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.28)') : 'transparent'}
-                        onClick={(e) => {
-                          if (sec.isDrag) {
-                            onToggleDock && onToggleDock();
-                          } else {
-                            sec.onClick && sec.onClick(e);
-                          }
-                        }}
-                        onMouseDown={(e) => {
-                          if (sec.isDrag) {
-                            handleDragButtonMouseDown(e);
-                          } else {
-                            e.stopPropagation();
-                          }
-                        }}
-                        data-tauri-drag-region={sec.isDrag ? "true" : "false"}
-                      >
-                        <title>{sec.tooltip}</title>
-                      </path>
-                    );
-                  })}
-
-                  {/* Radial Dividers for Ring 3 */}
-                  {dividerAngles.map((ang, idx) => {
-                    const toRad = (deg) => (deg * Math.PI) / 180;
-                    const x1 = 170 + 110 * Math.cos(toRad(ang));
-                    const y1 = 170 + 110 * Math.sin(toRad(ang));
-                    const x2 = 170 + 151 * Math.cos(toRad(ang));
-                    const y2 = 170 + 151 * Math.sin(toRad(ang));
-                    return (
-                      <g key={`div-r3-${idx}`} className="pointer-events-none">
-                        <line
-                          x1={x1}
-                          y1={y1}
-                          x2={x2}
-                          y2={y2}
-                          stroke={isWhite ? 'rgba(15, 23, 42, 0.08)' : isBlush ? 'rgba(159, 18, 57, 0.1)' : 'rgba(0, 0, 0, 0.65)'}
-                          strokeWidth="1.5"
-                        />
-                        <line
-                          x1={x1}
-                          y1={y1}
-                          x2={x2}
-                          y2={y2}
-                          stroke={isWhite ? 'rgba(255, 255, 255, 0.95)' : isBlush ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.2)'}
-                          strokeWidth="1"
-                        />
-                      </g>
-                    );
-                  })}
                 </g>
               )}
 
-              {/* Groove Border between Ring 2 & Ring 3 at r=107.5 */}
-              {isRingOpen && (
-                <g className="transition-all duration-300 pointer-events-none">
-                  <circle
-                    cx="170"
-                    cy="170"
-                    r="107.5"
-                    stroke={isWhite ? 'rgba(15, 23, 42, 0.12)' : isBlush ? 'rgba(159, 18, 57, 0.14)' : 'rgba(0, 0, 0, 0.7)'}
-                    strokeWidth="1.5"
-                    fill="none"
-                  />
-                  <circle
-                    cx="170"
-                    cy="170"
-                    r="108.5"
-                    stroke={isWhite ? 'rgba(255, 255, 255, 0.9)' : isBlush ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.18)'}
-                    strokeWidth="1"
-                    fill="none"
-                  />
-                </g>
-              )}
+              {/* MODE 1: SYSTEM & PASSWORDS RING (r=66 to 118, width=52) */}
+              <g
+                className={`transition-all duration-300 ${
+                  isSystemRingOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
+                }`}
+                style={{ transformOrigin: '170px 170px' }}
+              >
+                {systemRingSectors.map((sec) => {
+                  const pathD = describeDonutSegment(170, 170, 66, 118, sec.start, sec.end);
+                  return (
+                    <path
+                      key={sec.id}
+                      d={pathD}
+                      className="sector-wedge cursor-pointer transition-colors pointer-events-auto"
+                      fill={sec.active ? (isWhite ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.28)') : 'transparent'}
+                      onClick={(e) => {
+                        if (sec.isDrag) {
+                          onToggleDock && onToggleDock();
+                        } else {
+                          sec.onClick && sec.onClick(e);
+                        }
+                      }}
+                      onMouseDown={(e) => {
+                        if (sec.isDrag) {
+                          handleDragButtonMouseDown(e);
+                        } else {
+                          e.stopPropagation();
+                        }
+                      }}
+                      data-tauri-drag-region={sec.isDrag ? "true" : "false"}
+                    >
+                      <title>{sec.tooltip}</title>
+                    </path>
+                  );
+                })}
 
-              {/* ======================================================== */}
-              {/* RING 2 (MIDDLE RING): MENU TOOLS (r=65 to 105)            */}
-              {/* ======================================================== */}
+                {/* Hairline Radial Dividers for System Ring */}
+                {dividerAngles.map((ang, idx) => {
+                  const toRad = (deg) => (deg * Math.PI) / 180;
+                  const x1 = 170 + 66 * Math.cos(toRad(ang));
+                  const y1 = 170 + 66 * Math.sin(toRad(ang));
+                  const x2 = 170 + 118 * Math.cos(toRad(ang));
+                  const y2 = 170 + 118 * Math.sin(toRad(ang));
+                  return (
+                    <g key={`div-sys-${idx}`} className="pointer-events-none">
+                      <line
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke={isWhite ? 'rgba(15, 23, 42, 0.08)' : isBlush ? 'rgba(159, 18, 57, 0.1)' : 'rgba(0, 0, 0, 0.65)'}
+                        strokeWidth="1.5"
+                      />
+                      <line
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke={isWhite ? 'rgba(255, 255, 255, 0.95)' : isBlush ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.2)'}
+                        strokeWidth="1"
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+
+              {/* MODE 2: MENU TOOLS RING (r=66 to 118, width=52) */}
               <g
                 className={`transition-all duration-300 ${
                   isMenuRingOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
@@ -1299,7 +1339,7 @@ export default function FloatingCompanion({
                 style={{ transformOrigin: '170px 170px' }}
               >
                 {optionsSectors.map((sec) => {
-                  const pathD = describeDonutSegment(170, 170, 65, 105, sec.start, sec.end);
+                  const pathD = describeDonutSegment(170, 170, 66, 118, sec.start, sec.end);
                   return (
                     <path
                       key={sec.id}
@@ -1327,15 +1367,15 @@ export default function FloatingCompanion({
                   );
                 })}
 
-                {/* Radial Dividers for Ring 2 (r=65 to 105) */}
+                {/* Hairline Radial Dividers for Menu Ring */}
                 {dividerAngles.map((ang, idx) => {
                   const toRad = (deg) => (deg * Math.PI) / 180;
-                  const x1 = 170 + 65 * Math.cos(toRad(ang));
-                  const y1 = 170 + 65 * Math.sin(toRad(ang));
-                  const x2 = 170 + 105 * Math.cos(toRad(ang));
-                  const y2 = 170 + 105 * Math.sin(toRad(ang));
+                  const x1 = 170 + 66 * Math.cos(toRad(ang));
+                  const y1 = 170 + 66 * Math.sin(toRad(ang));
+                  const x2 = 170 + 118 * Math.cos(toRad(ang));
+                  const y2 = 170 + 118 * Math.sin(toRad(ang));
                   return (
-                    <g key={`div-r2-${idx}`} className="pointer-events-none">
+                    <g key={`div-menu-${idx}`} className="pointer-events-none">
                       <line
                         x1={x1}
                         y1={y1}
@@ -1357,9 +1397,7 @@ export default function FloatingCompanion({
                 })}
               </g>
 
-              {/* ======================================================== */}
-              {/* RING 2 (MIDDLE RING): EMOJI TRACK (r=85, width=40)        */}
-              {/* ======================================================== */}
+              {/* MODE 3: EMOJI RING SVG TRACK (r=92, width=52) */}
               <g
                 className={`transition-all duration-300 ${
                   isEmojiRingOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
@@ -1369,20 +1407,20 @@ export default function FloatingCompanion({
                 <circle
                   cx="170"
                   cy="170"
-                  r="85"
+                  r="92"
                   stroke={isWhite ? 'rgba(255, 255, 255, 0.45)' : isBlush ? 'rgba(254, 205, 211, 0.35)' : 'rgba(255, 255, 255, 0.08)'}
-                  strokeWidth="40"
+                  strokeWidth="52"
                   fill="none"
                 />
               </g>
 
-              {/* RECESSED MOAT BETWEEN RING 1 (HUB) & RING 2 (r=61.5, width=6) */}
+              {/* RECESSED MOAT BETWEEN CENTER HUB & SINGLE RING (r=62, width=5) */}
               <circle
                 cx="170"
                 cy="170"
-                r="61.5"
+                r="62"
                 stroke={isWhite ? 'rgba(215, 228, 248, 0.75)' : isBlush ? 'rgba(254, 205, 211, 0.75)' : 'rgba(10, 15, 25, 0.95)'}
-                strokeWidth="6"
+                strokeWidth="5"
                 fill="none"
                 className="pointer-events-none"
               />
@@ -1391,11 +1429,11 @@ export default function FloatingCompanion({
               <circle
                 cx="170"
                 cy="170"
-                r="61.5"
+                r="62"
                 stroke="url(#moatHaloGrad)"
                 strokeWidth="3.5"
-                strokeDasharray={2 * Math.PI * 61.5}
-                strokeDashoffset={2 * Math.PI * 61.5 - (duoProgress / 100) * 2 * Math.PI * 61.5}
+                strokeDasharray={2 * Math.PI * 62}
+                strokeDashoffset={2 * Math.PI * 62 - (duoProgress / 100) * 2 * Math.PI * 62}
                 strokeLinecap="round"
                 fill="none"
                 transform="rotate(-90 170 170)"
@@ -1404,69 +1442,71 @@ export default function FloatingCompanion({
             </svg>
 
             {/* ============================================================ */}
-            {/* HTML OVERLAY: RING 3 (OUTER FIXED SYSTEM RING CONTROLS)      */}
+            {/* HTML OVERLAY: SYSTEM & PASSWORDS RING (WHEN ringMode === 'system') */}
             {/* ============================================================ */}
-            {isRingOpen && (
-              <div className="absolute inset-0 transition-all duration-300 pointer-events-none">
-                {systemRingSectors.map((sec) => {
-                  const toRad = (deg) => (deg * Math.PI) / 180;
-                  const posX = 130.5 * Math.cos(toRad(sec.angle));
-                  const posY = 130.5 * Math.sin(toRad(sec.angle));
+            <div
+              className={`absolute inset-0 transition-all duration-300 pointer-events-none ${
+                isSystemRingOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+              }`}
+            >
+              {systemRingSectors.map((sec) => {
+                const toRad = (deg) => (deg * Math.PI) / 180;
+                const posX = 92 * Math.cos(toRad(sec.angle));
+                const posY = 92 * Math.sin(toRad(sec.angle));
 
-                  return (
-                    <button
-                      key={sec.id}
-                      type="button"
-                      data-tauri-drag-region={sec.isDrag ? "true" : "false"}
-                      onMouseDown={(e) => {
-                        if (sec.isDrag) {
-                          handleDragButtonMouseDown(e);
-                        } else {
-                          e.stopPropagation();
-                        }
-                      }}
-                      onClick={(e) => {
+                return (
+                  <button
+                    key={`sys-${sec.id}`}
+                    type="button"
+                    data-tauri-drag-region={sec.isDrag ? "true" : "false"}
+                    onMouseDown={(e) => {
+                      if (sec.isDrag) {
+                        handleDragButtonMouseDown(e);
+                      } else {
                         e.stopPropagation();
-                        if (sec.isDrag) {
-                          onToggleDock && onToggleDock();
-                        } else {
-                          sec.onClick && sec.onClick(e);
-                        }
-                      }}
-                      style={{
-                        position: 'absolute',
-                        left: `calc(50% + ${posX}px)`,
-                        top: `calc(50% + ${posY}px)`,
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                      className={`pointer-events-auto flex flex-col items-center justify-center text-center select-none z-30 transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
-                        sec.isDrag ? 'cursor-grab active:cursor-grabbing app-drag-pill' : 'tauri-no-drag'
+                      }
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (sec.isDrag) {
+                        onToggleDock && onToggleDock();
+                      } else {
+                        sec.onClick && sec.onClick(e);
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: `calc(50% + ${posX}px)`,
+                      top: `calc(50% + ${posY}px)`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                    className={`pointer-events-auto flex flex-col items-center justify-center text-center select-none z-30 transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
+                      sec.isDrag ? 'cursor-grab active:cursor-grabbing app-drag-pill' : 'tauri-no-drag'
+                    }`}
+                    title={sec.tooltip}
+                  >
+                    <div
+                      className={`relative flex items-center justify-center transition-transform duration-200 ${
+                        isWhite ? 'embossed-icon-white' : isBlush ? 'embossed-icon-blush' : 'embossed-icon-dark'
                       }`}
-                      title={sec.tooltip}
                     >
-                      <div
-                        className={`relative flex items-center justify-center transition-transform duration-200 ${
-                          isWhite ? 'embossed-icon-white' : isBlush ? 'embossed-icon-blush' : 'embossed-icon-dark'
-                        }`}
-                      >
-                        {sec.icon}
-                        {sec.extraBadge}
-                      </div>
-                      <span
-                        className={`text-[6.5px] font-mono font-extrabold tracking-tight uppercase leading-none mt-0.5 ${
-                          isWhite ? 'text-slate-700' : isBlush ? 'text-rose-950' : 'text-slate-200'
-                        }`}
-                      >
-                        {sec.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      {sec.icon}
+                      {sec.extraBadge}
+                    </div>
+                    <span
+                      className={`text-[6.5px] font-mono font-extrabold tracking-tight uppercase leading-none mt-0.5 ${
+                        isWhite ? 'text-slate-700' : isBlush ? 'text-rose-950' : 'text-slate-200'
+                      }`}
+                    >
+                      {sec.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* ============================================================ */}
-            {/* HTML OVERLAY: RING 2 (MIDDLE RING MENU TOOLS)                */}
+            {/* HTML OVERLAY: MENU TOOLS RING (WHEN ringMode === 'menu')     */}
             {/* ============================================================ */}
             <div
               className={`absolute inset-0 transition-all duration-300 pointer-events-none ${
@@ -1475,8 +1515,8 @@ export default function FloatingCompanion({
             >
               {optionsSectors.map((sec) => {
                 const toRad = (deg) => (deg * Math.PI) / 180;
-                const posX = 85 * Math.cos(toRad(sec.angle));
-                const posY = 85 * Math.sin(toRad(sec.angle));
+                const posX = 92 * Math.cos(toRad(sec.angle));
+                const posY = 92 * Math.sin(toRad(sec.angle));
 
                 return (
                   <button
@@ -1504,7 +1544,7 @@ export default function FloatingCompanion({
                       top: `calc(50% + ${posY}px)`,
                       transform: 'translate(-50%, -50%)',
                     }}
-                    className={`pointer-events-auto flex flex-col items-center justify-center text-center select-none z-25 transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
+                    className={`pointer-events-auto flex flex-col items-center justify-center text-center select-none z-30 transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
                       sec.id === 'drag' ? 'cursor-grab active:cursor-grabbing app-drag-pill' : 'tauri-no-drag'
                     }`}
                     title={sec.tooltip}
@@ -1518,7 +1558,7 @@ export default function FloatingCompanion({
                       {sec.extraBadge}
                     </div>
                     <span
-                      className={`text-[6px] font-mono font-extrabold tracking-tight uppercase leading-none mt-0.5 ${
+                      className={`text-[6.5px] font-mono font-extrabold tracking-tight uppercase leading-none mt-0.5 ${
                         isWhite ? 'text-slate-600' : isBlush ? 'text-rose-900' : 'text-slate-300'
                       }`}
                     >
@@ -1530,7 +1570,7 @@ export default function FloatingCompanion({
             </div>
 
             {/* ============================================================ */}
-            {/* HTML OVERLAY: RING 2 (MIDDLE RING EMOJI REACTIONS)           */}
+            {/* HTML OVERLAY: EMOJI REACTIONS RING (WHEN ringMode === 'emoji')*/}
             {/* ============================================================ */}
             <div
               className={`absolute inset-0 transition-all duration-300 ${
@@ -1541,8 +1581,8 @@ export default function FloatingCompanion({
                 const angles = [-90, -45, 0, 45, 90, 135, 180, 225];
                 const angle = angles[idx % angles.length];
                 const toRad = (deg) => (deg * Math.PI) / 180;
-                const posX = 85 * Math.cos(toRad(angle));
-                const posY = 85 * Math.sin(toRad(angle));
+                const posX = 92 * Math.cos(toRad(angle));
+                const posY = 92 * Math.sin(toRad(angle));
 
                 return (
                   <button
@@ -1560,7 +1600,7 @@ export default function FloatingCompanion({
                       top: `calc(50% + ${posY}px)`,
                       transform: 'translate(-50%, -50%)',
                     }}
-                    className={`emoji-pod-btn tauri-no-drag w-7 h-7 rounded-full flex items-center justify-center text-sm hover:scale-130 active:scale-90 transition-all duration-200 cursor-pointer shadow-md select-none z-25 ${
+                    className={`emoji-pod-btn tauri-no-drag w-8 h-8 rounded-full flex items-center justify-center text-base hover:scale-130 active:scale-90 transition-all duration-200 cursor-pointer shadow-md select-none z-30 ${
                       isWhite ? 'emoji-pod-white' : isBlush ? 'emoji-pod-blush' : 'emoji-pod-dark'
                     }`}
                     title={`Send instant reaction: ${emoji}`}
@@ -1569,6 +1609,42 @@ export default function FloatingCompanion({
                   </button>
                 );
               })}
+
+              {/* Quick Switcher Button inside Emoji Ring: Return to Tools */}
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playPop();
+                  onChangeRingMode('menu');
+                  setFeedbackToast('📋 Menu Tools Ring');
+                  setTimeout(() => setFeedbackToast(null), 1800);
+                }}
+                className="absolute top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[7px] font-bold border border-white/20 shadow-md hover:border-emerald-400 z-40 transition tauri-no-drag cursor-pointer"
+                title="Return to Menu Tools Ring"
+              >
+                📋 TOOLS
+              </button>
+
+              {/* Quick Switcher Button inside Emoji Ring: Go to System */}
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playPop();
+                  onChangeRingMode('system');
+                  setFeedbackToast('⚙️ System & Passwords Ring');
+                  setTimeout(() => setFeedbackToast(null), 1800);
+                }}
+                className="absolute bottom-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[7px] font-bold border border-white/20 shadow-md hover:border-cyan-400 z-40 transition tauri-no-drag cursor-pointer"
+                title="Go to System & Passwords Ring"
+              >
+                ⚙️ SYSTEM
+              </button>
             </div>
 
             {/* ============================================================ */}
