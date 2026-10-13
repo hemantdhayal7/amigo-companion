@@ -17,6 +17,7 @@ export default function ScreenShareModal({
   isSharing,
   localStream,
   peerStream,
+  remoteCamStream,
   peerSharingUser,
   onStartShare,
   onStopShare,
@@ -58,15 +59,30 @@ export default function ScreenShareModal({
   };
 
   // Determine which stream to display:
-  // If peer is sharing, display peerStream; otherwise if local is sharing, display localStream.
-  const activeStream = peerStream || localStream;
-  const isDisplayingPeer = Boolean(peerStream);
+  // Peer presentation has priority, then local screen share
+  const activeStream = peerStream || remoteCamStream || localStream;
+  const isDisplayingPeer = Boolean(peerStream || (peerSharingUser && remoteCamStream));
 
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.srcObject = activeStream || null;
+      videoRef.current.muted = true;
+      videoRef.current.playsInline = true;
+      if (videoRef.current.srcObject !== (activeStream || null)) {
+        videoRef.current.srcObject = activeStream || null;
+      }
       if (activeStream) {
-        videoRef.current.play().catch(() => {});
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.debug('[ScreenShareModal] Video play retry:', err);
+            setTimeout(() => {
+              if (videoRef.current) {
+                videoRef.current.muted = true;
+                videoRef.current.play().catch(() => {});
+              }
+            }, 300);
+          });
+        }
       }
     }
   }, [activeStream]);
@@ -252,7 +268,11 @@ export default function ScreenShareModal({
             ref={videoRef}
             autoPlay
             playsInline
-            muted={!isDisplayingPeer} // Only mute self-share to avoid audio feedback
+            muted
+            onLoadedMetadata={(e) => {
+              e.target.muted = true;
+              e.target.play().catch(() => {});
+            }}
             className={`w-full h-full ${
               fitMode === 'contain' ? 'object-contain' : 'object-cover'
             } transition-all duration-200`}

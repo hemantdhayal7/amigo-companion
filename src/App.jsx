@@ -6,7 +6,7 @@ import SosCrisisModal from './components/SosCrisisModal';
 import SessionControls from './components/SessionControls';
 import DailyTargetModal from './components/DailyTargetModal';
 import GoalReminderToast from './components/GoalReminderToast';
-import EmojiCustomizerModal from './components/EmojiCustomizerModal';
+import EmojiCustomizerModal, { RingCustomizerModal, DEFAULT_MENU_TOOLS } from './components/RingCustomizerModal';
 import ConnectModal from './components/ConnectModal';
 import DoubtModal from './components/DoubtModal';
 import CabbageLogo from './components/CabbageLogo';
@@ -64,6 +64,33 @@ export default function App() {
       return DEFAULT_EMOJIS;
     }
   });
+
+  // Customizable Menu Ring Slots (8 sectors)
+  const [menuTools, setMenuTools] = useState(() => {
+    try {
+      const saved = localStorage.getItem('study_menu_tools');
+      return saved ? JSON.parse(saved) : DEFAULT_MENU_TOOLS;
+    } catch {
+      return DEFAULT_MENU_TOOLS;
+    }
+  });
+
+  // One ring at a time: 'menu' | 'emoji' | 'none'
+  const [ringMode, setRingMode] = useState(() => {
+    return localStorage.getItem('study_ring_mode') || 'menu';
+  });
+
+  // Resizable Circle scale: 0.7 to 1.6
+  const [companionScale, setCompanionScale] = useState(() => {
+    try {
+      const saved = localStorage.getItem('study_companion_scale');
+      return saved ? parseFloat(saved) : 1.0;
+    } catch {
+      return 1.0;
+    }
+  });
+
+  const [customizerTab, setCustomizerTab] = useState('emojis'); // 'emojis' | 'menu'
 
   // Real-time Voice and Video Call State
   const [isMicOn, setIsMicOn] = useState(false);
@@ -681,13 +708,54 @@ export default function App() {
     }
   }, [isPeerVideoOn, isVideoOn]);
 
-  // Emoji customization handlers
+  // Emoji & Ring customization handlers
   const handleSaveEmojis = (newEmojis) => {
     setQuickEmojis(newEmojis);
+    try {
+      localStorage.setItem('study_quick_emojis', JSON.stringify(newEmojis));
+    } catch {}
   };
 
-  const handleResetEmojiDefaults = () => {
+  const handleSaveMenuTools = (newTools) => {
+    setMenuTools(newTools);
+    try {
+      localStorage.setItem('study_menu_tools', JSON.stringify(newTools));
+    } catch {}
+  };
+
+  const handleChangeRingMode = (mode) => {
+    setRingMode(mode);
+    try {
+      localStorage.setItem('study_ring_mode', mode);
+    } catch {}
+  };
+
+  const handleChangeScale = (newScale) => {
+    const clamped = Math.max(0.7, Math.min(1.6, Number(newScale.toFixed(2))));
+    setCompanionScale(clamped);
+    try {
+      localStorage.setItem('study_companion_scale', clamped.toString());
+    } catch {}
+  };
+
+  const handleResetDefaults = () => {
     setQuickEmojis(DEFAULT_EMOJIS);
+    setMenuTools(DEFAULT_MENU_TOOLS);
+    setCompanionScale(1.0);
+    setRingMode('menu');
+    try {
+      localStorage.setItem('study_quick_emojis', JSON.stringify(DEFAULT_EMOJIS));
+      localStorage.setItem('study_menu_tools', JSON.stringify(DEFAULT_MENU_TOOLS));
+      localStorage.setItem('study_companion_scale', '1');
+      localStorage.setItem('study_ring_mode', 'menu');
+    } catch {}
+  };
+
+  const handleWatchScreen = () => {
+    setActiveModal('screen');
+    setScreenViewMode('theater');
+    resizeWindowForScreenshare('theater');
+    sounds.playPop();
   };
 
   // Helper to spawn whole-screen floating emoji cascade
@@ -1055,13 +1123,17 @@ export default function App() {
           </div>
         )}
 
-        {/* Emoji Customizer Modal */}
+        {/* Ring & Menu Customizer Modal */}
         {activeModal === 'customizer' && (
           <div data-amigo-interactive="true" className="mb-2">
-            <EmojiCustomizerModal
+            <RingCustomizerModal
+              initialTab={customizerTab}
               emojis={quickEmojis}
+              menuTools={menuTools}
               onSaveEmojis={handleSaveEmojis}
-              onResetDefaults={handleResetEmojiDefaults}
+              onSaveMenuTools={handleSaveMenuTools}
+              onResetDefaults={handleResetDefaults}
+              onSendEmoji={handleSendEmoji}
               onClose={() => setActiveModal('none')}
               theme={theme}
             />
@@ -1094,6 +1166,7 @@ export default function App() {
               isSharing={isSharingScreen}
               localStream={localStream}
               peerStream={peerStream}
+              remoteCamStream={remoteCamStream}
               peerSharingUser={peerSharingUser}
               onStartShare={handleStartScreenShare}
               onStopShare={handleStopScreenShare}
@@ -1136,6 +1209,7 @@ export default function App() {
           members={members}
           selfUser={{ name: nickname, avatar }}
           isSharingScreen={isSharingScreen}
+          peerSharingUser={peerSharingUser}
           target={target}
           progress={progress}
           onOpenTargetModal={() => setActiveModal(activeModal === 'target' ? 'none' : 'target')}
@@ -1145,8 +1219,15 @@ export default function App() {
           onSendEmoji={handleSendEmoji}
           floatingEmojis={floatingEmojis}
           quickEmojis={quickEmojis}
-          onOpenCustomizer={() => setActiveModal('customizer')}
-          onOpenSos={() => setActiveModal('sos')}
+          menuTools={menuTools}
+          ringMode={ringMode}
+          onChangeRingMode={handleChangeRingMode}
+          companionScale={companionScale}
+          onChangeScale={handleChangeScale}
+          onOpenCustomizer={(tab) => {
+            setCustomizerTab(tab || 'emojis');
+            setActiveModal('customizer');
+          }}
           onOpenScreenShare={() => {
             if (activeModal === 'screen') {
               setActiveModal('none');
@@ -1157,6 +1238,7 @@ export default function App() {
               resizeWindowForScreenshare('theater');
             }
           }}
+          onWatchScreen={handleWatchScreen}
           onOpenSession={() => setActiveModal(activeModal === 'session' ? 'none' : 'session')}
           onLeaveSession={handleLeaveSession}
           sosAlert={sosAlert}
@@ -1166,6 +1248,7 @@ export default function App() {
           onToggleDock={handleToggleDock}
           theme={theme}
           onSetTheme={setTheme}
+          onResetDefaults={handleResetDefaults}
           isMicOn={isMicOn}
           isVideoOn={isVideoOn}
           onToggleMic={handleToggleMic}

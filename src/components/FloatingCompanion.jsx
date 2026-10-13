@@ -24,11 +24,17 @@ import {
   Users,
   Plus,
   Sparkles,
+  Settings,
+  Sliders,
+  RotateCcw,
+  Maximize2,
+  Star,
 } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import CabbageLogo from './CabbageLogo';
 import { sounds } from '../utils/audio';
 import { setForceInteractive } from '../utils/hitTesting';
+import { AVAILABLE_MENU_TOOLS, DEFAULT_MENU_TOOLS, DEFAULT_EMOJIS } from './RingCustomizerModal';
 
 // Helper to generate mathematically exact SVG donut segment path
 function describeDonutSegment(cx, cy, rIn, rOut, startAngleDeg, endAngleDeg) {
@@ -60,14 +66,21 @@ export default function FloatingCompanion({
   members,
   selfUser,
   isSharingScreen,
+  peerSharingUser = null,
   target,
   progress,
   onOpenTargetModal,
   onSendEmoji,
   floatingEmojis,
-  quickEmojis = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'],
+  quickEmojis = DEFAULT_EMOJIS,
+  menuTools = DEFAULT_MENU_TOOLS,
+  ringMode = 'menu', // 'menu' | 'emoji' | 'none'
+  onChangeRingMode = () => {},
+  companionScale = 1.0,
+  onChangeScale = () => {},
   onOpenCustomizer,
   onOpenScreenShare,
+  onWatchScreen,
   onOpenSos,
   onOpenSession,
   onLeaveSession,
@@ -83,6 +96,7 @@ export default function FloatingCompanion({
   // Theme props
   theme = 'dark',
   onSetTheme,
+  onResetDefaults = () => {},
   // Mic & Video props
   isMicOn,
   isVideoOn,
@@ -106,14 +120,7 @@ export default function FloatingCompanion({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCabbageBouncing, setIsCabbageBouncing] = useState(false);
-
-  // Dynamic concentric ring expansion states:
-  // Default: Clean camera orb mode (top bar vanished)
-  // 2 taps on Cam = toggle Emoji Circle
-  // 3 taps on Cam = toggle All Options Circle & Top Bar
-  // 4 taps on Cam = vanish into pure minimalist camera orb
-  const [isEmojiCircleOpen, setIsEmojiCircleOpen] = useState(false);
-  const [isOptionsCircleOpen, setIsOptionsCircleOpen] = useState(false);
+  const [isOptionsDrawerOpen, setIsOptionsDrawerOpen] = useState(false);
   const [feedbackToast, setFeedbackToast] = useState(null);
 
   const clickCountRef = useRef(0);
@@ -260,53 +267,35 @@ export default function FloatingCompanion({
       clickCountRef.current = 0;
 
       if (count === 1) {
-        // Left 1 Click: Open / Close All Options Circle & Top Menu Bar!
-        setIsOptionsCircleOpen((prev) => {
-          const next = !prev;
-          if (next) {
-            sounds.playCelebration();
-            setFeedbackToast('🎛️ Options & Menu Bar Opened');
-          } else {
-            sounds.playPop();
-            // When options close, also close emoji ring so no ring is left floating empty
-            setIsEmojiCircleOpen(false);
-            setFeedbackToast('🪄 Options & Bar Closed');
-          }
-          setTimeout(() => setFeedbackToast(null), 1800);
-          return next;
-        });
-      } else if (count === 2) {
-        // Double Click (2 Taps): Open / Close Outer Emoji Circle
-        setIsEmojiCircleOpen((prev) => {
-          const next = !prev;
-          sounds.playPop();
-          if (next) {
-            // When emoji ring opens, make sure middle options ring is also open so no circle is missing!
-            setIsOptionsCircleOpen(true);
-            setFeedbackToast('✨ Emoji Reactions Ring Opened');
-          } else {
-            setFeedbackToast('✨ Emoji Reactions Ring Closed');
-          }
-          setTimeout(() => setFeedbackToast(null), 1800);
-          return next;
-        });
-      } else if (count === 3) {
-        // 3 Taps: Fallback toggle for options and bar
-        setIsOptionsCircleOpen((prev) => !prev);
-      } else if (count >= 4) {
-        // 4 Taps: Vanish remaining option, bar, and emoji circles into pure camera orb mode!
-        if (isOptionsCircleOpen || isEmojiCircleOpen) {
-          setIsOptionsCircleOpen(false);
-          setIsEmojiCircleOpen(false);
-          sounds.playCelebration();
-          setFeedbackToast('🪄 Vanished into Pure Cam Orb');
+        // Single Click: Toggle between Menu and Emoji ring! (Or restore if closed)
+        sounds.playPop();
+        let nextMode;
+        if (ringMode === 'none') {
+          nextMode = 'menu';
+          setFeedbackToast('📋 Menu Ring Restored');
+        } else if (ringMode === 'menu') {
+          nextMode = 'emoji';
+          setFeedbackToast('🌟 Emoji Reactions Ring');
         } else {
-          setIsOptionsCircleOpen(true);
-          setIsEmojiCircleOpen(true);
-          sounds.playCelebration();
-          setFeedbackToast('🪄 All Circles & Bar Restored!');
+          nextMode = 'menu';
+          setFeedbackToast('📋 Menu Tools Ring');
         }
-        setTimeout(() => setFeedbackToast(null), 2000);
+        onChangeRingMode(nextMode);
+        setTimeout(() => setFeedbackToast(null), 1800);
+      } else if (count === 2) {
+        // Double Click (2 Taps): Direct switch between Menu and Emoji
+        sounds.playPop();
+        const nextMode = ringMode === 'emoji' ? 'menu' : 'emoji';
+        onChangeRingMode(nextMode);
+        setFeedbackToast(nextMode === 'emoji' ? '🌟 Emoji Reactions Ring' : '📋 Menu Tools Ring');
+        setTimeout(() => setFeedbackToast(null), 1800);
+      } else if (count >= 3) {
+        // 3+ Taps: Vanish into pure minimalist camera orb or restore
+        sounds.playCelebration();
+        const nextMode = ringMode === 'none' ? 'menu' : 'none';
+        onChangeRingMode(nextMode);
+        setFeedbackToast(nextMode === 'none' ? '🪄 Pure Minimalist Cam Orb' : '✨ Menu Restored');
+        setTimeout(() => setFeedbackToast(null), 1800);
       }
     }, 280);
   };
@@ -366,127 +355,228 @@ export default function FloatingCompanion({
   const isWhite = theme === 'white';
   const isBlush = theme === 'blush';
 
-  // Dynamic widget outer diameter based on which concentric circles are open
-  const dialDiameter = isEmojiCircleOpen ? 348 : isOptionsCircleOpen ? 246 : 144;
+  const isMenuRingOpen = ringMode === 'menu';
+  const isEmojiRingOpen = ringMode === 'emoji';
+  const isRingOpen = ringMode !== 'none';
 
-  // 8 Options in the Small Middle Circle (45 degrees each)
+  // Dynamic widget outer diameter: exactly 248px for either ring, 144px for pure cam orb
+  const dialDiameter = isRingOpen ? 248 : 144;
+
+  // 8 Options in the Ring (45 degrees each)
   const dividerAngles = [-112.5, -67.5, -22.5, 22.5, 67.5, 112.5, 157.5, 202.5];
 
-  const optionsSectors = [
-    {
-      id: 'drag',
-      label: 'DRAG',
-      icon: <GripHorizontal className="w-3.5 h-3.5" />,
-      angle: -90,
-      start: -112.5,
-      end: -67.5,
-      tooltip: 'Hold & Drag to move Amigo',
-      onClick: onToggleDock,
-      onMouseDown: handleDragButtonMouseDown,
-      active: false,
-    },
-    {
-      id: 'mic',
-      label: 'MIC',
-      icon: isMicOn ? (
-        <Mic className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-      ) : (
-        <MicOff className="w-3.5 h-3.5 opacity-75" />
-      ),
-      angle: -45,
-      start: -67.5,
-      end: -22.5,
-      tooltip: isMicOn ? 'Microphone Live (Click to Mute)' : 'Microphone Muted (Click to Unmute)',
-      onClick: onToggleMic,
-      active: isMicOn,
-      activeColor: 'emerald',
-      extraBadge: isPeerMicOn && (
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping absolute -top-0.5 -right-0.5" />
-      ),
-    },
-    {
-      id: 'cam',
-      label: 'CAM',
-      icon: isVideoOn ? (
-        <Video className="w-3.5 h-3.5 text-rose-400" />
-      ) : (
-        <VideoOff className="w-3.5 h-3.5 opacity-75" />
-      ),
-      angle: 0,
-      start: -22.5,
-      end: 22.5,
-      tooltip: isVideoOn ? 'Camera Active (Click to Turn Off)' : 'Camera Off (Click to Turn On)',
-      onClick: onToggleVideo,
-      active: isVideoOn,
-      activeColor: 'rose',
-    },
-    {
-      id: 'share',
-      label: 'SHARE',
-      icon: <ScreenShare className={`w-3.5 h-3.5 ${isSharingScreen ? 'text-cyan-400' : ''}`} />,
-      angle: 45,
-      start: 22.5,
-      end: 67.5,
-      tooltip: 'Share Screen with partner',
-      onClick: onOpenScreenShare,
-      active: isSharingScreen,
-      activeColor: 'cyan',
-    },
-    {
-      id: 'palette',
-      label: 'EMOJI',
-      icon: <Palette className="w-3.5 h-3.5" />,
-      angle: 90,
-      start: 67.5,
-      end: 112.5,
-      tooltip: 'Customize Emojis on outer ring',
-      onClick: onOpenCustomizer,
-      active: false,
-    },
-    {
-      id: 'sos',
-      label: 'SOS',
-      icon: <HeartHandshake className="w-3.5 h-3.5 text-rose-400" />,
-      angle: 135,
-      start: 112.5,
-      end: 157.5,
-      tooltip: 'Caring SOS Check-in & Lifelines',
-      onClick: onOpenSos,
-      active: false,
-    },
-    {
-      id: 'doubt',
-      label: 'DOUBT',
-      icon: <HelpCircle className={`w-3.5 h-3.5 ${doubtsCount > 0 ? 'text-amber-400' : ''}`} />,
-      angle: 180,
-      start: 157.5,
-      end: 202.5,
-      tooltip: 'Ephemeral Doubt Hub & Local AI (3h Auto-Purge)',
-      onClick: onOpenDoubtModal,
-      active: doubtsCount > 0,
-      activeColor: 'amber',
-      extraBadge: doubtsCount > 0 && (
-        <span className="min-w-[13px] h-[13px] px-0.5 rounded-full bg-amber-500 border border-white text-white font-mono text-[7px] font-bold flex items-center justify-center shadow-md animate-pulse absolute -top-1 -right-1">
-          {doubtsCount}
-        </span>
-      ),
-    },
-    {
-      id: 'target',
-      label: `${progress}%`,
-      icon: <Target className="w-3.5 h-3.5 text-emerald-400" />,
-      angle: 225,
-      start: 202.5,
-      end: 247.5,
-      tooltip: `Daily Targets & Tasks (${progress}% completed)`,
-      onClick: onOpenTargetModal,
-      active: progress === 100,
-      activeColor: 'emerald',
-    },
-  ];
+  // Dynamically build 8 sectors from menuTools
+  const currentMenuTools = Array.isArray(menuTools) && menuTools.length === 8 ? menuTools : DEFAULT_MENU_TOOLS;
 
-  // Emojis for the Outermost Circle
-  const emojiList = quickEmojis && quickEmojis.length > 0 ? quickEmojis : ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'];
+  const optionsSectors = currentMenuTools.map((toolId, idx) => {
+    const angle = -90 + idx * 45;
+    const start = -112.5 + idx * 45;
+    const end = -67.5 + idx * 45;
+
+    switch (toolId) {
+      case 'drag':
+        return {
+          id: 'drag',
+          label: 'DRAG',
+          icon: <GripHorizontal className="w-3.5 h-3.5" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Hold & Drag to move Amigo',
+          onClick: onToggleDock,
+          onMouseDown: handleDragButtonMouseDown,
+          active: false,
+        };
+      case 'mic':
+        return {
+          id: 'mic',
+          label: 'MIC',
+          icon: isMicOn ? (
+            <Mic className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+          ) : (
+            <MicOff className="w-3.5 h-3.5 opacity-75" />
+          ),
+          angle,
+          start,
+          end,
+          tooltip: isMicOn ? 'Microphone Live (Click to Mute)' : 'Microphone Muted (Click to Unmute)',
+          onClick: onToggleMic,
+          active: isMicOn,
+          activeColor: 'emerald',
+          extraBadge: isPeerMicOn && (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping absolute -top-0.5 -right-0.5" />
+          ),
+        };
+      case 'cam':
+        return {
+          id: 'cam',
+          label: 'CAM',
+          icon: isVideoOn ? (
+            <Video className="w-3.5 h-3.5 text-rose-400" />
+          ) : (
+            <VideoOff className="w-3.5 h-3.5 opacity-75" />
+          ),
+          angle,
+          start,
+          end,
+          tooltip: isVideoOn ? 'Camera Active (Click to Turn Off)' : 'Camera Off (Click to Turn On)',
+          onClick: onToggleVideo,
+          active: isVideoOn,
+          activeColor: 'rose',
+        };
+      case 'share': {
+        const isPartnerPresenting = Boolean(peerSharingUser);
+        return {
+          id: 'share',
+          label: isPartnerPresenting ? 'WATCH' : 'SHARE',
+          icon: (
+            <ScreenShare
+              className={`w-3.5 h-3.5 ${
+                isPartnerPresenting ? 'text-cyan-400 animate-pulse' : isSharingScreen ? 'text-cyan-400' : ''
+              }`}
+            />
+          ),
+          angle,
+          start,
+          end,
+          tooltip: isPartnerPresenting
+            ? `${peerSharingUser} is presenting! Click to Watch Screen`
+            : isSharingScreen
+            ? 'Screen Share Active (Click to Manage)'
+            : 'Share Screen with partner',
+          onClick: isPartnerPresenting ? (onWatchScreen || onOpenScreenShare) : onOpenScreenShare,
+          active: isSharingScreen || isPartnerPresenting,
+          activeColor: 'cyan',
+          extraBadge: isPartnerPresenting && (
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute -top-0.5 -right-0.5" />
+          ),
+        };
+      }
+      case 'emoji':
+        return {
+          id: 'emoji',
+          label: 'EMOJI',
+          icon: <Smile className="w-3.5 h-3.5 text-amber-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Switch to Emoji Reactions Ring',
+          onClick: () => onChangeRingMode('emoji'),
+          active: ringMode === 'emoji',
+        };
+      case 'sos':
+        return {
+          id: 'sos',
+          label: 'SOS',
+          icon: <HeartHandshake className="w-3.5 h-3.5 text-rose-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Caring SOS Check-in & Lifelines',
+          onClick: onOpenSos,
+          active: Boolean(sosAlert),
+          activeColor: 'rose',
+        };
+      case 'doubt':
+        return {
+          id: 'doubt',
+          label: 'DOUBT',
+          icon: <HelpCircle className={`w-3.5 h-3.5 ${doubtsCount > 0 ? 'text-amber-400' : ''}`} />,
+          angle,
+          start,
+          end,
+          tooltip: 'Ephemeral Doubt Hub & Local AI (3h Auto-Purge)',
+          onClick: onOpenDoubtModal,
+          active: doubtsCount > 0,
+          activeColor: 'amber',
+          extraBadge: doubtsCount > 0 && (
+            <span className="min-w-[13px] h-[13px] px-0.5 rounded-full bg-amber-500 border border-white text-white font-mono text-[7px] font-bold flex items-center justify-center shadow-md animate-pulse absolute -top-1 -right-1">
+              {doubtsCount}
+            </span>
+          ),
+        };
+      case 'target':
+        return {
+          id: 'target',
+          label: `${progress}%`,
+          icon: <Target className="w-3.5 h-3.5 text-emerald-400" />,
+          angle,
+          start,
+          end,
+          tooltip: `Daily Targets & Tasks (${progress}% completed)`,
+          onClick: onOpenTargetModal,
+          active: progress === 100,
+          activeColor: 'emerald',
+        };
+      case 'dual':
+        return {
+          id: 'dual',
+          label: 'DUAL',
+          icon: <Users className="w-3.5 h-3.5 text-indigo-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Side-by-side Dual Face-to-Face Video Cards',
+          onClick: () => setFaceToFaceMode((prev) => !prev),
+          active: faceToFaceMode,
+          activeColor: 'indigo',
+        };
+      case 'theme':
+        return {
+          id: 'theme',
+          label: 'THEME',
+          icon: <Sun className="w-3.5 h-3.5 text-amber-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Cycle Dial Theme (Dark -> White -> Blush)',
+          onClick: () => onSetTheme(theme === 'dark' ? 'white' : theme === 'white' ? 'blush' : 'dark'),
+          active: false,
+        };
+      case 'options':
+        return {
+          id: 'options',
+          label: 'OPTS',
+          icon: <Settings className="w-3.5 h-3.5 text-blue-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Open Options & Customizer Drawer',
+          onClick: () => setIsOptionsDrawerOpen((prev) => !prev),
+          active: isOptionsDrawerOpen,
+          activeColor: 'blue',
+        };
+      case 'vanish':
+        return {
+          id: 'vanish',
+          label: 'ORB',
+          icon: <EyeOff className="w-3.5 h-3.5 text-purple-400" />,
+          angle,
+          start,
+          end,
+          tooltip: 'Vanish rings into pure Camera Orb',
+          onClick: () => onChangeRingMode('none'),
+          active: ringMode === 'none',
+        };
+      default: {
+        const toolMeta = AVAILABLE_MENU_TOOLS[toolId] || { label: toolId?.toUpperCase() || 'TOOL' };
+        return {
+          id: toolId,
+          label: toolMeta.label,
+          icon: <Settings className="w-3.5 h-3.5" />,
+          angle,
+          start,
+          end,
+          tooltip: toolMeta.name || toolMeta.label,
+          onClick: () => setIsOptionsDrawerOpen(true),
+          active: false,
+        };
+      }
+    }
+  });
+
+  // Emojis for the Emoji Reaction Ring
+  const emojiList = quickEmojis && quickEmojis.length > 0 ? quickEmojis : DEFAULT_EMOJIS;
 
   return (
     <div className="select-none transition-all duration-300 w-full flex flex-col justify-end items-center">
@@ -677,153 +767,355 @@ export default function FloatingCompanion({
           )}
 
           {/* Subtle Hover Drag Handle when Top Bar is Vanished */}
-          {!isOptionsCircleOpen && (
+          {/* ============================================================ */}
+          {/* 1. SCREEN SHARE PRESENTING BANNER (1-CLICK WATCH)            */}
+          {/* ============================================================ */}
+          {peerSharingUser && (
+            <div
+              data-amigo-interactive="true"
+              className="mb-2 p-2 bg-gradient-to-r from-cyan-950/95 to-indigo-950/95 border border-cyan-400/80 rounded-3xl shadow-2xl text-white backdrop-blur-xl flex items-center justify-between gap-3 max-w-sm w-full animate-bounce-short z-50"
+            >
+              <div className="flex items-center gap-2 pl-1 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 border border-cyan-400/40">
+                  <ScreenShare className="w-4 h-4 text-cyan-400 animate-pulse" />
+                </div>
+                <div className="truncate">
+                  <div className="text-[11px] font-bold truncate flex items-center gap-1.5">
+                    <span>{peerSharingUser}</span>
+                    <span className="text-[8px] bg-cyan-500/30 text-cyan-200 px-1 rounded uppercase font-mono">Presenting</span>
+                  </div>
+                  <p className="text-[9px] text-cyan-200/70 truncate">Screen is actively being shared</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onWatchScreen && onWatchScreen()}
+                className="px-3 py-1 bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-[10px] font-extrabold rounded-full shadow-lg transition cursor-pointer shrink-0 flex items-center gap-1"
+              >
+                <span>WATCH SCREEN</span>
+                <Maximize2 className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* 2. SLEEK TOP CONTROL PILL                                    */}
+          {/* ============================================================ */}
+          <div
+            className={`mb-2 px-3 py-1.5 rounded-full flex items-center justify-between gap-2 shadow-lg backdrop-blur-2xl border transition-all text-[10px] select-none animate-fadeIn ${
+              isWhite
+                ? 'bg-white/90 border-white/95 text-slate-700 shadow-slate-300/40'
+                : isBlush
+                ? 'bg-rose-100/90 border-rose-200 text-rose-950 shadow-rose-300/30'
+                : 'bg-slate-900/90 border-white/10 text-slate-200 shadow-black/50'
+            }`}
+          >
+            {/* Left: Drag Handle */}
             <div
               data-tauri-drag-region
               onMouseDown={handleDragButtonMouseDown}
-              className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-slate-900/95 text-white font-mono text-[8px] font-bold flex items-center gap-1 shadow-lg z-40 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400 opacity-90 hover:opacity-100 transition-all select-none app-drag-pill"
+              className="flex items-center gap-1 font-mono text-[8.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-emerald-400 hover:bg-emerald-500/20 border border-black/5 dark:border-white/10 cursor-grab active:cursor-grabbing transition shrink-0 select-none app-drag-pill"
               title="Hold & Drag to move Amigo"
             >
-              <GripHorizontal className="w-2.5 h-2.5 text-emerald-400 pointer-events-none" />
+              <GripHorizontal className="w-2.5 h-2.5 pointer-events-none" />
               <span className="pointer-events-none">DRAG</span>
             </div>
-          )}
+
+            {/* Center: One-Ring-At-A-Time Switcher */}
+            <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10">
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChangeRingMode('menu');
+                }}
+                className={`px-2 py-0.5 rounded-full font-mono text-[8px] font-bold transition cursor-pointer tauri-no-drag ${
+                  ringMode === 'menu'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'opacity-60 hover:opacity-100 text-slate-400'
+                }`}
+                title="Show Menu Ring (Only 1 ring at a time)"
+              >
+                MENU
+              </button>
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChangeRingMode('emoji');
+                }}
+                className={`px-2 py-0.5 rounded-full font-mono text-[8px] font-bold transition cursor-pointer tauri-no-drag ${
+                  ringMode === 'emoji'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'opacity-60 hover:opacity-100 text-slate-400'
+                }`}
+                title="Show Emoji Reactions Ring (Only 1 ring at a time)"
+              >
+                EMOJI
+              </button>
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChangeRingMode('none');
+                }}
+                className={`px-1.5 py-0.5 rounded-full font-mono text-[8px] font-bold transition cursor-pointer tauri-no-drag ${
+                  ringMode === 'none'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'opacity-40 hover:opacity-100 text-slate-400'
+                }`}
+                title="Pure Minimalist Orb (No rings)"
+              >
+                ORB
+              </button>
+            </div>
+
+            {/* Right: Options Drawer Button */}
+            <button
+              type="button"
+              data-tauri-drag-region="false"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOptionsDrawerOpen((prev) => !prev);
+              }}
+              className={`flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full border transition shrink-0 select-none cursor-pointer tauri-no-drag ${
+                isOptionsDrawerOpen
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                  : 'bg-black/5 dark:bg-white/10 text-slate-300 hover:text-white border-black/5 dark:border-white/10'
+              }`}
+              title="Amigo Options & Settings Drawer"
+            >
+              <Settings className="w-2.5 h-2.5 pointer-events-none" />
+              <span className="pointer-events-none">OPTIONS</span>
+            </button>
+          </div>
 
           {/* ============================================================ */}
-          {/* 1. TOP FLOATING GLASS PILL (APPEARS ONLY WHEN OPTIONS ARE OPEN) */}
+          {/* 3. ELEGANT OPTIONS DRAWER (SETTINGS, SCALE & CUSTOMIZERS)     */}
           {/* ============================================================ */}
-          {isOptionsCircleOpen && (
+          {isOptionsDrawerOpen && (
             <div
-              className={`mb-2 w-full max-w-[340px] px-3 py-1.5 rounded-full flex items-center justify-between gap-1.5 shadow-lg backdrop-blur-2xl border transition-all text-[10px] select-none animate-fadeIn ${
+              data-amigo-interactive="true"
+              className={`mb-2 w-full max-w-[340px] p-3.5 rounded-3xl shadow-2xl backdrop-blur-2xl border transition-all animate-scaleIn select-none z-50 ${
                 isWhite
-                  ? 'bg-white/90 border-white/95 text-slate-700 shadow-slate-300/40'
+                  ? 'bg-white/95 border-white shadow-slate-300/50 text-slate-800'
                   : isBlush
-                  ? 'bg-rose-100/90 border-rose-200 text-rose-950 shadow-rose-300/30'
-                  : 'bg-slate-900/90 border-white/10 text-slate-200 shadow-black/50'
+                  ? 'bg-rose-950/95 border-rose-300/30 shadow-rose-950/50 text-white'
+                  : 'bg-slate-900/95 border-white/15 shadow-black/80 text-white'
               }`}
             >
-              {/* Left: Mascot & Room Code */}
-              <button
-                data-tauri-drag-region="false"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenConnectModal();
-                }}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition tauri-no-drag shrink-0 ${
-                  authError
-                    ? 'bg-rose-500/20 text-rose-500 border-rose-500/40 animate-pulse'
-                    : isConnected
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                    : 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                }`}
-                title="Room Code & Passcode Security (Click to Change)"
-              >
-                <CabbageLogo size={14} animated />
-                <span className="font-extrabold tracking-tight text-[10px]">AMIGO</span>
-                <span className="text-[8px] font-mono opacity-65 max-w-[55px] truncate">#{roomId}</span>
-              </button>
-
-              {/* Center: Dedicated Drag Handle */}
-              <div
-                data-tauri-drag-region
-                onMouseDown={handleDragButtonMouseDown}
-                className="flex items-center gap-1 font-mono text-[8px] font-extrabold px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-emerald-500 hover:bg-emerald-500/20 border border-black/5 dark:border-white/10 cursor-grab active:cursor-grabbing transition shrink-0 select-none shadow-xs app-drag-pill"
-                title="Hold & Drag to move Amigo"
-              >
-                <GripHorizontal className="w-2.5 h-2.5 pointer-events-none" />
-                <span className="pointer-events-none">DRAG</span>
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <CabbageLogo size={16} animated />
+                  <span className="font-extrabold text-[11px] tracking-wider">AMIGO CONTROLS</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOptionsDrawerOpen(false)}
+                  className="p-1 rounded-full opacity-60 hover:opacity-100 hover:bg-white/10 transition cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
               </div>
 
-              {/* Center Right: Hide to Tray button */}
-              <button
-                data-tauri-drag-region="false"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onHideToTray();
-                }}
-                className="flex items-center gap-1 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-full border transition shrink-0 select-none shadow-xs tauri-no-drag bg-black/5 dark:bg-white/10 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border-black/5 dark:border-white/10"
-                title="Hide Amigo into Menu Bar / System Tray (Click Menu Bar icon to restore)"
-              >
-                <EyeOff className="w-2.5 h-2.5" />
-                <span>HIDE</span>
-              </button>
+              {/* 1. Amigo Room Code & Status */}
+              <div className="mb-2.5 p-2 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-mono opacity-70">Room Code</div>
+                  <div className="text-xs font-bold font-mono text-emerald-400 flex items-center gap-1">
+                    <span>#{roomId}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOptionsDrawerOpen(false);
+                    onOpenConnectModal();
+                  }}
+                  className="py-1 px-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Lock className="w-3 h-3 text-emerald-400" />
+                  <span>Change Room</span>
+                </button>
+              </div>
 
-              {/* Right: Theme Switcher & Collapse Capsule */}
-              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-black/5 dark:bg-white/10 shrink-0 border border-black/5 dark:border-white/10">
+              {/* 2. Resizable Circle (Companion Size) */}
+              <div className="mb-2.5 p-2.5 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
+                <div className="flex items-center justify-between text-[10px] mb-1.5 font-mono">
+                  <span className="font-bold flex items-center gap-1">
+                    <Maximize2 className="w-3 h-3 text-cyan-400" />
+                    <span>Circle Size ({Math.round(companionScale * 100)}%)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onChangeScale(1.0)}
+                    className="text-[9px] opacity-60 hover:opacity-100 underline cursor-pointer"
+                  >
+                    Reset 100%
+                  </button>
+                </div>
+                {/* Presets */}
+                <div className="grid grid-cols-4 gap-1 mb-2">
+                  {[
+                    { label: 'S (80%)', scale: 0.8 },
+                    { label: 'M (100%)', scale: 1.0 },
+                    { label: 'L (125%)', scale: 1.25 },
+                    { label: 'XL (150%)', scale: 1.5 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => onChangeScale(preset.scale)}
+                      className={`py-1 rounded-lg text-[9px] font-mono font-bold transition cursor-pointer border ${
+                        Math.abs(companionScale - preset.scale) < 0.05
+                          ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-extrabold shadow-sm'
+                          : 'bg-white/5 hover:bg-white/15 border-white/10 opacity-75'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Slider */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono opacity-60">70%</span>
+                  <input
+                    type="range"
+                    min="0.7"
+                    max="1.6"
+                    step="0.05"
+                    value={companionScale}
+                    onChange={(e) => onChangeScale(parseFloat(e.target.value))}
+                    className="grow accent-cyan-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-[9px] font-mono opacity-60">160%</span>
+                </div>
+              </div>
+
+              {/* 3. Both Rings Customizers */}
+              <div className="mb-2.5 p-2 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
+                <div className="text-[9px] font-mono font-bold opacity-70 mb-1.5 uppercase tracking-wide">
+                  Customize Both Rings
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOptionsDrawerOpen(false);
+                      onOpenCustomizer('emojis');
+                    }}
+                    className="py-1.5 px-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-300 text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                  >
+                    <Palette className="w-3 h-3 text-amber-400" />
+                    <span>Emojis Ring</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOptionsDrawerOpen(false);
+                      onOpenCustomizer('menu');
+                    }}
+                    className="py-1.5 px-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 text-indigo-300 text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                  >
+                    <Settings className="w-3 h-3 text-indigo-400" />
+                    <span>Menu Ring</span>
+                  </button>
+                </div>
                 <button
-                  data-tauri-drag-region="false"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetTheme('white');
+                  type="button"
+                  onClick={() => {
+                    onResetDefaults && onResetDefaults();
+                    setFeedbackToast('↺ Rings Reset to Default');
+                    setTimeout(() => setFeedbackToast(null), 1800);
                   }}
-                  className={`p-0.5 rounded-full transition tauri-no-drag ${
-                    isWhite ? 'text-amber-500 bg-white shadow-xs scale-105' : 'opacity-40 hover:opacity-100'
-                  }`}
-                  title="White Frosted Dial Theme"
+                  className="w-full py-0.5 text-[8.5px] font-mono opacity-60 hover:opacity-100 flex items-center justify-center gap-1 transition cursor-pointer"
                 >
-                  <Sun className="w-3 h-3 pointer-events-none" />
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  <span>Reset Rings to Defaults</span>
+                </button>
+              </div>
+
+              {/* 4. Theme Selection */}
+              <div className="mb-2.5 flex items-center justify-between p-2 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
+                <span className="text-[10px] font-mono font-bold opacity-70">Theme</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onSetTheme('white')}
+                    className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                      isWhite ? 'bg-white text-slate-900 shadow-sm' : 'opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Sun className="w-2.5 h-2.5 text-amber-500" />
+                    <span>Light</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetTheme('dark')}
+                    className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                      !isWhite && !isBlush ? 'bg-slate-800 text-white shadow-sm' : 'opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Moon className="w-2.5 h-2.5 text-indigo-400" />
+                    <span>Dark</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetTheme('blush')}
+                    className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                      isBlush ? 'bg-rose-300 text-rose-950 shadow-sm' : 'opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Flower2 className="w-2.5 h-2.5 text-rose-500" />
+                    <span>Blush</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 5. Window Controls: Hide to Tray & Dock */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10 text-[9.5px]">
+                <button
+                  type="button"
+                  onClick={() => onHideToTray()}
+                  className="flex items-center gap-1 py-1 px-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 hover:text-rose-400 transition cursor-pointer"
+                  title="Hide to system tray"
+                >
+                  <EyeOff className="w-2.5 h-2.5" />
+                  <span>Hide to Tray</span>
                 </button>
                 <button
-                  data-tauri-drag-region="false"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetTheme('dark');
-                  }}
-                  className={`p-0.5 rounded-full transition tauri-no-drag ${
-                    !isWhite && !isBlush ? 'text-indigo-400 bg-slate-800 shadow-xs scale-105' : 'opacity-40 hover:opacity-100'
-                  }`}
-                  title="Dark Obsidian Dial Theme"
+                  type="button"
+                  onClick={() => onToggleDock && onToggleDock()}
+                  className="flex items-center gap-1 py-1 px-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 transition cursor-pointer"
                 >
-                  <Moon className="w-3 h-3 pointer-events-none" />
-                </button>
-                <button
-                  data-tauri-drag-region="false"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetTheme('blush');
-                  }}
-                  className={`p-0.5 rounded-full transition tauri-no-drag ${
-                    isBlush ? 'text-rose-500 bg-rose-200/60 shadow-xs scale-105' : 'opacity-40 hover:opacity-100'
-                  }`}
-                  title="Blush Pink Quartz Dial Theme"
-                >
-                  <Flower2 className="w-3 h-3 pointer-events-none" />
-                </button>
-                <div className="w-[1px] h-2.5 bg-black/10 dark:bg-white/15 mx-0.5" />
-                <button
-                  data-tauri-drag-region="false"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsCollapsed(true);
-                  }}
-                  className="p-0.5 rounded-full opacity-50 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition tauri-no-drag"
-                  title="Collapse into Mini Puck"
-                >
-                  <Minimize2 className="w-3 h-3 pointer-events-none" />
+                  <Move className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>Dock: {dockPosition}</span>
                 </button>
               </div>
             </div>
           )}
 
           {/* ============================================================ */}
-          {/* 2. DYNAMIC CONCENTRIC CIRCULAR WIDGET (EXPANDS & CONTRACTS)  */}
+          {/* 4. DYNAMIC CIRCULAR RADIAL DIAL (1 RING AT A TIME OR PURE ORB) */}
           {/* ============================================================ */}
           <div
-            style={{ width: `${dialDiameter}px`, height: `${dialDiameter}px` }}
-            className={`relative rounded-full shrink-0 flex items-center justify-center transition-all duration-400 ease-out ${
-              isEmojiCircleOpen
-                ? isWhite
-                  ? 'radial-dial-white'
-                  : isBlush
-                  ? 'radial-dial-blush'
-                  : 'radial-dial-dark'
-                : isOptionsCircleOpen
+            style={{
+              width: `${dialDiameter}px`,
+              height: `${dialDiameter}px`,
+              transform: `scale(${companionScale})`,
+              transformOrigin: 'center center',
+            }}
+            className={`relative rounded-full shrink-0 flex items-center justify-center transition-all duration-300 ease-out ${
+              isRingOpen
                 ? isWhite
                   ? 'radial-dial-white'
                   : isBlush
@@ -844,49 +1136,37 @@ export default function FloatingCompanion({
                 </linearGradient>
               </defs>
 
-              {/* TIER 3: OUTER EMOJI RING BACKGROUND TRACK (r=122 to 170) */}
-              <g
-                className={`transition-all duration-300 ${
-                  isEmojiCircleOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                }`}
-                style={{ transformOrigin: '175px 175px' }}
-              >
-                <circle
-                  cx="175"
-                  cy="175"
-                  r="146"
-                  stroke={isWhite ? 'rgba(255, 255, 255, 0.4)' : isBlush ? 'rgba(254, 205, 211, 0.35)' : 'rgba(255, 255, 255, 0.05)'}
-                  strokeWidth="48"
-                  fill="none"
-                />
-                {/* Separator Groove between Emoji & Options Ring (r=120) */}
-                <circle
-                  cx="175"
-                  cy="175"
-                  r="120"
-                  stroke={isWhite ? 'rgba(15, 23, 42, 0.07)' : isBlush ? 'rgba(159, 18, 57, 0.08)' : 'rgba(0, 0, 0, 0.6)'}
-                  strokeWidth="1.5"
-                  fill="none"
-                />
-                <circle
-                  cx="175"
-                  cy="175"
-                  r="121"
-                  stroke={isWhite ? 'rgba(255, 255, 255, 0.9)' : isBlush ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.15)'}
-                  strokeWidth="1"
-                  fill="none"
-                />
-              </g>
+              {/* Outer Separator Groove (r=120) */}
+              {isRingOpen && (
+                <g className="transition-all duration-300">
+                  <circle
+                    cx="175"
+                    cy="175"
+                    r="120"
+                    stroke={isWhite ? 'rgba(15, 23, 42, 0.08)' : isBlush ? 'rgba(159, 18, 57, 0.1)' : 'rgba(0, 0, 0, 0.6)'}
+                    strokeWidth="1.5"
+                    fill="none"
+                  />
+                  <circle
+                    cx="175"
+                    cy="175"
+                    r="121"
+                    stroke={isWhite ? 'rgba(255, 255, 255, 0.95)' : isBlush ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.15)'}
+                    strokeWidth="1"
+                    fill="none"
+                  />
+                </g>
+              )}
 
-              {/* TIER 2: MIDDLE OPTIONS RING WEDGES (r=75 to 118, width=43) */}
+              {/* MODE 1: MENU RING SVG WEDGES (r=74 to 118, width=44) */}
               <g
                 className={`transition-all duration-300 ${
-                  isOptionsCircleOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
+                  isMenuRingOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
                 }`}
                 style={{ transformOrigin: '175px 175px' }}
               >
                 {optionsSectors.map((sec) => {
-                  const pathD = describeDonutSegment(175, 175, 75, 118, sec.start, sec.end);
+                  const pathD = describeDonutSegment(175, 175, 74, 118, sec.start, sec.end);
                   return (
                     <path
                       key={sec.id}
@@ -914,11 +1194,11 @@ export default function FloatingCompanion({
                   );
                 })}
 
-                {/* Hairline Radial Dividers for Options Ring (r=75 to 118) */}
+                {/* Hairline Radial Dividers for Menu Ring (r=74 to 118) */}
                 {dividerAngles.map((ang, idx) => {
                   const toRad = (deg) => (deg * Math.PI) / 180;
-                  const x1 = 175 + 75 * Math.cos(toRad(ang));
-                  const y1 = 175 + 75 * Math.sin(toRad(ang));
+                  const x1 = 175 + 74 * Math.cos(toRad(ang));
+                  const y1 = 175 + 74 * Math.sin(toRad(ang));
                   const x2 = 175 + 118 * Math.cos(toRad(ang));
                   const y2 = 175 + 118 * Math.sin(toRad(ang));
                   return (
@@ -944,7 +1224,24 @@ export default function FloatingCompanion({
                 })}
               </g>
 
-              {/* RECESSED MOAT BETWEEN OPTIONS RING & BIG CAMERA HUB (r=70, width=10) */}
+              {/* MODE 2: EMOJI RING SVG TRACK (r=96, width=44) */}
+              <g
+                className={`transition-all duration-300 ${
+                  isEmojiRingOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                }`}
+                style={{ transformOrigin: '175px 175px' }}
+              >
+                <circle
+                  cx="175"
+                  cy="175"
+                  r="96"
+                  stroke={isWhite ? 'rgba(255, 255, 255, 0.45)' : isBlush ? 'rgba(254, 205, 211, 0.35)' : 'rgba(255, 255, 255, 0.08)'}
+                  strokeWidth="44"
+                  fill="none"
+                />
+              </g>
+
+              {/* RECESSED MOAT BETWEEN RING & BIG CAMERA HUB (r=70, width=10) */}
               <circle
                 cx="175"
                 cy="175"
@@ -972,84 +1269,11 @@ export default function FloatingCompanion({
             </svg>
 
             {/* ============================================================ */}
-            {/* TIER 3: OUTER EMOJI ORBIT CIRCLE (TOGGLED BY 2 TAPS ON CAM)  */}
+            {/* HTML OVERLAY: MENU RING ICONS (ONLY WHEN ringMode === 'menu') */}
             {/* ============================================================ */}
             <div
-              className={`absolute inset-0 transition-all duration-400 ${
-                isEmojiCircleOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
-              }`}
-            >
-              {emojiList.map((emoji, idx) => {
-                const totalItems = emojiList.length + 1; // Emojis + Palette button
-                const toRad = (deg) => (deg * Math.PI) / 180;
-                const angle = -90 + (idx + 0.5) * (360 / totalItems);
-                const posX = 146 * Math.cos(toRad(angle));
-                const posY = 146 * Math.sin(toRad(angle));
-
-                return (
-                  <button
-                    key={`emoji-${idx}`}
-                    data-tauri-drag-region="false"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      sounds.playPop();
-                      onSendEmoji(emoji);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      left: `calc(50% + ${posX}px)`,
-                      top: `calc(50% + ${posY}px)`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                    className={`emoji-pod-btn tauri-no-drag w-8 h-8 rounded-full flex items-center justify-center text-base hover:scale-130 active:scale-90 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md select-none z-30 ${
-                      isWhite ? 'emoji-pod-white' : isBlush ? 'emoji-pod-blush' : 'emoji-pod-dark'
-                    }`}
-                    title={`Send reaction: ${emoji}`}
-                  >
-                    <span className="leading-none pointer-events-none">{emoji}</span>
-                  </button>
-                );
-              })}
-
-              {/* Extra Emoji Customizer Quick Button on Outer Orbit */}
-              {(() => {
-                const totalItems = emojiList.length + 1;
-                const toRad = (deg) => (deg * Math.PI) / 180;
-                const angle = -90 + (emojiList.length + 0.5) * (360 / totalItems);
-                const posX = 146 * Math.cos(toRad(angle));
-                const posY = 146 * Math.sin(toRad(angle));
-                return (
-                  <button
-                    data-tauri-drag-region="false"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenCustomizer();
-                    }}
-                    style={{
-                      position: 'absolute',
-                      left: `calc(50% + ${posX}px)`,
-                      top: `calc(50% + ${posY}px)`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                    className={`emoji-pod-btn tauri-no-drag w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-emerald-500 hover:scale-120 active:scale-90 transition-all duration-200 cursor-pointer shadow-sm z-30 ${
-                      isWhite ? 'emoji-pod-white' : isBlush ? 'emoji-pod-blush' : 'emoji-pod-dark'
-                    }`}
-                    title="Customize Reaction Emojis"
-                  >
-                    <Plus className="w-3.5 h-3.5 pointer-events-none" />
-                  </button>
-                );
-              })()}
-            </div>
-
-            {/* ============================================================ */}
-            {/* TIER 2: MIDDLE OPTIONS RING ICONS (TOGGLED BY 3 TAPS ON CAM) */}
-            {/* ============================================================ */}
-            <div
-              className={`absolute inset-0 transition-all duration-400 pointer-events-none ${
-                isOptionsCircleOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+              className={`absolute inset-0 transition-all duration-300 pointer-events-none ${
+                isMenuRingOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
               }`}
             >
               {optionsSectors.map((sec) => {
@@ -1086,6 +1310,64 @@ export default function FloatingCompanion({
                   </div>
                 );
               })}
+            </div>
+
+            {/* ============================================================ */}
+            {/* HTML OVERLAY: EMOJI REACTIONS (ONLY WHEN ringMode === 'emoji')*/}
+            {/* ============================================================ */}
+            <div
+              className={`absolute inset-0 transition-all duration-300 ${
+                isEmojiRingOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-90 pointer-events-none'
+              }`}
+            >
+              {emojiList.map((emoji, idx) => {
+                const angles = [-90, -45, 0, 45, 90, 135, 180, 225];
+                const angle = angles[idx % angles.length];
+                const toRad = (deg) => (deg * Math.PI) / 180;
+                const posX = 96.5 * Math.cos(toRad(angle));
+                const posY = 96.5 * Math.sin(toRad(angle));
+
+                return (
+                  <button
+                    key={`emoji-${idx}`}
+                    data-tauri-drag-region="false"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sounds.playPop();
+                      onSendEmoji(emoji);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: `calc(50% + ${posX}px)`,
+                      top: `calc(50% + ${posY}px)`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                    className={`emoji-pod-btn tauri-no-drag w-8 h-8 rounded-full flex items-center justify-center text-base hover:scale-130 active:scale-90 transition-all duration-200 cursor-pointer shadow-md select-none z-30 ${
+                      isWhite ? 'emoji-pod-white' : isBlush ? 'emoji-pod-blush' : 'emoji-pod-dark'
+                    }`}
+                    title={`Send instant reaction: ${emoji}`}
+                  >
+                    <span className="leading-none pointer-events-none">{emoji}</span>
+                  </button>
+                );
+              })}
+
+              {/* Quick Switcher Button inside Emoji Ring: Return to Menu */}
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playPop();
+                  onChangeRingMode('menu');
+                }}
+                className="absolute top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[7px] font-bold border border-white/20 shadow-md hover:border-emerald-400 z-40 transition tauri-no-drag cursor-pointer"
+                title="Return to Menu Ring"
+              >
+                📋 MENU
+              </button>
             </div>
 
             {/* ============================================================ */}
