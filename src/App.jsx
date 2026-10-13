@@ -76,6 +76,7 @@ export default function App() {
 
   const peerCallManagerRef = useRef(null);
   const remoteAudioRef = useRef(null);
+  const hasAutoStartedVideoRef = useRef(false);
 
   // Screen Docking state: 'right' (docked right next to screen) | 'left' | 'free' (floating)
   const [dockPosition, setDockPosition] = useState('right');
@@ -634,6 +635,32 @@ export default function App() {
       console.warn('Camera toggle failed:', err);
     }
   };
+
+  // Auto-start local camera once connected so both users can see each other immediately
+  useEffect(() => {
+    if (!isConnected) {
+      hasAutoStartedVideoRef.current = false;
+      return;
+    }
+
+    if (!hasAutoStartedVideoRef.current && !isVideoOn) {
+      hasAutoStartedVideoRef.current = true;
+      console.log('[App] Auto-starting camera for face-to-face study session...');
+      handleToggleVideo().catch((err) => {
+        console.warn('[App] Auto-start video error:', err);
+      });
+    }
+  }, [isConnected]);
+
+  // When partner's video stream is detected, ensure our camera is active if not already
+  useEffect(() => {
+    if (isPeerVideoOn && !isVideoOn && !hasAutoStartedVideoRef.current) {
+      hasAutoStartedVideoRef.current = true;
+      handleToggleVideo().catch((err) => {
+        console.warn('[App] Partner video detected, auto-starting local camera:', err);
+      });
+    }
+  }, [isPeerVideoOn, isVideoOn]);
 
   // Emoji customization handlers
   const handleSaveEmojis = (newEmojis) => {

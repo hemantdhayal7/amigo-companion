@@ -122,6 +122,11 @@ export default function FloatingCompanion({
   const localVideoRef = useRef(null);
   const pipVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const dualLocalVideoRef = useRef(null);
+  const dualRemoteVideoRef = useRef(null);
+
+  const [faceToFaceMode, setFaceToFaceMode] = useState(false);
+  const [isSwappedVideo, setIsSwappedVideo] = useState(false);
 
   const hasRemoteVideo = Boolean(
     remoteCamStream &&
@@ -136,6 +141,29 @@ export default function FloatingCompanion({
     remoteCamStream.getVideoTracks().length > 0
   );
 
+  // Synchronize dual face-to-face video elements
+  useEffect(() => {
+    if (dualLocalVideoRef.current && localCamStream) {
+      if (dualLocalVideoRef.current.srcObject !== localCamStream) {
+        dualLocalVideoRef.current.srcObject = localCamStream;
+      }
+      if (isVideoOn) {
+        dualLocalVideoRef.current.play().catch(() => {});
+      }
+    }
+  }, [localCamStream, isVideoOn, faceToFaceMode]);
+
+  useEffect(() => {
+    if (dualRemoteVideoRef.current && remoteCamStream) {
+      if (dualRemoteVideoRef.current.srcObject !== remoteCamStream) {
+        dualRemoteVideoRef.current.srcObject = remoteCamStream;
+      }
+      if (isPeerVideoOn || hasRemoteVideo) {
+        dualRemoteVideoRef.current.play().catch(() => {});
+      }
+    }
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, faceToFaceMode]);
+
   // Attach local webcam stream
   useEffect(() => {
     if (localVideoRef.current && localCamStream) {
@@ -148,17 +176,20 @@ export default function FloatingCompanion({
         localVideoRef.current.play().catch(() => {});
       }
     }
-    if (pipVideoRef.current && localCamStream) {
+  }, [localCamStream, isVideoOn, showRemote, isSwappedVideo]);
+
+  // Attach pip video stream
+  useEffect(() => {
+    if (pipVideoRef.current) {
       pipVideoRef.current.muted = true;
       pipVideoRef.current.playsInline = true;
-      if (pipVideoRef.current.srcObject !== localCamStream) {
-        pipVideoRef.current.srcObject = localCamStream;
+      const pipStream = isSwappedVideo ? remoteCamStream : localCamStream;
+      if (pipStream && pipVideoRef.current.srcObject !== pipStream) {
+        pipVideoRef.current.srcObject = pipStream;
       }
-      if (isVideoOn) {
-        pipVideoRef.current.play().catch(() => {});
-      }
+      pipVideoRef.current.play().catch(() => {});
     }
-  }, [localCamStream, isVideoOn, isPeerVideoOn, showRemote]);
+  }, [localCamStream, remoteCamStream, isSwappedVideo, showRemote, isVideoOn]);
 
   // Attach remote partner's webcam stream and guarantee instant playback resumption
   useEffect(() => {
@@ -174,7 +205,7 @@ export default function FloatingCompanion({
         });
       }
     }
-  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote]);
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo]);
 
   // Selected date partner
   const datePartner = members.find((m) => m.id !== 'self' && m.id !== selfUser?.id) || {
@@ -1078,103 +1109,132 @@ export default function FloatingCompanion({
               {/* MODE A: LIVE VIDEO COCKPIT (EXPANDED CRISP FEED) */}
               {isVideoOn || showRemote ? (
                 <div className="w-full h-full rounded-full overflow-hidden relative flex items-center justify-center bg-black">
-                  {/* Remote Partner Video */}
-                  {showRemote ? (
-                    <video
-                      ref={(el) => {
-                        remoteVideoRef.current = el;
-                        if (el) {
-                          el.muted = true;
-                          el.playsInline = true;
-                          if (remoteCamStream && el.srcObject !== remoteCamStream) {
-                            el.srcObject = remoteCamStream;
-                            el.play().catch(() => {});
-                          }
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      muted
-                      onLoadedMetadata={(e) => {
-                        e.target.muted = true;
-                        e.target.play().catch(() => {});
-                      }}
-                      onCanPlay={(e) => {
-                        e.target.muted = true;
-                        e.target.play().catch(() => {});
-                      }}
-                      className="w-full h-full object-cover scale-105 pointer-events-none"
-                    />
-                  ) : (
-                    /* Local Video */
-                    <video
-                      ref={(el) => {
-                        localVideoRef.current = el;
-                        if (el) {
-                          el.muted = true;
-                          el.playsInline = true;
-                          if (localCamStream && el.srcObject !== localCamStream) {
-                            el.srcObject = localCamStream;
-                            el.play().catch(() => {});
-                          }
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      muted
-                      onLoadedMetadata={(e) => {
-                        e.target.muted = true;
-                        e.target.play().catch(() => {});
-                      }}
-                      onCanPlay={(e) => {
-                        e.target.muted = true;
-                        e.target.play().catch(() => {});
-                      }}
-                      className="w-full h-full object-cover mirror scale-105 pointer-events-none"
-                    />
-                  )}
+                  {(() => {
+                    const hasBoth = Boolean(showRemote && isVideoOn && localCamStream);
+                    const mainIsRemote = hasBoth ? !isSwappedVideo : Boolean(showRemote);
 
-                  {/* PiP Local Floating Bubble */}
-                  {showRemote && isVideoOn && localCamStream && (
-                    <div className="absolute bottom-1.5 right-1.5 w-10 h-10 rounded-full overflow-hidden border border-emerald-400 shadow-md bg-black z-20 pointer-events-none">
-                      <video
-                        ref={(el) => {
-                          pipVideoRef.current = el;
-                          if (el) {
-                            el.muted = true;
-                            el.playsInline = true;
-                            if (localCamStream && el.srcObject !== localCamStream) {
-                              el.srcObject = localCamStream;
-                              el.play().catch(() => {});
-                            }
-                          }
-                        }}
-                        autoPlay
-                        playsInline
-                        muted
-                        onLoadedMetadata={(e) => {
-                          e.target.muted = true;
-                          e.target.play().catch(() => {});
-                        }}
-                        onCanPlay={(e) => {
-                          e.target.muted = true;
-                          e.target.play().catch(() => {});
-                        }}
-                        className="w-full h-full object-cover mirror scale-105 pointer-events-none"
-                      />
-                    </div>
-                  )}
+                    return (
+                      <>
+                        {/* MAIN VIDEO FEED (Remote partner or Local webcam) */}
+                        {mainIsRemote ? (
+                          <video
+                            ref={(el) => {
+                              remoteVideoRef.current = el;
+                              if (el) {
+                                el.muted = true;
+                                el.playsInline = true;
+                                if (remoteCamStream && el.srcObject !== remoteCamStream) {
+                                  el.srcObject = remoteCamStream;
+                                  el.play().catch(() => {});
+                                }
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            muted
+                            onLoadedMetadata={(e) => {
+                              e.target.muted = true;
+                              e.target.play().catch(() => {});
+                            }}
+                            onCanPlay={(e) => {
+                              e.target.muted = true;
+                              e.target.play().catch(() => {});
+                            }}
+                            className="w-full h-full object-cover scale-105 pointer-events-none"
+                          />
+                        ) : (
+                          <video
+                            ref={(el) => {
+                              localVideoRef.current = el;
+                              if (el) {
+                                el.muted = true;
+                                el.playsInline = true;
+                                if (localCamStream && el.srcObject !== localCamStream) {
+                                  el.srcObject = localCamStream;
+                                  el.play().catch(() => {});
+                                }
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            muted
+                            onLoadedMetadata={(e) => {
+                              e.target.muted = true;
+                              e.target.play().catch(() => {});
+                            }}
+                            onCanPlay={(e) => {
+                              e.target.muted = true;
+                              e.target.play().catch(() => {});
+                            }}
+                            className="w-full h-full object-cover mirror scale-105 pointer-events-none"
+                          />
+                        )}
 
-                  {/* Live Status Chip */}
-                  <div className="absolute top-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white font-mono text-[7.5px] flex items-center gap-1 z-20 border border-white/20 pointer-events-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span>LIVE</span>
-                  </div>
+                        {/* PiP FLOATING BUBBLE (Clickable to Swap Feeds) */}
+                        {hasBoth && (
+                          <div
+                            data-tauri-drag-region="false"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sounds.playPop();
+                              setIsSwappedVideo((prev) => !prev);
+                            }}
+                            className="absolute bottom-2 right-2 w-11 h-11 rounded-full overflow-hidden border-2 border-emerald-400 shadow-xl bg-black z-30 cursor-pointer hover:scale-115 active:scale-95 transition-all tauri-no-drag"
+                            title={`Click to show ${mainIsRemote ? 'You' : datePartner.name} in main circle`}
+                          >
+                            {mainIsRemote ? (
+                              <video
+                                ref={(el) => {
+                                  pipVideoRef.current = el;
+                                  if (el && localCamStream) {
+                                    if (el.srcObject !== localCamStream) {
+                                      el.srcObject = localCamStream;
+                                    }
+                                    el.play().catch(() => {});
+                                  }
+                                }}
+                                autoPlay
+                                playsInline
+                                muted
+                                onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                                className="w-full h-full object-cover mirror pointer-events-none"
+                              />
+                            ) : (
+                              <video
+                                ref={(el) => {
+                                  pipVideoRef.current = el;
+                                  if (el && remoteCamStream) {
+                                    if (el.srcObject !== remoteCamStream) {
+                                      el.srcObject = remoteCamStream;
+                                    }
+                                    el.play().catch(() => {});
+                                  }
+                                }}
+                                autoPlay
+                                playsInline
+                                muted
+                                onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                                className="w-full h-full object-cover pointer-events-none"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-emerald-500/10 hover:bg-transparent pointer-events-none transition-colors" />
+                          </div>
+                        )}
 
-                  {/* Gesture Hint Subtitle */}
-                  <div className="absolute bottom-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/90 font-mono text-[6.5px] z-20 pointer-events-none">
-                    1x: OPTS • 2x: EMOJI • 4x: VANISH
-                  </div>
+                        {/* Live Identity Badge */}
+                        <div className="absolute top-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white font-mono text-[7.5px] flex items-center gap-1 z-20 border border-white/20 pointer-events-none">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                          <span>{mainIsRemote ? datePartner.name.split(' ')[0] : 'YOU'}</span>
+                        </div>
+
+                        {/* Gesture Hint Subtitle */}
+                        <div className="absolute bottom-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/90 font-mono text-[6.5px] z-20 pointer-events-none">
+                          {hasBoth ? 'TAP PIP TO SWAP' : '1x: OPTS • 2x: EMOJI • 4x: VANISH'}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 /* MODE B: BIG CUTE BOUNCING CABBAGE MASCOT HUB */
@@ -1201,6 +1261,226 @@ export default function FloatingCompanion({
               )}
             </div>
           </div>
+
+          {/* ============================================================ */}
+          {/* 3. ALWAYS-VISIBLE QUICK VIDEO CONTROL BAR                    */}
+          {/* ============================================================ */}
+          <div
+            data-tauri-drag-region="false"
+            className={`mt-2.5 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl backdrop-blur-2xl border transition-all text-[10px] select-none z-40 tauri-no-drag ${
+              isWhite
+                ? 'bg-white/95 border-white text-slate-700 shadow-slate-300/40'
+                : isBlush
+                ? 'bg-rose-100/95 border-rose-200 text-rose-950 shadow-rose-300/30'
+                : 'bg-slate-900/95 border-white/10 text-slate-200 shadow-black/60'
+            }`}
+          >
+            {/* Quick Camera Toggle */}
+            <button
+              type="button"
+              data-tauri-drag-region="false"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleVideo && onToggleVideo();
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-[9px] transition-all duration-200 cursor-pointer shadow-xs tauri-no-drag ${
+                isVideoOn
+                  ? 'bg-emerald-500 text-white shadow-emerald-500/30 hover:bg-emerald-600'
+                  : 'bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20'
+              }`}
+              title={isVideoOn ? 'Turn Camera Off' : 'Turn Camera On'}
+            >
+              {isVideoOn ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+              <span>{isVideoOn ? 'CAM ON' : 'CAM OFF'}</span>
+            </button>
+
+            {/* Quick Mic Toggle */}
+            <button
+              type="button"
+              data-tauri-drag-region="false"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleMic && onToggleMic();
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-[9px] transition-all duration-200 cursor-pointer shadow-xs tauri-no-drag ${
+                isMicOn
+                  ? 'bg-emerald-500 text-white shadow-emerald-500/30 hover:bg-emerald-600'
+                  : 'bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20'
+              }`}
+              title={isMicOn ? 'Mute Microphone' : 'Unmute Microphone'}
+            >
+              {isMicOn ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+              <span>{isMicOn ? 'MIC ON' : 'MIC OFF'}</span>
+            </button>
+
+            {/* Dual Face-to-Face Mode Toggle */}
+            <button
+              type="button"
+              data-tauri-drag-region="false"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setFaceToFaceMode((prev) => !prev);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono font-bold text-[9px] transition-all duration-200 cursor-pointer shadow-xs tauri-no-drag ${
+                faceToFaceMode
+                  ? 'bg-indigo-600 text-white shadow-indigo-500/30 hover:bg-indigo-700'
+                  : 'bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20'
+              }`}
+              title={faceToFaceMode ? 'Close Side-by-Side Dual View' : 'Open Side-by-Side Dual View'}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>{faceToFaceMode ? 'DUAL ON' : 'DUAL VIEW'}</span>
+            </button>
+
+            {/* Swap Feeds Quick Button */}
+            {showRemote && isVideoOn && !faceToFaceMode && (
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playPop();
+                  setIsSwappedVideo((prev) => !prev);
+                }}
+                className="p-1 rounded-full bg-black/10 dark:bg-white/10 text-slate-400 hover:text-white hover:bg-black/20 dark:hover:bg-white/20 transition cursor-pointer tauri-no-drag"
+                title="Swap Main & PiP Feeds"
+              >
+                <Move className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* ============================================================ */}
+          {/* 4. DUAL FACE-TO-FACE VIDEO CARD GRID (SIDE-BY-SIDE)          */}
+          {/* ============================================================ */}
+          {faceToFaceMode && (
+            <div
+              data-tauri-drag-region="false"
+              className={`mt-2.5 w-full max-w-[380px] p-2.5 rounded-3xl shadow-2xl backdrop-blur-2xl border transition-all animate-scaleIn select-none z-30 tauri-no-drag ${
+                isWhite
+                  ? 'bg-white/95 border-white shadow-slate-300/50'
+                  : isBlush
+                  ? 'bg-rose-950/90 border-rose-300/30 shadow-rose-950/50 text-white'
+                  : 'bg-slate-900/95 border-white/15 shadow-black/70 text-white'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2 px-1 text-[10px] font-mono font-bold opacity-80">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>FACE-TO-FACE STUDY DUO</span>
+                </div>
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFaceToFaceMode(false);
+                  }}
+                  className="text-[9px] hover:text-rose-400 cursor-pointer tauri-no-drag"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* 1. Partner's Card */}
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-950 border border-white/15 flex items-center justify-center shadow-inner">
+                  {showRemote ? (
+                    <video
+                      ref={(el) => {
+                        dualRemoteVideoRef.current = el;
+                        if (el && remoteCamStream) {
+                          if (el.srcObject !== remoteCamStream) {
+                            el.srcObject = remoteCamStream;
+                          }
+                          el.play().catch(() => {});
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      muted
+                      onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
+                      <CabbageLogo size={28} animated />
+                      <span className="text-[8px] font-mono mt-1 opacity-75">
+                        {isPeerVideoOn ? 'Connecting...' : 'Camera Off'}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[8px] font-mono text-white pointer-events-none">
+                    <span className="truncate max-w-[85px]">{datePartner.name}</span>
+                    <span className="flex items-center gap-1">
+                      {isPeerMicOn ? (
+                        <Mic className="w-2.5 h-2.5 text-emerald-400" />
+                      ) : (
+                        <MicOff className="w-2.5 h-2.5 text-slate-400" />
+                      )}
+                      {showRemote && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Your Local Card */}
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-950 border border-white/15 flex items-center justify-center shadow-inner">
+                  {isVideoOn && localCamStream ? (
+                    <video
+                      ref={(el) => {
+                        dualLocalVideoRef.current = el;
+                        if (el && localCamStream) {
+                          if (el.srcObject !== localCamStream) {
+                            el.srcObject = localCamStream;
+                          }
+                          el.play().catch(() => {});
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      muted
+                      onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                      className="w-full h-full object-cover mirror"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
+                      <VideoOff className="w-6 h-6 opacity-40 mb-1" />
+                      <button
+                        type="button"
+                        data-tauri-drag-region="false"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleVideo && onToggleVideo();
+                        }}
+                        className="text-[8px] font-mono font-bold text-emerald-400 underline hover:text-emerald-300 cursor-pointer tauri-no-drag"
+                      >
+                        Start Camera
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[8px] font-mono text-white pointer-events-none">
+                    <span className="truncate max-w-[85px]">{selfUser?.name || 'You'} (You)</span>
+                    <span className="flex items-center gap-1">
+                      {isMicOn ? (
+                        <Mic className="w-2.5 h-2.5 text-emerald-400" />
+                      ) : (
+                        <MicOff className="w-2.5 h-2.5 text-slate-400" />
+                      )}
+                      {isVideoOn && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

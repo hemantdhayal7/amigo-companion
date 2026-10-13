@@ -465,6 +465,7 @@ export class PeerCallManager {
         }
         console.log('[WebRTC] Polite peer rolling back local offer to accept remote offer');
         if (pc.signalingState === 'have-local-offer') {
+          this.pendingNegotiation = true;
           try {
             await pc.setLocalDescription({ type: 'rollback' });
           } catch (e) {
