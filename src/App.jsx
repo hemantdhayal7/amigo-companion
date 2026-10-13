@@ -33,6 +33,14 @@ export default function App() {
   const [roomId, setRoomId] = useState(initialRoom);
   const [roomSecret, setRoomSecret] = useState(initialSecret);
   const [serverUrl, setServerUrl] = useState(initialServer);
+  const [deviceId] = useState(() => {
+    let id = typeof window !== 'undefined' ? localStorage.getItem('study_device_id') : null;
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).substring(2, 10);
+      if (typeof window !== 'undefined') localStorage.setItem('study_device_id', id);
+    }
+    return id;
+  });
   const [nickname, setNickname] = useState(() => localStorage.getItem('study_nickname') || 'Learner');
   const [avatar, setAvatar] = useState('🧠');
   const [isConnected, setIsConnected] = useState(false);
@@ -329,6 +337,12 @@ export default function App() {
         const videoOnlyStream = new MediaStream(videoTracks);
         setRemoteCamStream(videoOnlyStream);
         setPeerStream(videoOnlyStream);
+        if (videoTracks.length > 0) {
+          setIsPeerVideoOn(true);
+        }
+        if (audioTracks.length > 0) {
+          setIsPeerMicOn(true);
+        }
 
         // Separate Audio-Only stream for <audio> element so remote voice plays immediately even when camera is off
         if (remoteAudioRef.current) {
@@ -359,6 +373,7 @@ export default function App() {
         roomId,
         secret: roomSecret,
         user: {
+          deviceId,
           name: nickname,
           avatar,
           status: currentStatus,

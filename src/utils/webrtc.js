@@ -6,19 +6,7 @@ const RTC_CONFIG = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:openrelay.metered.ca:80' },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-        'turns:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelay',
-      credential: 'openrelay',
-    },
   ],
-  iceCandidatePoolSize: 10,
 };
 
 export class PeerCallManager {
@@ -291,9 +279,24 @@ export class PeerCallManager {
         this.remoteStream.addTrack(incomingTrack);
       }
 
+      if (incomingTrack.kind === 'video') {
+        this.isPeerVideoOn = true;
+        this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: true });
+      } else if (incomingTrack.kind === 'audio') {
+        this.isPeerMicOn = true;
+        this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
+      }
+
       incomingTrack.onended = () => {
         console.log('[WebRTC] Remote track ended:', incomingTrack.id);
         this.remoteStream.removeTrack(incomingTrack);
+        if (incomingTrack.kind === 'video') {
+          const hasLiveVideo = this.remoteStream.getVideoTracks().some((t) => t.readyState === 'live');
+          if (!hasLiveVideo) {
+            this.isPeerVideoOn = false;
+            this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: false });
+          }
+        }
         this.refreshRemoteStream();
       };
 

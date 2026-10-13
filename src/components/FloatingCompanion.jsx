@@ -123,8 +123,14 @@ export default function FloatingCompanion({
   const pipVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
+  const hasRemoteVideo = Boolean(
+    remoteCamStream &&
+    remoteCamStream.getVideoTracks &&
+    remoteCamStream.getVideoTracks().some((t) => t.readyState === 'live')
+  );
+
   const showRemote = Boolean(
-    isPeerVideoOn &&
+    (isPeerVideoOn || hasRemoteVideo) &&
     remoteCamStream &&
     remoteCamStream.getVideoTracks &&
     remoteCamStream.getVideoTracks().length > 0
@@ -156,13 +162,13 @@ export default function FloatingCompanion({
       if (remoteVideoRef.current.srcObject !== remoteCamStream) {
         remoteVideoRef.current.srcObject = remoteCamStream;
       }
-      if (isPeerVideoOn) {
+      if (isPeerVideoOn || hasRemoteVideo) {
         remoteVideoRef.current.play().catch((err) => {
           console.debug('[FloatingCompanion] Remote video play postponed:', err);
         });
       }
     }
-  }, [remoteCamStream, isPeerVideoOn, showRemote]);
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote]);
 
   // Selected date partner
   const datePartner = members.find((m) => m.id !== 'self' && m.id !== selfUser?.id) || {

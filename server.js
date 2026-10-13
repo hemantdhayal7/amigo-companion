@@ -210,9 +210,10 @@ io.on('connection', (socket) => {
     const roomMembers = room.members;
 
     // Check if user is reconnecting after computer restart or network drop
+    const clientDeviceId = user?.deviceId || null;
     let existingSocketToReplace = null;
     for (const [sId, existingMember] of roomMembers.entries()) {
-      if (sId === socket.id || existingMember.name.toLowerCase() === rawName.toLowerCase()) {
+      if (sId === socket.id || (clientDeviceId && existingMember.deviceId === clientDeviceId)) {
         existingSocketToReplace = sId;
         break;
       }
@@ -244,6 +245,7 @@ io.on('connection', (socket) => {
 
     currentUser = {
       id: socket.id,
+      deviceId: clientDeviceId,
       name: rawName,
       avatar: user?.avatar || '🎓',
       status: user?.status || 'studying',
@@ -589,6 +591,6 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`   http://${net.localIp}:${PORT}`);
   console.log(``);
   console.log(`🔗 1-Click Secure Link for Her (auto-configures room & passcode):`);
-  console.log(`   http://${net.localIp}:5173/?room=our-study-date&secret=date2026&server=http://${net.localIp}:${PORT}`);
+  console.log(`   http://${net.localIp}:${PORT}/?room=our-study-date&secret=date2026&server=http://${net.localIp}:${PORT}`);
   console.log(`======================================================\n`);
 });

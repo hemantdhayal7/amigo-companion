@@ -85,7 +85,16 @@ export default function ConnectModal({
     : serverInput.trim();
 
   // 1-Click Link with Room, Passcode and Server included
-  const shareableLink = `${protocol}//${hostAddress}:5173/?room=${encodeURIComponent(
+  let appPort = '4000';
+  try {
+    if (typeof window !== 'undefined' && window.location?.port) {
+      appPort = window.location.port;
+    } else if (targetServer) {
+      const parsed = new URL(targetServer);
+      appPort = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
+    }
+  } catch {}
+  const shareableLink = `${protocol}//${hostAddress}${appPort === '80' || appPort === '443' ? '' : `:${appPort}`}/?room=${encodeURIComponent(
     roomInput.trim()
   )}&secret=${encodeURIComponent(secretInput.trim())}&server=${encodeURIComponent(targetServer)}`;
 
