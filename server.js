@@ -65,6 +65,62 @@ async function queryLocalAI(prompt, customSystem) {
   }
 }
 
+// WebRTC ICE & Dynamic TURN Relay Provisioning
+let cachedIceServers = [
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.nextcloud.com:443' },
+];
+let lastTurnFetch = 0;
+
+async function getFreshIceServers() {
+  const now = Date.now();
+  if (
+    now - lastTurnFetch < 15 * 60 * 1000 &&
+    cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'))
+  ) {
+    return cachedIceServers;
+  }
+
+  try {
+    const res = await fetch('https://speed.cloudflare.com/turn-creds', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Referer': 'https://speed.cloudflare.com/',
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.urls && data.username && data.credential) {
+        cachedIceServers = [
+          { urls: 'stun:stun.cloudflare.com:3478' },
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          {
+            urls: data.urls,
+            username: data.username,
+            credential: data.credential,
+          },
+        ];
+        lastTurnFetch = now;
+        console.log(`[WebRTC-TURN] 🛡️ Refreshed Cloudflare TURN relay credentials (${data.urls.length} URLs, username: ${data.username.slice(0, 10)}...)`);
+        return cachedIceServers;
+      }
+    }
+  } catch (err) {
+    console.warn('[WebRTC-TURN] Warning: Could not fetch dynamic Cloudflare TURN credentials:', err.message);
+  }
+  return cachedIceServers;
+}
+
+getFreshIceServers().catch(() => {});
+
 // Rooms storage:
 // roomId -> {
 //   secret: string,
@@ -108,6 +164,12 @@ app.get('/api/health', (req, res) => {
     aiModel: DEFAULT_MODEL,
     timestamp: Date.now()
   });
+});
+
+// WebRTC ICE & TURN Servers API
+app.get('/api/webrtc/ice-servers', async (req, res) => {
+  const servers = await getFreshIceServers();
+  res.json({ iceServers: servers });
 });
 
 // Check Local AI (Ollama) Status
@@ -170,7 +232,7 @@ io.on('connection', (socket) => {
   };
 
   // Join or Reconnect to a study room
-  socket.on('join-room', ({ roomId, secret, user }) => {
+  socket.on('join-room', async ({ roomId, secret, user }) => {
     const rawRoom = (roomId || 'our-study-date').trim();
     const rawSecret = (secret || '').trim();
     const rawName = (user?.name || `Learner ${socket.id.slice(0, 4)}`).trim();
@@ -264,7 +326,8 @@ io.on('connection', (socket) => {
     // Notify partner in the room
     socket.to(currentRoom).emit('user-joined', currentUser);
 
-    // Send verified room state to joined user
+    // Send verified room state and fresh ICE/TURN servers to joined user
+    const iceServers = await getFreshIceServers();
     socket.emit('room-synced', {
       roomId: currentRoom,
       members: Array.from(roomMembers.values()),
@@ -272,10 +335,21 @@ io.on('connection', (socket) => {
       self: currentUser,
       isSecured: true,
       maxCapacity: 2,
-      memberCount: roomMembers.size
+      memberCount: roomMembers.size,
+      iceServers
     });
 
-    console.log(`[Room] ✅ ${currentUser.name} joined "${currentRoom}" (Active verified partners: ${roomMembers.size}/2)`);
+    console.log(`[Room] ✅ ${currentUser.name} joined "${currentRoom}" (Active verified partners: ${roomMembers.size}/2, ICE servers: ${iceServers.length})`);
+  });
+
+  // Client request for dynamic ICE & TURN servers
+  socket.on('get-ice-servers', async (callback) => {
+    const servers = await getFreshIceServers();
+    if (typeof callback === 'function') {
+      callback({ iceServers: servers });
+    } else {
+      socket.emit('ice-servers', { iceServers: servers });
+    }
   });
 
   // Emoji Reactions (Real-time broadcast for floating overlay)

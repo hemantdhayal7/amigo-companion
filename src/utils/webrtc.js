@@ -65,8 +65,49 @@ export class PeerCallManager {
     this.isInitiator = false;
     this.isMakingOffer = false;
     this.pendingNegotiation = false;
+    this.lastIceRestart = 0;
+    this.rtcConfig = { ...RTC_CONFIG };
 
     this.setupSocketListeners();
+    this.fetchFallbackTurnCredentials();
+  }
+
+  async fetchFallbackTurnCredentials() {
+    try {
+      const res = await fetch('https://speed.cloudflare.com/turn-creds', {
+        headers: { Referer: 'https://speed.cloudflare.com/' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.urls && data.username && data.credential) {
+          this.updateIceServers([
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            {
+              urls: data.urls,
+              username: data.username,
+              credential: data.credential,
+            },
+          ]);
+        }
+      }
+    } catch {}
+  }
+
+  updateIceServers(servers) {
+    if (!Array.isArray(servers) || servers.length === 0) return;
+    const hasTurn = servers.some((s) => Array.isArray(s.urls) ? s.urls.some(u => u.startsWith('turn:')) : s.urls?.startsWith('turn:'));
+    console.log(`[WebRTC] 🔄 Updating ICE servers (Total: ${servers.length}, TURN Relay Enabled: ${hasTurn})`);
+    this.rtcConfig = { iceServers: servers };
+    if (this.peerConnection && this.peerConnection.setConfiguration) {
+      try {
+        this.peerConnection.setConfiguration(this.rtcConfig);
+        console.log('[WebRTC] Applied updated ICE servers to active peer connection');
+      } catch (err) {
+        console.warn('[WebRTC] setConfiguration warning:', err);
+      }
+    }
   }
 
   setTargetPeerId(peerId) {
@@ -166,6 +207,10 @@ export class PeerCallManager {
         setTimeout(() => this.refreshRemoteStream(), 250);
         setTimeout(() => this.refreshRemoteStream(), 700);
       }
+    });
+
+    this.socket.on('ice-servers', ({ iceServers }) => {
+      this.updateIceServers(iceServers);
     });
 
     this.socket.on('user-left', () => {
@@ -292,7 +337,7 @@ export class PeerCallManager {
     }
 
     console.log('[WebRTC] Initializing new RTCPeerConnection with STUN & TURN relay');
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection(this.rtcConfig || RTC_CONFIG);
     this.peerConnection = pc;
 
     // Pre-create exactly 1 audio and 1 video transceiver with 'sendrecv' direction.
@@ -435,7 +480,14 @@ export class PeerCallManager {
 
   async restartIce() {
     if (!this.peerConnection || this.peerConnection.signalingState === 'closed') return;
+    const now = Date.now();
+    if (this.lastIceRestart && now - this.lastIceRestart < 4000) {
+      console.log(`[WebRTC] Debouncing rapid ICE restart (${now - this.lastIceRestart}ms elapsed)`);
+      return;
+    }
+    this.lastIceRestart = now;
     try {
+      console.log('[WebRTC] 🔄 Restarting ICE with full TURN relay credentials...');
       if (this.peerConnection.restartIce) {
         this.peerConnection.restartIce();
       }

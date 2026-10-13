@@ -380,6 +380,22 @@ export default function App() {
       console.log(`[Socket] Connected to Amigo 🎉 signaling server at ${serverUrl}`);
       setIsConnected(true);
       setAuthError(null);
+      // Pre-fetch dynamic TURN relay credentials from server
+      socket.emit('get-ice-servers', (resp) => {
+        if (resp?.iceServers && peerCallManagerRef.current) {
+          peerCallManagerRef.current.updateIceServers(resp.iceServers);
+        }
+      });
+      fetch(`${serverUrl}/api/webrtc/ice-servers`, {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.iceServers && peerCallManagerRef.current) {
+            peerCallManagerRef.current.updateIceServers(data.iceServers);
+          }
+        })
+        .catch(() => {});
       socket.emit('join-room', {
         roomId,
         secret: roomSecret,
@@ -417,6 +433,9 @@ export default function App() {
       setAuthError(null);
       setIsConnected(true);
       setIsSecured(true);
+      if (data.iceServers && peerCallManagerRef.current) {
+        peerCallManagerRef.current.updateIceServers(data.iceServers);
+      }
       if (data.members && data.members.length > 0) {
         setMembers(data.members);
         const partner = data.members.find((m) => m.id !== socket.id);
