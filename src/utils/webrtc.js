@@ -6,8 +6,40 @@ const RTC_CONFIG = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.nextcloud.com:443' },
   ],
 };
+
+// Guarantee Linux WebKitGTK / Chromium decodes video by prioritizing royalty-free VP8 in SDP
+function preferVP8InSdp(sdp) {
+  if (!sdp || typeof sdp !== 'string') return sdp;
+  try {
+    const lines = sdp.split('\r\n');
+    const mVideoIdx = lines.findIndex((l) => l.startsWith('m=video '));
+    if (mVideoIdx === -1) return sdp;
+
+    let vp8Pt = null;
+    for (const line of lines) {
+      const match = line.match(/^a=rtpmap:(\d+)\s+VP8\/90000/i);
+      if (match) {
+        vp8Pt = match[1];
+        break;
+      }
+    }
+
+    if (vp8Pt) {
+      const parts = lines[mVideoIdx].split(' ');
+      const header = parts.slice(0, 3);
+      const rest = parts.slice(3).filter((p) => p !== vp8Pt);
+      lines[mVideoIdx] = [...header, vp8Pt, ...rest].join(' ');
+      return lines.join('\r\n');
+    }
+  } catch (err) {
+    console.warn('[WebRTC] SDP VP8 sort warning:', err);
+  }
+  return sdp;
+}
 
 export class PeerCallManager {
   constructor({ socket, onRemoteStreamUpdate, onPeerMediaStatus, onError }) {
@@ -40,6 +72,38 @@ export class PeerCallManager {
   setTargetPeerId(peerId) {
     if (peerId) {
       this.targetPeerId = peerId;
+    }
+  }
+
+  emitDiag(event, details = {}) {
+    if (this.socket) {
+      try {
+        this.socket.emit('webrtc-diag', {
+          event,
+          ...details,
+          targetPeerId: this.targetPeerId,
+          timestamp: Date.now(),
+        });
+      } catch {}
+    }
+  }
+
+  preferVP8(transceiver) {
+    if (!transceiver || !transceiver.setCodecPreferences) return;
+    try {
+      if (typeof RTCRtpReceiver !== 'undefined' && RTCRtpReceiver.getCapabilities) {
+        const caps = RTCRtpReceiver.getCapabilities('video');
+        if (caps && caps.codecs) {
+          const vp8Codecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() === 'video/vp8');
+          const otherCodecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() !== 'video/vp8');
+          if (vp8Codecs.length > 0) {
+            transceiver.setCodecPreferences([...vp8Codecs, ...otherCodecs]);
+            console.log('[WebRTC] Set video transceiver codec preferences to prefer VP8');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[WebRTC] Error setting VP8 codec preferences:', e);
     }
   }
 
@@ -248,6 +312,7 @@ export class PeerCallManager {
         const hasVideo = pc.getTransceivers().some((t) => t.receiver?.track?.kind === 'video');
         if (!hasVideo) {
           const vt = pc.addTransceiver('video', { direction: 'sendrecv' });
+          this.preferVP8(vt);
           this.videoSender = vt.sender;
         }
       } catch (e) {
@@ -279,10 +344,10 @@ export class PeerCallManager {
         this.remoteStream.addTrack(incomingTrack);
       }
 
-      if (incomingTrack.kind === 'video') {
+      if (incomingTrack.kind === 'video' && !incomingTrack.muted) {
         this.isPeerVideoOn = true;
         this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: true });
-      } else if (incomingTrack.kind === 'audio') {
+      } else if (incomingTrack.kind === 'audio' && !incomingTrack.muted) {
         this.isPeerMicOn = true;
         this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
       }
@@ -300,8 +365,24 @@ export class PeerCallManager {
         this.refreshRemoteStream();
       };
 
+      incomingTrack.onmute = () => {
+        console.log('[WebRTC] Remote track muted (packets stopped):', incomingTrack.kind, incomingTrack.id);
+        if (incomingTrack.kind === 'video') {
+          this.isPeerVideoOn = false;
+          this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: false });
+        }
+        this.refreshRemoteStream();
+      };
+
       incomingTrack.onunmute = () => {
         console.log('[WebRTC] Remote track unmuted (live media packets arriving):', incomingTrack.kind, incomingTrack.id);
+        if (incomingTrack.kind === 'video') {
+          this.isPeerVideoOn = true;
+          this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: true });
+        } else if (incomingTrack.kind === 'audio') {
+          this.isPeerMicOn = true;
+          this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
+        }
         this.refreshRemoteStream();
       };
 
@@ -328,6 +409,7 @@ export class PeerCallManager {
 
     pc.oniceconnectionstatechange = () => {
       console.log('[WebRTC] ICE Connection state:', pc.iceConnectionState);
+      this.emitDiag('iceconnectionstatechange', { state: pc.iceConnectionState });
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         this.refreshRemoteStream();
       } else if (pc.iceConnectionState === 'failed') {
@@ -338,6 +420,7 @@ export class PeerCallManager {
 
     pc.onconnectionstatechange = () => {
       console.log('[WebRTC] PeerConnection state:', pc.connectionState);
+      this.emitDiag('connectionstatechange', { state: pc.connectionState });
       if (pc.connectionState === 'connected') {
         this.refreshRemoteStream();
         this.broadcastMediaStatus();
@@ -413,12 +496,16 @@ export class PeerCallManager {
       }
 
       const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      const mungedAnswer = {
+        type: answer.type,
+        sdp: preferVP8InSdp(answer.sdp),
+      };
+      await pc.setLocalDescription(mungedAnswer);
 
       if (this.socket) {
         this.socket.emit('signal-answer', {
           targetUserId: senderId || this.targetPeerId,
-          answer,
+          answer: mungedAnswer,
         });
       }
 
@@ -495,10 +582,14 @@ export class PeerCallManager {
         this.pendingNegotiation = true;
         return;
       }
-      await pc.setLocalDescription(offer);
+      const mungedOffer = {
+        type: offer.type,
+        sdp: preferVP8InSdp(offer.sdp),
+      };
+      await pc.setLocalDescription(mungedOffer);
 
       if (this.socket) {
-        const payload = { offer };
+        const payload = { offer: mungedOffer };
         const destId = targetUserId || this.targetPeerId;
         if (destId) {
           payload.targetUserId = destId;
@@ -665,6 +756,7 @@ export class PeerCallManager {
         if (videoTransceiver) {
           console.log('[WebRTC] Attaching video track to transceiver sender');
           videoTransceiver.direction = 'sendrecv';
+          this.preferVP8(videoTransceiver);
           await videoTransceiver.sender.replaceTrack(newVideoTrack);
           this.videoSender = videoTransceiver.sender;
         } else {
@@ -673,11 +765,14 @@ export class PeerCallManager {
             direction: 'sendrecv',
             streams: [this.localStream],
           });
+          this.preferVP8(vt);
           this.videoSender = vt.sender;
         }
 
         this.broadcastMediaStatus();
-        await this.negotiate(this.targetPeerId);
+        if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
+          await this.negotiate(this.targetPeerId);
+        }
         return { isVideoOn: true, stream: this.localStream };
       } catch (err) {
         this.handleMediaError(err, 'camera');
@@ -702,7 +797,6 @@ export class PeerCallManager {
 
       this.isVideoOn = false;
       this.broadcastMediaStatus();
-      await this.negotiate(this.targetPeerId);
       return { isVideoOn: false, stream: this.localStream };
     }
   }

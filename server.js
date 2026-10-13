@@ -315,6 +315,7 @@ io.on('connection', (socket) => {
     if (!target || !room.members.has(target)) {
       target = Array.from(room.members.keys()).find((id) => id !== socket.id);
     }
+    console.log(`[Signal] 📤 OFFER from ${socket.id} (${currentUser?.name}) -> target: ${target}`);
     if (target && room.members.has(target)) {
       io.to(target).emit('signal-offer', {
         senderId: socket.id,
@@ -337,6 +338,7 @@ io.on('connection', (socket) => {
     if (!target || !room.members.has(target)) {
       target = Array.from(room.members.keys()).find((id) => id !== socket.id);
     }
+    console.log(`[Signal] 📥 ANSWER from ${socket.id} (${currentUser?.name}) -> target: ${target}`);
     if (target && room.members.has(target)) {
       io.to(target).emit('signal-answer', {
         senderId: socket.id,
@@ -359,6 +361,8 @@ io.on('connection', (socket) => {
     if (!target || !room.members.has(target)) {
       target = Array.from(room.members.keys()).find((id) => id !== socket.id);
     }
+    const candType = candidate?.candidate ? candidate.candidate.split(' ')[7] || 'cand' : 'null';
+    console.log(`[Signal] 🧊 ICE (${candType}) from ${socket.id} (${currentUser?.name}) -> target: ${target}`);
     if (target && room.members.has(target)) {
       io.to(target).emit('signal-ice', {
         senderId: socket.id,
@@ -372,6 +376,11 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Client WebRTC Diagnostics logger
+  socket.on('webrtc-diag', (diag) => {
+    console.log(`[WebRTC-Diag] 📊 [${currentUser?.name || socket.id}]:`, JSON.stringify(diag));
+  });
+
   // Real-time Mic & Webcam Media Status synchronization
   socket.on('media-status-change', ({ isMicOn, isVideoOn }) => {
     if (!isAuthorized()) return;
@@ -379,6 +388,7 @@ io.on('connection', (socket) => {
       currentUser.isMicOn = Boolean(isMicOn);
       currentUser.isVideoOn = Boolean(isVideoOn);
     }
+    console.log(`[MediaStatus] 🎥 ${currentUser?.name || socket.id} -> mic:${isMicOn}, video:${isVideoOn}`);
     socket.to(currentRoom).emit('peer-media-status', {
       userId: socket.id,
       name: currentUser?.name,

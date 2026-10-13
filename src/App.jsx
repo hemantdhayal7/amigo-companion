@@ -334,22 +334,32 @@ export default function App() {
         console.log('[App] Remote media stream updated — videoTracks:', videoTracks.length, 'audioTracks:', audioTracks.length);
 
         // Separate Video-Only stream for <video> elements so GStreamer/WebKitGTK/Chromium never stalls waiting for muted audio sync
-        const videoOnlyStream = new MediaStream(videoTracks);
-        setRemoteCamStream(videoOnlyStream);
-        setPeerStream(videoOnlyStream);
-        if (videoTracks.length > 0) {
-          setIsPeerVideoOn(true);
-        }
-        if (audioTracks.length > 0) {
-          setIsPeerMicOn(true);
-        }
+        setRemoteCamStream((prevStream) => {
+          if (!prevStream && videoTracks.length === 0) return null;
+          if (!prevStream) {
+            const fresh = new MediaStream(videoTracks);
+            setPeerStream(fresh);
+            return fresh;
+          }
+          const prevTrackIds = prevStream.getVideoTracks().map((t) => t.id).sort().join(',');
+          const newTrackIds = videoTracks.map((t) => t.id).sort().join(',');
+          if (prevTrackIds === newTrackIds) {
+            return prevStream;
+          }
+          const fresh = new MediaStream(videoTracks);
+          setPeerStream(fresh);
+          return fresh;
+        });
 
         // Separate Audio-Only stream for <audio> element so remote voice plays immediately even when camera is off
         if (remoteAudioRef.current) {
           if (audioTracks.length > 0) {
-            const audioOnlyStream = new MediaStream(audioTracks);
-            remoteAudioRef.current.srcObject = audioOnlyStream;
-            remoteAudioRef.current.play().catch(() => {});
+            const currentAudioStream = remoteAudioRef.current.srcObject;
+            const currentTrackId = currentAudioStream?.getAudioTracks()[0]?.id;
+            if (currentTrackId !== audioTracks[0].id) {
+              remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
+              remoteAudioRef.current.play().catch(() => {});
+            }
           } else {
             remoteAudioRef.current.srcObject = null;
           }

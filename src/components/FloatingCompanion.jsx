@@ -139,6 +139,8 @@ export default function FloatingCompanion({
   // Attach local webcam stream
   useEffect(() => {
     if (localVideoRef.current && localCamStream) {
+      localVideoRef.current.muted = true;
+      localVideoRef.current.playsInline = true;
       if (localVideoRef.current.srcObject !== localCamStream) {
         localVideoRef.current.srcObject = localCamStream;
       }
@@ -147,6 +149,8 @@ export default function FloatingCompanion({
       }
     }
     if (pipVideoRef.current && localCamStream) {
+      pipVideoRef.current.muted = true;
+      pipVideoRef.current.playsInline = true;
       if (pipVideoRef.current.srcObject !== localCamStream) {
         pipVideoRef.current.srcObject = localCamStream;
       }
@@ -159,6 +163,8 @@ export default function FloatingCompanion({
   // Attach remote partner's webcam stream and guarantee instant playback resumption
   useEffect(() => {
     if (remoteVideoRef.current && remoteCamStream) {
+      remoteVideoRef.current.muted = true;
+      remoteVideoRef.current.playsInline = true;
       if (remoteVideoRef.current.srcObject !== remoteCamStream) {
         remoteVideoRef.current.srcObject = remoteCamStream;
       }
@@ -1077,20 +1083,24 @@ export default function FloatingCompanion({
                     <video
                       ref={(el) => {
                         remoteVideoRef.current = el;
-                        if (el && remoteCamStream) {
-                          if (el.srcObject !== remoteCamStream) {
+                        if (el) {
+                          el.muted = true;
+                          el.playsInline = true;
+                          if (remoteCamStream && el.srcObject !== remoteCamStream) {
                             el.srcObject = remoteCamStream;
+                            el.play().catch(() => {});
                           }
-                          el.play().catch(() => {});
                         }
                       }}
                       autoPlay
                       playsInline
                       muted
                       onLoadedMetadata={(e) => {
+                        e.target.muted = true;
                         e.target.play().catch(() => {});
                       }}
                       onCanPlay={(e) => {
+                        e.target.muted = true;
                         e.target.play().catch(() => {});
                       }}
                       className="w-full h-full object-cover scale-105 pointer-events-none"
@@ -1100,20 +1110,24 @@ export default function FloatingCompanion({
                     <video
                       ref={(el) => {
                         localVideoRef.current = el;
-                        if (el && localCamStream) {
-                          if (el.srcObject !== localCamStream) {
+                        if (el) {
+                          el.muted = true;
+                          el.playsInline = true;
+                          if (localCamStream && el.srcObject !== localCamStream) {
                             el.srcObject = localCamStream;
+                            el.play().catch(() => {});
                           }
-                          el.play().catch(() => {});
                         }
                       }}
                       autoPlay
                       playsInline
                       muted
                       onLoadedMetadata={(e) => {
+                        e.target.muted = true;
                         e.target.play().catch(() => {});
                       }}
                       onCanPlay={(e) => {
+                        e.target.muted = true;
                         e.target.play().catch(() => {});
                       }}
                       className="w-full h-full object-cover mirror scale-105 pointer-events-none"
@@ -1126,20 +1140,24 @@ export default function FloatingCompanion({
                       <video
                         ref={(el) => {
                           pipVideoRef.current = el;
-                          if (el && localCamStream) {
-                            if (el.srcObject !== localCamStream) {
+                          if (el) {
+                            el.muted = true;
+                            el.playsInline = true;
+                            if (localCamStream && el.srcObject !== localCamStream) {
                               el.srcObject = localCamStream;
+                              el.play().catch(() => {});
                             }
-                            el.play().catch(() => {});
                           }
                         }}
                         autoPlay
                         playsInline
                         muted
                         onLoadedMetadata={(e) => {
+                          e.target.muted = true;
                           e.target.play().catch(() => {});
                         }}
                         onCanPlay={(e) => {
+                          e.target.muted = true;
                           e.target.play().catch(() => {});
                         }}
                         className="w-full h-full object-cover mirror scale-105 pointer-events-none"
