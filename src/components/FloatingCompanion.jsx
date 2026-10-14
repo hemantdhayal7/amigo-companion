@@ -1775,6 +1775,23 @@ export default function FloatingCompanion({
               >
                 ⚙️ SYSTEM
               </button>
+
+              {/* Quick Customize Emojis button directly on Emoji Ring */}
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sounds.playPop();
+                  onOpenCustomizer && onOpenCustomizer('emojis');
+                }}
+                className="absolute bottom-2.5 right-2 px-2 py-0.5 rounded-full bg-amber-500/90 text-white font-mono text-[7px] font-bold border border-white/20 shadow-md hover:bg-amber-400 z-40 transition tauri-no-drag cursor-pointer flex items-center gap-0.5"
+                title="Customize & Add Custom Emojis"
+              >
+                <Palette className="w-2.5 h-2.5" />
+                <span>EDIT</span>
+              </button>
             </div>
 
             {/* ============================================================ */}

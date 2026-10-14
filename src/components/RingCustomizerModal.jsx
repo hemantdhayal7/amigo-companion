@@ -66,6 +66,24 @@ export const EMOJI_CATEGORIES = {
     color: 'text-purple-400',
     emojis: ['🌈', '🍀', '🎧', '👾', '💎', '🌺', '🌙', '🪐', '🎨', '🔮', '🧸', '☀️'],
   },
+  music: {
+    name: 'Music & Audio',
+    icon: Music,
+    color: 'text-violet-400',
+    emojis: ['🎵', '🎶', '🎧', '🎸', '🎹', '🎤', '🥁', '🎷', '📻', '🔊', '🎼', '🕺'],
+  },
+  cute: {
+    name: 'Animals & Cute',
+    icon: Star,
+    color: 'text-amber-400',
+    emojis: ['🐱', '🐶', '🐼', '🐰', '🦊', '🐻', '🐨', '🐯', '🐧', '🐥', '🦄', '🦋'],
+  },
+  food: {
+    name: 'Snacks & Cafe',
+    icon: Target,
+    color: 'text-emerald-400',
+    emojis: ['☕', '🧋', '🍕', '🍔', '🍟', '🍦', '🍩', '🍪', '🍫', '🥑', '🍓', '🍣'],
+  },
 };
 
 export const AVAILABLE_MENU_TOOLS = {
@@ -243,11 +261,16 @@ export default function RingCustomizerModal({
 
   const handleCustomEmojiSubmit = (e) => {
     e.preventDefault();
-    if (customEmojiInput.trim()) {
+    const val = customEmojiInput.trim();
+    if (val) {
       sounds.playPop();
       const updated = [...currentEmojiSlots];
-      updated[selectedEmojiSlot] = customEmojiInput.trim();
+      updated[selectedEmojiSlot] = val;
       setCurrentEmojiSlots(updated);
+      // Auto-save to Favorites so the custom emoji stays in their palette forever
+      if (!savedFavorites.includes(val)) {
+        setSavedFavorites((prev) => [val, ...prev]);
+      }
       setCustomEmojiInput('');
       setSelectedEmojiSlot((prev) => (prev + 1) % updated.length);
     }
@@ -375,13 +398,13 @@ export default function RingCustomizerModal({
           </div>
 
           {/* Custom typed emoji input */}
-          <form onSubmit={handleCustomEmojiSubmit} className="flex gap-1.5 mb-3">
+          <form onSubmit={handleCustomEmojiSubmit} className="flex gap-1.5 mb-1.5">
             <input
               type="text"
               value={customEmojiInput}
               onChange={(e) => setCustomEmojiInput(e.target.value)}
-              placeholder={`Type emoji for Slot #${selectedEmojiSlot + 1}...`}
-              maxLength={4}
+              placeholder={`Type or paste emoji for Slot #${selectedEmojiSlot + 1}...`}
+              maxLength={16}
               className={`flex-1 px-3 py-1.5 text-xs rounded-xl border focus:outline-none ${
                 isWhite
                   ? 'bg-slate-100 border-slate-300 text-slate-800'
@@ -397,6 +420,11 @@ export default function RingCustomizerModal({
               Assign
             </button>
           </form>
+
+          {/* Quick OS Emoji Shortcut Tip */}
+          <div className="flex items-center justify-between text-[10px] text-slate-400 mb-2 px-1">
+            <span>💡 <strong>Emoji Keyboard:</strong> Windows: <code className="text-amber-300 font-mono font-bold">Win + .</code> | Mac: <code className="text-amber-300 font-mono font-bold">Cmd + Ctrl + Space</code></span>
+          </div>
 
           {/* Category Pills */}
           <div className="flex items-center gap-1 overflow-x-auto pb-1.5 mb-2 scrollbar-none">
