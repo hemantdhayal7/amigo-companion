@@ -61,7 +61,20 @@ jobs:
         run: npm ci
 
       - name: Build macOS DMG Bundle (Tauri 2)
-        run: npm run tauri build
+        run: |
+          npm run tauri build
+          echo "Signing app bundle with ad-hoc signature..."
+          codesign --force --deep --sign - src-tauri/target/release/bundle/macos/Amigo.app
+          codesign -vvv --deep --strict src-tauri/target/release/bundle/macos/Amigo.app
+          
+          echo "Repackaging verified DMG with Applications shortcut..."
+          mkdir -p /tmp/amigo_dmg_staging
+          rm -rf /tmp/amigo_dmg_staging/*
+          cp -R src-tauri/target/release/bundle/macos/Amigo.app /tmp/amigo_dmg_staging/
+          ln -s /Applications /tmp/amigo_dmg_staging/Applications
+          rm -f src-tauri/target/release/bundle/dmg/*.dmg
+          hdiutil create -volname "Amigo" -srcfolder /tmp/amigo_dmg_staging -ov -format UDZO src-tauri/target/release/bundle/dmg/Amigo_1.0.0_aarch64.dmg
+          codesign --force --sign - src-tauri/target/release/bundle/dmg/Amigo_1.0.0_aarch64.dmg
 
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
@@ -124,4 +137,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.0 release-files/* --clobber || gh release create v1.0.0 release-files/* --title "Amigo v1.0.0" --notes "Official Desktop Apps for Windows, macOS, and Linux"
+          gh release upload v1.0.0 release-files/* --clobber || gh release create v1.0.0 release-files/* --title "Amigo v1.0.0" --notes "Official Desktop Apps for Windows, macOS, and Linux. For macOS: if Gatekeeper says damaged, run: xattr -cr /Applications/Amigo.app"
