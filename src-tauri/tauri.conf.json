@@ -26,6 +26,7 @@
         "transparent": true,
         "shadow": true,
         "visible": true,
+        "devtools": true,
         "skipTaskbar": false,
         "visibleOnAllWorkspaces": false
       }
