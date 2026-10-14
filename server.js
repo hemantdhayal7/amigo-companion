@@ -455,19 +455,21 @@ io.on('connection', (socket) => {
     console.log(`[WebRTC-Diag] 📊 [${currentUser?.name || socket.id}]:`, JSON.stringify(diag));
   });
 
-  // Real-time Mic & Webcam Media Status synchronization
-  socket.on('media-status-change', ({ isMicOn, isVideoOn }) => {
+  // Real-time Mic, Webcam & System/Music Media Status synchronization
+  socket.on('media-status-change', ({ isMicOn, isVideoOn, isMusicOn }) => {
     if (!isAuthorized()) return;
     if (currentUser) {
       currentUser.isMicOn = Boolean(isMicOn);
       currentUser.isVideoOn = Boolean(isVideoOn);
+      currentUser.isMusicOn = Boolean(isMusicOn);
     }
-    console.log(`[MediaStatus] 🎥 ${currentUser?.name || socket.id} -> mic:${isMicOn}, video:${isVideoOn}`);
+    console.log(`[MediaStatus] 🎥 ${currentUser?.name || socket.id} -> mic:${isMicOn}, video:${isVideoOn}, music:${isMusicOn}`);
     socket.to(currentRoom).emit('peer-media-status', {
       userId: socket.id,
       name: currentUser?.name,
       isMicOn: Boolean(isMicOn),
-      isVideoOn: Boolean(isVideoOn)
+      isVideoOn: Boolean(isVideoOn),
+      isMusicOn: Boolean(isMusicOn),
     });
   });
 

@@ -45,6 +45,34 @@ function preferVP8InSdp(sdp) {
   return sdp;
 }
 
+// Enable 128kbps stereo Opus audio for high-fidelity music streaming (YouTube Music)
+function optimizeOpusInSdp(sdp) {
+  if (!sdp || typeof sdp !== 'string') return sdp;
+  try {
+    return sdp.replace(/a=fmtp:(\d+)\s+([^\r\n]+)/g, (match, pt, params) => {
+      if (sdp.includes(`a=rtpmap:${pt} opus/48000/2`)) {
+        let newParams = params;
+        if (!newParams.includes('stereo=')) {
+          newParams += ';stereo=1;sprop-stereo=1';
+        }
+        if (!newParams.includes('maxaveragebitrate=')) {
+          newParams += ';maxaveragebitrate=128000';
+        }
+        return `a=fmtp:${pt} ${newParams}`;
+      }
+      return match;
+    });
+  } catch (err) {
+    console.warn('[WebRTC] Opus SDP optimization warning:', err);
+    return sdp;
+  }
+}
+
+function optimizeSdp(sdp) {
+  if (!sdp || typeof sdp !== 'string') return sdp;
+  return optimizeOpusInSdp(preferVP8InSdp(sdp));
+}
+
 export class PeerCallManager {
   constructor({ socket, onRemoteStreamUpdate, onPeerMediaStatus, onError }) {
     this.socket = socket;
@@ -61,7 +89,28 @@ export class PeerCallManager {
     this.isVideoOn = false;
     this.isPeerMicOn = false;
     this.isPeerVideoOn = false;
+    this.isMusicSharing = false;
+    this.isPeerMusicOn = false;
+
     this.screenStream = null;
+    this.musicStream = null;
+    this.micTrack = null;
+    this.systemAudioTrack = null;
+
+    // Web Audio API mixer graph for simultaneous Mic + YouTube Music streaming
+    this.audioContext = null;
+    this.audioDestination = null;
+    this.mixedTrack = null;
+    this.micSourceNode = null;
+    this.musicSourceNode = null;
+    this.micGainNode = null;
+    this.musicGainNode = null;
+    this.micVolume = 1.0;
+    this.musicVolume = 0.85;
+    this.currentMicTrackId = null;
+    this.currentMusicTrackId = null;
+    this.onMusicStatusChange = null;
+
     this.videoSender = null;
     this.audioSender = null;
 
@@ -208,14 +257,19 @@ export class PeerCallManager {
       }
     });
 
-    this.socket.on('peer-media-status', ({ userId, isMicOn, isVideoOn }) => {
+    this.socket.on('peer-media-status', ({ userId, isMicOn, isVideoOn, isMusicOn }) => {
       if (userId) this.targetPeerId = userId;
       this.isPeerMicOn = Boolean(isMicOn);
       this.isPeerVideoOn = Boolean(isVideoOn);
-      this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: this.isPeerVideoOn });
+      this.isPeerMusicOn = Boolean(isMusicOn);
+      this.onPeerMediaStatus({
+        isPeerMicOn: this.isPeerMicOn,
+        isPeerVideoOn: this.isPeerVideoOn,
+        isPeerMusicOn: this.isPeerMusicOn,
+      });
       // Refresh remote stream immediately and again after keyframe arrival
       this.refreshRemoteStream();
-      if (this.isPeerVideoOn || this.isPeerMicOn) {
+      if (this.isPeerVideoOn || this.isPeerMicOn || this.isPeerMusicOn) {
         setTimeout(() => this.refreshRemoteStream(), 250);
         setTimeout(() => this.refreshRemoteStream(), 700);
       }
@@ -228,8 +282,9 @@ export class PeerCallManager {
     this.socket.on('user-left', () => {
       this.isPeerMicOn = false;
       this.isPeerVideoOn = false;
+      this.isPeerMusicOn = false;
       this.targetPeerId = null;
-      this.onPeerMediaStatus({ isPeerMicOn: false, isPeerVideoOn: false });
+      this.onPeerMediaStatus({ isPeerMicOn: false, isPeerVideoOn: false, isPeerMusicOn: false });
       this.resetPeerConnection();
     });
   }
@@ -316,11 +371,12 @@ export class PeerCallManager {
     if (!this.peerConnection) return;
 
     const audioTransceiver = this.findAudioTransceiver();
-    const activeAudioTrack = this.localStream.getAudioTracks().find((t) => t.readyState === 'live');
+    const hasLiveMedia = this.isMicOn || this.isMusicSharing;
+    const activeAudioTrack = hasLiveMedia ? (this.mixedTrack || this.micTrack || this.localStream.getAudioTracks().find((t) => t.readyState === 'live')) : null;
     if (audioTransceiver) {
       audioTransceiver.direction = 'sendrecv';
       this.audioSender = audioTransceiver.sender;
-      if (activeAudioTrack && audioTransceiver.sender.track !== activeAudioTrack) {
+      if (audioTransceiver.sender.track !== activeAudioTrack) {
         audioTransceiver.sender.replaceTrack(activeAudioTrack).catch((e) => {
           console.warn('[WebRTC] syncLocalTracks audio replaceTrack warning:', e);
         });
@@ -598,7 +654,7 @@ export class PeerCallManager {
       const answer = await pc.createAnswer();
       const mungedAnswer = {
         type: answer.type,
-        sdp: preferVP8InSdp(answer.sdp),
+        sdp: optimizeSdp(answer.sdp),
       };
       await pc.setLocalDescription(mungedAnswer);
 
@@ -690,7 +746,7 @@ export class PeerCallManager {
       }
       const mungedOffer = {
         type: offer.type,
-        sdp: preferVP8InSdp(offer.sdp),
+        sdp: optimizeSdp(offer.sdp),
       };
       await pc.setLocalDescription(mungedOffer);
 
@@ -732,7 +788,231 @@ export class PeerCallManager {
     return { supported: true };
   }
 
-  // Toggle Microphone
+  // Web Audio Context for simultaneously mixing Microphone + YouTube Music/System Audio
+  getAudioContext() {
+    if (typeof window === 'undefined') return null;
+    if (!this.audioContext || this.audioContext.state === 'closed') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          this.audioContext = new AudioCtx({ latencyHint: 'interactive', sampleRate: 48000 });
+        } catch (e) {
+          console.warn('[WebRTC] AudioContext creation fallback:', e);
+        }
+      }
+    }
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+    return this.audioContext;
+  }
+
+  // Live Web Audio pipeline mixing voice + music dynamically
+  async updateAudioPipeline() {
+    const pc = this.getOrCreatePeerConnection();
+    const ctx = this.getAudioContext();
+
+    const hasLiveMic = Boolean(this.isMicOn && this.micTrack && this.micTrack.readyState === 'live');
+    const hasLiveMusic = Boolean(this.isMusicSharing && this.systemAudioTrack && this.systemAudioTrack.readyState === 'live');
+
+    let activeTrackToSend = null;
+
+    if (ctx && (hasLiveMic || hasLiveMusic)) {
+      if (!this.audioDestination) {
+        this.audioDestination = ctx.createMediaStreamDestination();
+        this.mixedTrack = this.audioDestination.stream.getAudioTracks()[0];
+      }
+
+      // Microphone source in audio graph
+      if (hasLiveMic) {
+        if (!this.micSourceNode || this.currentMicTrackId !== this.micTrack.id) {
+          if (this.micSourceNode) {
+            try { this.micSourceNode.disconnect(); } catch {}
+          }
+          this.currentMicTrackId = this.micTrack.id;
+          this.micSourceNode = ctx.createMediaStreamSource(new MediaStream([this.micTrack]));
+          this.micGainNode = ctx.createGain();
+          this.micGainNode.gain.setValueAtTime(this.micVolume ?? 1.0, ctx.currentTime);
+          this.micSourceNode.connect(this.micGainNode);
+          this.micGainNode.connect(this.audioDestination);
+        } else if (this.micGainNode) {
+          this.micGainNode.gain.setValueAtTime(this.micVolume ?? 1.0, ctx.currentTime);
+        }
+      } else {
+        if (this.micGainNode) {
+          this.micGainNode.gain.setValueAtTime(0, ctx.currentTime);
+        }
+      }
+
+      // Music / System Audio source in audio graph
+      if (hasLiveMusic) {
+        if (!this.musicSourceNode || this.currentMusicTrackId !== this.systemAudioTrack.id) {
+          if (this.musicSourceNode) {
+            try { this.musicSourceNode.disconnect(); } catch {}
+          }
+          this.currentMusicTrackId = this.systemAudioTrack.id;
+          this.musicSourceNode = ctx.createMediaStreamSource(new MediaStream([this.systemAudioTrack]));
+          this.musicGainNode = ctx.createGain();
+          this.musicGainNode.gain.setValueAtTime(this.musicVolume ?? 0.85, ctx.currentTime);
+          this.musicSourceNode.connect(this.musicGainNode);
+          this.musicGainNode.connect(this.audioDestination);
+        } else if (this.musicGainNode) {
+          this.musicGainNode.gain.setValueAtTime(this.musicVolume ?? 0.85, ctx.currentTime);
+        }
+      } else {
+        if (this.musicGainNode) {
+          this.musicGainNode.gain.setValueAtTime(0, ctx.currentTime);
+        }
+      }
+
+      if (this.mixedTrack) {
+        this.mixedTrack.enabled = true;
+        activeTrackToSend = this.mixedTrack;
+      }
+    } else {
+      // AudioContext unavailable or both streams off
+      if (hasLiveMic) {
+        activeTrackToSend = this.micTrack;
+      } else if (hasLiveMusic) {
+        activeTrackToSend = this.systemAudioTrack;
+      } else {
+        activeTrackToSend = null;
+      }
+    }
+
+    const audioTransceiver = this.findAudioTransceiver();
+    if (audioTransceiver) {
+      audioTransceiver.direction = 'sendrecv';
+      if (audioTransceiver.sender.track !== activeTrackToSend) {
+        console.log('[WebRTC] Updating audio sender track:', activeTrackToSend ? (hasLiveMusic ? '🎵 Mixed (Mic + Music)' : '🎙️ Mic Only') : '🔇 Muted');
+        await audioTransceiver.sender.replaceTrack(activeTrackToSend);
+      }
+      this.audioSender = audioTransceiver.sender;
+    } else if (activeTrackToSend) {
+      console.log('[WebRTC] Creating audio transceiver with active track');
+      const at = pc.addTransceiver(activeTrackToSend, {
+        direction: 'sendrecv',
+        streams: [this.localStream],
+      });
+      this.audioSender = at.sender;
+    }
+
+    // Configure Opus stereo encodings for crystal clear YouTube Music playback
+    if (this.audioSender?.getParameters && this.audioSender?.setParameters) {
+      try {
+        const params = this.audioSender.getParameters();
+        if (params && params.encodings && params.encodings.length > 0) {
+          params.encodings[0].maxBitrate = hasLiveMusic ? 128000 : 64000;
+          params.encodings[0].networkPriority = 'high';
+          params.encodings[0].priority = 'high';
+          await this.audioSender.setParameters(params);
+        }
+      } catch (e) {}
+    }
+  }
+
+  // Dedicated YouTube Music & System Audio sharing
+  async startAudioShare(existingStream = null) {
+    try {
+      let stream = existingStream;
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: 'never',
+              width: { ideal: 640, max: 640 },
+              height: { ideal: 360, max: 360 },
+              frameRate: { ideal: 5, max: 5 },
+            },
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 2,
+              sampleRate: 48000,
+            },
+          });
+        } catch (err) {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+          });
+        }
+      }
+
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack) {
+        stream.getTracks().forEach((t) => t.stop());
+        const err = new Error('NO_AUDIO_TRACK');
+        err.name = 'NoAudioTrackError';
+        throw err;
+      }
+
+      this.musicStream = stream;
+      this.systemAudioTrack = audioTrack;
+      this.isMusicSharing = true;
+
+      audioTrack.onended = () => {
+        console.log('[WebRTC] Music audio track ended');
+        this.stopAudioShare();
+      };
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          if (this.isMusicSharing && this.musicStream === stream) {
+            this.stopAudioShare();
+          }
+        };
+      }
+
+      await this.updateAudioPipeline();
+      this.broadcastMediaStatus();
+      if (this.targetPeerId) {
+        await this.negotiate(this.targetPeerId);
+      }
+
+      if (this.onMusicStatusChange) {
+        this.onMusicStatusChange({ isSharing: true, hasTrack: true });
+      }
+      return true;
+    } catch (err) {
+      console.warn('[WebRTC] startAudioShare error:', err);
+      throw err;
+    }
+  }
+
+  stopAudioShare() {
+    if (this.musicStream) {
+      this.musicStream.getTracks().forEach((t) => t.stop());
+      this.musicStream = null;
+    }
+    this.systemAudioTrack = null;
+    this.isMusicSharing = false;
+
+    this.updateAudioPipeline();
+    this.broadcastMediaStatus();
+
+    if (this.onMusicStatusChange) {
+      this.onMusicStatusChange({ isSharing: false, hasTrack: false });
+    }
+  }
+
+  setMusicVolume(volume) {
+    this.musicVolume = Math.max(0, Math.min(2, volume));
+    if (this.musicGainNode && this.audioContext) {
+      this.musicGainNode.gain.setValueAtTime(this.musicVolume, this.audioContext.currentTime);
+    }
+  }
+
+  setMicVolume(volume) {
+    this.micVolume = Math.max(0, Math.min(2, volume));
+    if (this.micGainNode && this.audioContext) {
+      this.micGainNode.gain.setValueAtTime(this.micVolume, this.audioContext.currentTime);
+    }
+  }
+
+  // Toggle Microphone Audio
   async toggleMic() {
     const support = this.checkMediaSupport();
     if (!support.supported) {
@@ -765,25 +1045,16 @@ export class PeerCallManager {
         });
 
         this.localStream.addTrack(newAudioTrack);
+        this.micTrack = newAudioTrack;
         this.isMicOn = true;
 
-        const pc = this.getOrCreatePeerConnection();
-        const audioTransceiver = this.findAudioTransceiver();
+        newAudioTrack.onended = () => {
+          if (this.isMicOn && this.micTrack === newAudioTrack) {
+            this.toggleMic().catch(() => {});
+          }
+        };
 
-        if (audioTransceiver) {
-          console.log('[WebRTC] Attaching audio track to transceiver sender');
-          audioTransceiver.direction = 'sendrecv';
-          await audioTransceiver.sender.replaceTrack(newAudioTrack);
-          this.audioSender = audioTransceiver.sender;
-        } else {
-          console.log('[WebRTC] Creating audio transceiver with track');
-          const at = pc.addTransceiver(newAudioTrack, {
-            direction: 'sendrecv',
-            streams: [this.localStream],
-          });
-          this.audioSender = at.sender;
-        }
-
+        await this.updateAudioPipeline();
         this.broadcastMediaStatus();
         if (this.targetPeerId) {
           await this.negotiate(this.targetPeerId);
@@ -799,18 +1070,13 @@ export class PeerCallManager {
         t.stop();
         this.localStream.removeTrack(t);
       });
-
-      const audioSender = this.findAudioSender();
-      if (audioSender) {
-        try {
-          console.log('[WebRTC] Setting audio sender to null (mic off)');
-          await audioSender.replaceTrack(null);
-        } catch (e) {
-          console.warn('[WebRTC] Error clearing audio track:', e);
-        }
+      if (this.micTrack) {
+        this.micTrack.stop();
+        this.micTrack = null;
       }
 
       this.isMicOn = false;
+      await this.updateAudioPipeline();
       this.broadcastMediaStatus();
       return { isMicOn: false, stream: this.localStream };
     }
@@ -1020,6 +1286,33 @@ export class PeerCallManager {
       }
     }
 
+    // If the display stream contains an audio track (e.g. user selected Chrome Tab with "Share tab audio")
+    const displayAudioTrack = displayStream.getAudioTracks()[0];
+    if (displayAudioTrack) {
+      console.log('[WebRTC] System/Tab audio track detected in screen stream! Routing through audio pipeline...');
+      this.systemAudioTrack = displayAudioTrack;
+      this.isMusicSharing = true;
+
+      displayAudioTrack.onended = () => {
+        console.log('[WebRTC] Screen share audio track ended');
+        if (this.systemAudioTrack === displayAudioTrack) {
+          this.systemAudioTrack = null;
+          this.isMusicSharing = false;
+          this.updateAudioPipeline();
+          this.broadcastMediaStatus();
+          if (this.onMusicStatusChange) {
+            this.onMusicStatusChange({ isSharing: false, hasTrack: false });
+          }
+        }
+      };
+
+      await this.updateAudioPipeline();
+      this.broadcastMediaStatus();
+      if (this.onMusicStatusChange) {
+        this.onMusicStatusChange({ isSharing: true, hasTrack: true });
+      }
+    }
+
     await this.negotiate(this.targetPeerId);
 
     // Handle when user stops sharing via OS or browser floating toolbar
@@ -1034,6 +1327,16 @@ export class PeerCallManager {
 
   // Stop Screen Sharing via WebRTC
   async stopScreenShare() {
+    if (this.systemAudioTrack && this.screenStream?.getAudioTracks()?.includes(this.systemAudioTrack)) {
+      this.systemAudioTrack = null;
+      this.isMusicSharing = false;
+      await this.updateAudioPipeline();
+      this.broadcastMediaStatus();
+      if (this.onMusicStatusChange) {
+        this.onMusicStatusChange({ isSharing: false, hasTrack: false });
+      }
+    }
+
     if (this.screenStream) {
       this.screenStream.getTracks().forEach((t) => t.stop());
       this.screenStream = null;
@@ -1064,6 +1367,7 @@ export class PeerCallManager {
       this.socket.emit('media-status-change', {
         isMicOn: this.isMicOn,
         isVideoOn: this.isVideoOn,
+        isMusicOn: this.isMusicSharing,
       });
     }
   }
@@ -1100,9 +1404,17 @@ export class PeerCallManager {
   }
 
   destroy() {
+    if (this.musicStream) {
+      this.musicStream.getTracks().forEach((t) => t.stop());
+      this.musicStream = null;
+    }
     if (this.screenStream) {
       this.screenStream.getTracks().forEach((t) => t.stop());
       this.screenStream = null;
+    }
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      try { this.audioContext.close(); } catch {}
+      this.audioContext = null;
     }
     this.localStream.getTracks().forEach((t) => t.stop());
     this.resetPeerConnection();

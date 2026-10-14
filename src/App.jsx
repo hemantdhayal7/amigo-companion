@@ -106,6 +106,13 @@ export default function App() {
   const [remoteCamStream, setRemoteCamStream] = useState(null);
   const [mediaPermissionError, setMediaPermissionError] = useState(null);
 
+  // YouTube Music & System Audio sharing state
+  const [isSharingMusic, setIsSharingMusic] = useState(false);
+  const [isPeerMusicOn, setIsPeerMusicOn] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.85);
+  const [micVolume, setMicVolume] = useState(1.0);
+  const [musicShareError, setMusicShareError] = useState(null);
+
   const peerCallManagerRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const hasAutoStartedVideoRef = useRef(false);
@@ -396,15 +403,20 @@ export default function App() {
           }
         }
       },
-      onPeerMediaStatus: ({ isPeerMicOn: pMic, isPeerVideoOn: pVid }) => {
+      onPeerMediaStatus: ({ isPeerMicOn: pMic, isPeerVideoOn: pVid, isPeerMusicOn: pMus }) => {
         setIsPeerMicOn(pMic);
         setIsPeerVideoOn(pVid);
+        setIsPeerMusicOn(Boolean(pMus));
       },
       onError: (errMsg) => {
         setMediaPermissionError(errMsg);
         sounds.playGentleAlert();
       },
     });
+
+    peerCallManagerRef.current.onMusicStatusChange = ({ isSharing }) => {
+      setIsSharingMusic(isSharing);
+    };
 
     socket.on('connect', () => {
       console.log(`[Socket] Connected to Amigo 🎉 signaling server at ${serverUrl}`);
@@ -844,7 +856,13 @@ export default function App() {
             height: { ideal: 1080, max: 1080 },
             frameRate: { ideal: 30, max: 30 },
           },
-          audio: true,
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 2,
+            sampleRate: 48000,
+          },
         });
       } catch {
         stream = await navigator.mediaDevices.getDisplayMedia({
@@ -855,6 +873,9 @@ export default function App() {
 
       setLocalStream(stream);
       setIsSharingScreen(true);
+      if (stream.getAudioTracks().length > 0) {
+        setIsSharingMusic(true);
+      }
       setActiveModal('screen');
       setScreenViewMode('theater');
       resizeWindowForScreenshare('theater');
@@ -882,10 +903,65 @@ export default function App() {
       setLocalStream(null);
     }
     setIsSharingScreen(false);
+    if (!peerCallManagerRef.current?.musicStream) {
+      setIsSharingMusic(false);
+    }
     if (!peerSharingUser) {
       setActiveModal((prev) => (prev === 'screen' ? 'none' : prev));
     }
     resizeWindowForScreenshare('compact');
+  };
+
+  // Dedicated YouTube Music & System Audio sharing
+  const handleStartMusicShare = async () => {
+    try {
+      setMusicShareError(null);
+      if (!peerCallManagerRef.current) return;
+      await peerCallManagerRef.current.startAudioShare();
+      setIsSharingMusic(true);
+      sounds.playSuccess();
+    } catch (err) {
+      console.warn('[App] Music share canceled or failed:', err);
+      if (err.message === 'NO_AUDIO_TRACK' || err.name === 'NoAudioTrackError') {
+        setMusicShareError(
+          "⚠️ Audio was not captured: In the share dialog, make sure to pick a Chrome Tab (e.g. YouTube Music) and check 'Share tab audio' at the bottom-left!"
+        );
+        sounds.playGentleAlert();
+      } else if (err.name !== 'NotAllowedError') {
+        setMusicShareError(`Audio share error: ${err.message || 'Permission denied'}`);
+      }
+    }
+  };
+
+  const handleStopMusicShare = () => {
+    if (peerCallManagerRef.current) {
+      peerCallManagerRef.current.stopAudioShare();
+    }
+    setIsSharingMusic(false);
+    setMusicShareError(null);
+    sounds.playPop();
+  };
+
+  const handleToggleMusic = () => {
+    if (isSharingMusic) {
+      handleStopMusicShare();
+    } else {
+      handleStartMusicShare();
+    }
+  };
+
+  const handleSetMusicVolume = (vol) => {
+    setMusicVolume(vol);
+    if (peerCallManagerRef.current) {
+      peerCallManagerRef.current.setMusicVolume(vol);
+    }
+  };
+
+  const handleSetMicVolume = (vol) => {
+    setMicVolume(vol);
+    if (peerCallManagerRef.current) {
+      peerCallManagerRef.current.setMicVolume(vol);
+    }
   };
 
   // Handle Crisis SOS
@@ -1217,6 +1293,16 @@ export default function App() {
               }}
               viewMode={screenViewMode}
               onChangeViewMode={(mode) => setScreenViewMode(mode)}
+              isSharingMusic={isSharingMusic}
+              peerSharingMusic={isPeerMusicOn}
+              musicVolume={musicVolume}
+              micVolume={micVolume}
+              musicShareError={musicShareError}
+              onStartMusicShare={handleStartMusicShare}
+              onStopMusicShare={handleStopMusicShare}
+              onChangeMusicVolume={handleSetMusicVolume}
+              onChangeMicVolume={handleSetMicVolume}
+              onDismissMusicError={() => setMusicShareError(null)}
             />
           </div>
         )}
@@ -1304,6 +1390,12 @@ export default function App() {
           popoutEvent={popoutEvent}
           isCallActive={isCallActive}
           onHideToTray={hideAppWindow}
+          isSharingMusic={isSharingMusic}
+          isPeerMusicOn={isPeerMusicOn}
+          musicVolume={musicVolume}
+          onToggleMusic={handleToggleMusic}
+          onStopMusic={handleStopMusicShare}
+          onChangeMusicVolume={handleSetMusicVolume}
         />
 
         {/* Ephemeral Doubt Hub Modal (3-Hour Self-Destruct & Local Gemma AI) */}

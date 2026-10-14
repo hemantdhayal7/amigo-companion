@@ -31,6 +31,7 @@ import {
   Star,
   Link2,
   Layers,
+  Music,
 } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import CabbageLogo from './CabbageLogo';
@@ -115,10 +116,13 @@ export default function FloatingCompanion({
   popoutEvent = null,
   popoutCountdown = 5,
   isCallActive = false,
-  onPinToScreen = () => {},
-  onHideToTray = () => {},
-  onMouseEnter = () => {},
-  onMouseLeave = () => {},
+  // YouTube Music & System Audio props
+  isSharingMusic = false,
+  isPeerMusicOn = false,
+  musicVolume = 0.85,
+  onToggleMusic = () => {},
+  onStopMusic = () => {},
+  onChangeMusicVolume = () => {},
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCabbageBouncing, setIsCabbageBouncing] = useState(false);
@@ -661,6 +665,29 @@ export default function FloatingCompanion({
           tooltip: 'Paste Local Server URL or Change Room',
           onClick: onOpenConnectModal,
           active: false,
+        };
+      case 'music':
+        return {
+          id: 'music',
+          label: 'MUSIC',
+          icon: (
+            <Music
+              className={`w-3.5 h-3.5 ${
+                isSharingMusic || isPeerMusicOn ? 'text-violet-400 animate-pulse' : ''
+              }`}
+            />
+          ),
+          angle,
+          start,
+          end,
+          tooltip: isSharingMusic
+            ? 'Music Active (Click to Stop Sharing)'
+            : isPeerMusicOn
+            ? `${datePartner?.name || 'Partner'} is sharing music`
+            : 'Share YouTube Music or System Audio',
+          onClick: onToggleMusic,
+          active: Boolean(isSharingMusic || isPeerMusicOn),
+          activeColor: 'violet',
         };
       default: {
         const toolMeta = AVAILABLE_MENU_TOOLS[toolId] || { label: toolId?.toUpperCase() || 'TOOL' };
@@ -1943,6 +1970,39 @@ export default function FloatingCompanion({
           </div>
 
           {/* ============================================================ */}
+          {/* ACTIVE MUSIC SHARING FLOATING PILL (YOUTUBE MUSIC / SYSTEM)  */}
+          {/* ============================================================ */}
+          {(isSharingMusic || isPeerMusicOn) && (
+            <div
+              data-tauri-drag-region="false"
+              className="mt-2 flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-slate-900/95 border border-violet-500/50 shadow-xl shadow-violet-500/20 backdrop-blur-md text-[10px] text-white z-40 select-none animate-scaleIn tauri-no-drag"
+            >
+              <span className="flex items-center gap-0.5 text-violet-400">
+                <span className="w-1 h-2.5 bg-violet-400 rounded-full animate-pulse" />
+                <span className="w-1 h-3.5 bg-violet-400 rounded-full animate-pulse delay-75" />
+                <span className="w-1 h-2 bg-violet-400 rounded-full animate-pulse delay-150" />
+              </span>
+              <Music className="w-3.5 h-3.5 text-violet-400 animate-pulse" />
+              <span className="font-semibold text-violet-200 truncate max-w-[125px]">
+                {isSharingMusic ? 'Sharing Music' : `${realPartner ? datePartner.name.split(' ')[0] : 'Partner'} Playing Music`}
+              </span>
+              {isSharingMusic ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStopMusic && onStopMusic();
+                  }}
+                  title="Stop Sharing Music"
+                  className="ml-0.5 px-1.5 py-0.5 text-[9px] font-bold bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded border border-rose-500/30 transition cursor-pointer"
+                >
+                  Stop
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {/* ============================================================ */}
           {/* 4. DUAL FACE-TO-FACE VIDEO CARD GRID (SIDE-BY-SIDE)          */}
           {/* ============================================================ */}
           {faceToFaceMode && (
@@ -2009,6 +2069,9 @@ export default function FloatingCompanion({
                   <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[8px] font-mono text-white pointer-events-none">
                     <span className="truncate max-w-[85px]">{datePartner.name}</span>
                     <span className="flex items-center gap-1">
+                      {isPeerMusicOn && (
+                        <Music className="w-2.5 h-2.5 text-violet-400 animate-pulse" />
+                      )}
                       {isPeerMicOn ? (
                         <Mic className="w-2.5 h-2.5 text-emerald-400" />
                       ) : (
@@ -2059,6 +2122,9 @@ export default function FloatingCompanion({
                   <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[8px] font-mono text-white pointer-events-none">
                     <span className="truncate max-w-[85px]">{selfUser?.name || 'You'} (You)</span>
                     <span className="flex items-center gap-1">
+                      {isSharingMusic && (
+                        <Music className="w-2.5 h-2.5 text-violet-400 animate-pulse" />
+                      )}
                       {isMicOn ? (
                         <Mic className="w-2.5 h-2.5 text-emerald-400" />
                       ) : (

@@ -21,6 +21,7 @@ import {
   Layers,
   Smile,
   Link2,
+  Music,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -171,6 +172,14 @@ export const AVAILABLE_MENU_TOOLS = {
     icon: Link2,
     color: 'text-emerald-400',
     desc: 'Paste server URL, change room & passcode',
+  },
+  music: {
+    id: 'music',
+    label: 'MUSIC',
+    name: 'Share Music / Audio',
+    icon: Music,
+    color: 'text-violet-400',
+    desc: 'Share YouTube Music or system audio in HD stereo',
   },
 };
 

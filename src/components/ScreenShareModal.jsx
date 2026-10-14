@@ -10,6 +10,11 @@ import {
   Scan,
   Eye,
   Check,
+  Music,
+  Music2,
+  Headphones,
+  AlertCircle,
+  Volume2,
 } from 'lucide-react';
 import { resizeWindowForScreenshare, isTauri } from '../utils/hitTesting';
 
@@ -24,6 +29,16 @@ export default function ScreenShareModal({
   onClose,
   viewMode: controlledViewMode,
   onChangeViewMode,
+  isSharingMusic = false,
+  peerSharingMusic = false,
+  musicVolume = 0.85,
+  micVolume = 1.0,
+  musicShareError = null,
+  onStartMusicShare = () => {},
+  onStopMusicShare = () => {},
+  onChangeMusicVolume = () => {},
+  onChangeMicVolume = () => {},
+  onDismissMusicError = () => {},
 }) {
   const [internalViewMode, setInternalViewMode] = useState('theater'); // 'compact', 'theater', 'fullscreen', 'minimized'
   const [fitMode, setFitMode] = useState('contain'); // 'contain' (whole screen visible) or 'cover' (fill box)
@@ -298,6 +313,24 @@ export default function ScreenShareModal({
         </div>
       </div>
 
+      {/* Music Audio Share Error / Tip Banner */}
+      {musicShareError && (
+        <div className="mb-2 p-2.5 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2 shadow-lg">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-[11px] leading-tight">{musicShareError}</p>
+            <p className="text-[10px] text-amber-300/80 mt-1">
+              💡 <strong>Pro Tip:</strong> Click <em>'Share YouTube Music'</em> below, choose the <em>Chrome Tab</em> with YouTube Music, and make sure the <em>'Share tab audio'</em> box at bottom-left is checked!
+            </p>
+          </div>
+          {onDismissMusicError && (
+            <button onClick={onDismissMusicError} className="p-1 hover:text-white text-amber-400 cursor-pointer">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Video Stream Container */}
       <div
         className={`relative bg-black rounded-xl overflow-hidden border border-white/10 flex items-center justify-center grow ${
@@ -345,14 +378,14 @@ export default function ScreenShareModal({
             </h4>
             <p className="text-xs text-slate-400 leading-relaxed">
               When your partner shares their screen, it will appear here automatically in full scale.
-              You can also share your study notes or code below.
+              You can also share your study notes, code, or YouTube Music below.
             </p>
           </div>
         )}
 
         {/* Top Floating Stream Badge */}
         {activeStream && (
-          <div className="absolute top-3 left-3 flex items-center gap-2 z-10 pointer-events-none">
+          <div className="absolute top-3 left-3 flex flex-wrap items-center gap-2 z-10 pointer-events-none">
             {isDisplayingPeer ? (
               <div className="bg-indigo-950/90 border border-indigo-500/50 text-indigo-200 text-[11px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-md">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -364,6 +397,19 @@ export default function ScreenShareModal({
                 <span>You are sharing your screen</span>
               </div>
             ) : null}
+
+            {(isSharingMusic || localStream?.getAudioTracks()?.length > 0) && (
+              <div className="bg-violet-950/90 border border-violet-500/50 text-violet-200 text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-md">
+                <Music className="w-3 h-3 text-violet-400 animate-pulse" />
+                <span>Stereo Music Audio Active</span>
+              </div>
+            )}
+            {peerSharingMusic && (
+              <div className="bg-violet-950/90 border border-violet-500/50 text-violet-200 text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-md">
+                <Music className="w-3 h-3 text-violet-400 animate-pulse" />
+                <span>Partner Playing Music</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -376,39 +422,81 @@ export default function ScreenShareModal({
       </div>
 
       {/* Footer Controls */}
-      <div className="flex items-center justify-between gap-3 pt-3 mt-1 shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-1 shrink-0 border-t border-white/5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 1. Share Screen Button */}
           {!isSharing ? (
             <button
               onClick={onStartShare}
-              className="flex items-center gap-1.5 py-2 px-3.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-indigo-600/30 active:scale-95 transition"
+              className="flex items-center gap-1.5 py-2 px-3.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-indigo-600/30 active:scale-95 transition cursor-pointer"
             >
               <ScreenShare className="w-4 h-4" />
-              <span>Share Your Screen</span>
+              <span>Share Screen</span>
             </button>
           ) : (
             <button
               onClick={onStopShare}
-              className="flex items-center gap-1.5 py-2 px-3.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-rose-600/30 active:scale-95 transition"
+              className="flex items-center gap-1.5 py-2 px-3.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-rose-600/30 active:scale-95 transition cursor-pointer"
             >
               <MonitorX className="w-4 h-4" />
-              <span>Stop Sharing</span>
+              <span>Stop Screen</span>
             </button>
+          )}
+
+          {/* 2. Share YouTube Music Button */}
+          {!isSharingMusic ? (
+            <button
+              onClick={onStartMusicShare}
+              title="Share YouTube Music / Tab Audio in HD stereo while keeping your camera on"
+              className="flex items-center gap-1.5 py-2 px-3.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-violet-600/30 active:scale-95 transition cursor-pointer"
+            >
+              <Music className="w-4 h-4" />
+              <span>Share YouTube Music</span>
+            </button>
+          ) : (
+            <button
+              onClick={onStopMusicShare}
+              title="Stop sharing YouTube Music"
+              className="flex items-center gap-1.5 py-2 px-3.5 bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-rose-600/30 active:scale-95 transition cursor-pointer"
+            >
+              <Music2 className="w-4 h-4" />
+              <span>Stop Music</span>
+            </button>
+          )}
+
+          {/* 3. Live Volume Slider when Music is streaming */}
+          {(isSharingMusic || isSharing && localStream?.getAudioTracks()?.length > 0) && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-200">
+              <Headphones className="w-3.5 h-3.5 text-violet-400" />
+              <span className="text-[10px] font-medium text-slate-300">Music Vol:</span>
+              <input
+                type="range"
+                min="0"
+                max="1.5"
+                step="0.05"
+                value={musicVolume}
+                onChange={(e) => onChangeMusicVolume(parseFloat(e.target.value))}
+                className="w-16 accent-violet-500 cursor-pointer"
+              />
+              <span className="text-[10px] font-mono text-slate-400 w-7">
+                {Math.round(musicVolume * 100)}%
+              </span>
+            </div>
           )}
 
           {isSharing && (
             <span className="text-[11px] text-emerald-400 flex items-center gap-1">
               <Check className="w-3.5 h-3.5" />
-              Streaming to partner
+              Screen live
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-2 text-[10px] text-slate-400">
-          <span className="hidden sm:inline">Use controls above to resize or switch to full display</span>
+          <span className="hidden sm:inline">Tip: Pick 'Chrome Tab' & tick 'Share tab audio' for music</span>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition"
+            className="text-slate-400 hover:text-white text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition cursor-pointer"
           >
             Hide
           </button>
