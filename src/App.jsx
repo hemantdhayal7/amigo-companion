@@ -85,7 +85,20 @@ export default function App() {
     return localStorage.getItem('study_ring_mode') || 'menu';
   });
 
-  // Resizable Circle scale: 0.7 to 1.6
+  // App Layout Shape: 'circle' (Orb) | 'rectangle' (Studio)
+  const [layoutShape, setLayoutShape] = useState(() => {
+    return localStorage.getItem('study_layout_shape') || 'circle';
+  });
+
+  const handleToggleLayoutShape = (newShape) => {
+    const next = newShape || (layoutShape === 'circle' ? 'rectangle' : 'circle');
+    setLayoutShape(next);
+    try {
+      localStorage.setItem('study_layout_shape', next);
+    } catch {}
+  };
+
+  // Resizable Circle/Studio scale: 0.7 to 1.6
   const [companionScale, setCompanionScale] = useState(() => {
     try {
       const saved = localStorage.getItem('study_companion_scale');
@@ -1145,6 +1158,8 @@ export default function App() {
         className={`w-full mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center ${
           activeModal === 'screen' && (screenViewMode === 'theater' || screenViewMode === 'fullscreen')
             ? 'max-w-6xl px-4'
+            : layoutShape === 'rectangle'
+            ? 'max-w-[420px] px-2'
             : 'max-w-[360px]'
         } ${
           !isPopoutVisible && !isKeepOnScreen && !isCallActive
@@ -1351,6 +1366,8 @@ export default function App() {
           onChangeRingMode={handleChangeRingMode}
           companionScale={companionScale}
           onChangeScale={handleChangeScale}
+          layoutShape={layoutShape}
+          onToggleLayoutShape={handleToggleLayoutShape}
           onOpenCustomizer={(tab) => {
             setCustomizerTab(tab || 'emojis');
             setActiveModal('customizer');

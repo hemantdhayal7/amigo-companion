@@ -116,6 +116,8 @@ export default function FloatingCompanion({
   popoutEvent = null,
   popoutCountdown = 5,
   isCallActive = false,
+  layoutShape = 'circle', // 'circle' | 'rectangle'
+  onToggleLayoutShape = () => {},
   // YouTube Music & System Audio props
   isSharingMusic = false,
   isPeerMusicOn = false,
@@ -124,10 +126,16 @@ export default function FloatingCompanion({
   onStopMusic = () => {},
   onChangeMusicVolume = () => {},
 }) {
+  const [internalLayoutShape, setInternalLayoutShape] = useState(() => {
+    return localStorage.getItem('study_layout_shape') || layoutShape || 'circle';
+  });
+  const currentLayoutShape = layoutShape || internalLayoutShape;
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCabbageBouncing, setIsCabbageBouncing] = useState(false);
   const [isOptionsDrawerOpen, setIsOptionsDrawerOpen] = useState(false);
   const [feedbackToast, setFeedbackToast] = useState(null);
+  const [isRectEmojiOpen, setIsRectEmojiOpen] = useState(false);
 
   const clickCountRef = useRef(0);
   const clickTimerRef = useRef(null);
@@ -137,6 +145,8 @@ export default function FloatingCompanion({
   const remoteVideoRef = useRef(null);
   const dualLocalVideoRef = useRef(null);
   const dualRemoteVideoRef = useRef(null);
+  const rectMainVideoRef = useRef(null);
+  const rectPipVideoRef = useRef(null);
 
   const [faceToFaceMode, setFaceToFaceMode] = useState(false);
   const [isSwappedVideo, setIsSwappedVideo] = useState(false);
@@ -156,6 +166,28 @@ export default function FloatingCompanion({
     remoteCamStream.getVideoTracks &&
     remoteCamStream.getVideoTracks().length > 0
   );
+
+  const hasBoth = Boolean(
+    isVideoOn &&
+    localCamStream &&
+    showRemote &&
+    remoteCamStream
+  );
+  const mainIsRemote = hasBoth ? !isSwappedVideo : Boolean(showRemote);
+
+  const handleSwitchLayoutShape = (newShape) => {
+    const next = newShape || (currentLayoutShape === 'circle' ? 'rectangle' : 'circle');
+    setInternalLayoutShape(next);
+    try {
+      localStorage.setItem('study_layout_shape', next);
+    } catch {}
+    if (onToggleLayoutShape) {
+      onToggleLayoutShape(next);
+    }
+    sounds.playPop();
+    setFeedbackToast(next === 'rectangle' ? '📱 Rectangle Studio View' : '🔮 Circular Orb View');
+    setTimeout(() => setFeedbackToast(null), 1800);
+  };
 
   // Synchronize dual face-to-face video elements
   useEffect(() => {
@@ -192,7 +224,25 @@ export default function FloatingCompanion({
         localVideoRef.current.play().catch(() => {});
       }
     }
-  }, [localCamStream, isVideoOn, showRemote, isSwappedVideo]);
+    if (rectMainVideoRef.current && !mainIsRemote && localCamStream) {
+      rectMainVideoRef.current.muted = true;
+      rectMainVideoRef.current.playsInline = true;
+      if (rectMainVideoRef.current.srcObject !== localCamStream) {
+        rectMainVideoRef.current.srcObject = localCamStream;
+      }
+      if (isVideoOn) {
+        rectMainVideoRef.current.play().catch(() => {});
+      }
+    }
+    if (rectPipVideoRef.current && mainIsRemote && localCamStream) {
+      rectPipVideoRef.current.muted = true;
+      rectPipVideoRef.current.playsInline = true;
+      if (rectPipVideoRef.current.srcObject !== localCamStream) {
+        rectPipVideoRef.current.srcObject = localCamStream;
+      }
+      rectPipVideoRef.current.play().catch(() => {});
+    }
+  }, [localCamStream, isVideoOn, showRemote, isSwappedVideo, currentLayoutShape, mainIsRemote]);
 
   // Attach pip video stream
   useEffect(() => {
@@ -205,7 +255,16 @@ export default function FloatingCompanion({
       }
       pipVideoRef.current.play().catch(() => {});
     }
-  }, [localCamStream, remoteCamStream, isSwappedVideo, showRemote, isVideoOn]);
+    if (rectPipVideoRef.current) {
+      rectPipVideoRef.current.muted = true;
+      rectPipVideoRef.current.playsInline = true;
+      const pipStream = mainIsRemote ? localCamStream : remoteCamStream;
+      if (pipStream && rectPipVideoRef.current.srcObject !== pipStream) {
+        rectPipVideoRef.current.srcObject = pipStream;
+      }
+      rectPipVideoRef.current.play().catch(() => {});
+    }
+  }, [localCamStream, remoteCamStream, isSwappedVideo, showRemote, isVideoOn, currentLayoutShape, mainIsRemote]);
 
   // Attach remote partner's webcam stream and guarantee instant playback resumption
   useEffect(() => {
@@ -221,7 +280,19 @@ export default function FloatingCompanion({
         });
       }
     }
-  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo]);
+    if (rectMainVideoRef.current && mainIsRemote && remoteCamStream) {
+      rectMainVideoRef.current.muted = true;
+      rectMainVideoRef.current.playsInline = true;
+      if (rectMainVideoRef.current.srcObject !== remoteCamStream) {
+        rectMainVideoRef.current.srcObject = remoteCamStream;
+      }
+      if (isPeerVideoOn || hasRemoteVideo) {
+        rectMainVideoRef.current.play().catch((err) => {
+          console.debug('[FloatingCompanion] Rect main video play postponed:', err);
+        });
+      }
+    }
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo, currentLayoutShape, mainIsRemote]);
 
   // Anti-Freeze Video Watchdog: detects if remote video playback paused or froze on a frame, and automatically wakes it up
   useEffect(() => {
@@ -231,7 +302,12 @@ export default function FloatingCompanion({
     let staleCount = 0;
 
     const watchdog = setInterval(() => {
-      const activeVideos = [remoteVideoRef.current, dualRemoteVideoRef.current].filter(Boolean);
+      const activeVideos = [
+        remoteVideoRef.current,
+        dualRemoteVideoRef.current,
+        rectMainVideoRef.current,
+        rectPipVideoRef.current,
+      ].filter(Boolean);
       for (const v of activeVideos) {
         if (!v) continue;
         if (v.srcObject !== remoteCamStream) {
@@ -906,94 +982,171 @@ export default function FloatingCompanion({
       )}
 
       {/* ============================================================== */}
-      {/* 🟢 CIRCULAR FORMAT: Collapsed Mini Cabbage Orb (Bubble Mode)    */}
+      {/* 🟢 COLLAPSED MODE: Dynamic Island (Rectangle) or Mini Orb (Circle) */}
       {/* ============================================================== */}
       {isCollapsed ? (
-        <div
-          data-amigo-interactive="true"
-          data-tauri-drag-region
-          onMouseDown={handleDragMouseDown}
-          className={`relative group cursor-pointer animate-scaleIn select-none ${
-            dockPosition === 'free' ? 'cursor-grab active:cursor-grabbing' : ''
-          }`}
-          onClick={() => setIsCollapsed(false)}
-          title="Click to open Amigo Dial"
-        >
-          {/* Mini Outer Circular Progress Ring */}
+        currentLayoutShape === 'rectangle' ? (
+          /* RECTANGLE FORMAT: Sleek Dynamic Island Mini Pill */
           <div
-            className="w-20 h-20 rounded-full relative flex items-center justify-center p-1 shadow-2xl border border-white/20 backdrop-blur-2xl cursor-pointer"
+            data-amigo-interactive="true"
+            data-tauri-drag-region
+            onMouseDown={handleDragMouseDown}
+            className={`relative group cursor-pointer animate-scaleIn select-none ${
+              dockPosition === 'free' ? 'cursor-grab active:cursor-grabbing' : ''
+            }`}
             onClick={() => setIsCollapsed(false)}
+            title="Click to restore Amigo Rectangle Studio"
           >
-            {/* Mini Drag Pill Indicator */}
             <div
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                handleDragButtonMouseDown(e);
-              }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                handleDragButtonMouseDown(e);
-              }}
-              className="app-drag-pill absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[8px] font-bold flex items-center gap-0.5 shadow-md z-30 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400"
-              title="Hold & Drag to move mini orb"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-2xl backdrop-blur-2xl transition-all hover:scale-105 active:scale-95 ${
+                isWhite
+                  ? 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/60'
+                  : isBlush
+                  ? 'bg-rose-950/95 border-rose-300/30 text-white shadow-rose-950/60'
+                  : 'bg-slate-900/95 border-white/20 text-white shadow-black/80'
+              }`}
             >
-              <GripHorizontal className="w-2.5 h-2.5 text-emerald-400" />
-              <span>DRAG</span>
-            </div>
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              <circle
-                cx="50"
-                cy="50"
-                r="42"
-                stroke={isWhite ? 'rgba(0,0,0,0.06)' : isBlush ? 'rgba(244,63,94,0.15)' : 'rgba(255,255,255,0.08)'}
-                strokeWidth="6"
-                fill="none"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r="42"
-                stroke={isBlush ? '#f43f5e' : '#10b981'}
-                strokeWidth="6"
-                strokeDasharray={2 * Math.PI * 42}
-                strokeDashoffset={2 * Math.PI * 42 - (duoProgress / 100) * 2 * Math.PI * 42}
-                strokeLinecap="round"
-                fill="none"
-                className="transition-all duration-700 ease-out"
-              />
-            </svg>
+              {/* Mini Drag Pill Indicator */}
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  handleDragButtonMouseDown(e);
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  handleDragButtonMouseDown(e);
+                }}
+                className="app-drag-pill px-1.5 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-[7.5px] font-mono font-bold flex items-center gap-0.5 cursor-grab active:cursor-grabbing border border-white/10"
+                title="Hold & Drag to move Mini Island"
+              >
+                <GripHorizontal className="w-2.5 h-2.5 text-cyan-400" />
+                <span>DRAG</span>
+              </div>
 
-            {/* Cute Cabbage Mascot in Mini Bubble */}
-            <div className="absolute inset-2 rounded-full overflow-hidden flex items-center justify-center bg-black/10 dark:bg-white/5 backdrop-blur-md">
-              <CabbageLogo size={46} animated />
-            </div>
+              {/* Mascot */}
+              <div className="hover:scale-110 transition">
+                <CabbageLogo size={20} animated />
+              </div>
 
-            {/* Duo Progress Percentage Heart Pill */}
-            <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-mono text-[9px] font-bold px-1.5 py-0.2 rounded-full shadow-md flex items-center gap-0.5 border border-white/40">
-              <Heart className="w-2 h-2 fill-white" />
-              <span>{duoProgress}%</span>
-            </div>
+              {/* Partner Name / Status */}
+              <div className="flex items-center gap-1 text-[9.5px] font-mono font-bold">
+                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                <span className="truncate max-w-[80px]">
+                  {realPartner ? datePartner.name.split(' ')[0] : (isConnected ? 'Amigo' : 'Offline')}
+                </span>
+              </div>
 
-            {/* Live Partner Connection Indicator Dot */}
-            <span className="absolute top-0 right-1 flex h-2.5 w-2.5">
-              {isConnected && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              {/* Mic / Cam State */}
+              <div className="flex items-center gap-1 opacity-80">
+                {isMicOn ? <Mic className="w-2.5 h-2.5 text-emerald-400" /> : <MicOff className="w-2.5 h-2.5 text-slate-400" />}
+                {isVideoOn && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+              </div>
+
+              {/* Duo progress heart pill */}
+              <div className="flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[8px] font-mono font-bold">
+                <Heart className="w-2 h-2 text-rose-400 fill-rose-400" />
+                <span>{duoProgress}%</span>
+              </div>
+
+              {/* Active doubts counter badge */}
+              {doubtsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-mono text-[8px] font-extrabold animate-pulse">
+                  {doubtsCount}
+                </span>
               )}
-              <span
-                className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-white dark:border-slate-900 ${
-                  isConnected ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-            </span>
 
-            {/* Active Doubts Indicator on Mini Orb */}
-            {doubtsCount > 0 && (
-              <span className="absolute -top-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 border-2 border-white dark:border-slate-900 text-white font-mono text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse">
-                {doubtsCount}
-              </span>
-            )}
+              {/* Expand Hint */}
+              <span className="text-[8px] opacity-60 font-mono">⤢ EXPAND</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* CIRCULAR FORMAT: Collapsed Mini Cabbage Orb (Bubble Mode) */
+          <div
+            data-amigo-interactive="true"
+            data-tauri-drag-region
+            onMouseDown={handleDragMouseDown}
+            className={`relative group cursor-pointer animate-scaleIn select-none ${
+              dockPosition === 'free' ? 'cursor-grab active:cursor-grabbing' : ''
+            }`}
+            onClick={() => setIsCollapsed(false)}
+            title="Click to open Amigo Dial"
+          >
+            {/* Mini Outer Circular Progress Ring */}
+            <div
+              className="w-20 h-20 rounded-full relative flex items-center justify-center p-1 shadow-2xl border border-white/20 backdrop-blur-2xl cursor-pointer"
+              onClick={() => setIsCollapsed(false)}
+            >
+              {/* Mini Drag Pill Indicator */}
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  handleDragButtonMouseDown(e);
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  handleDragButtonMouseDown(e);
+                }}
+                className="app-drag-pill absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900/90 text-white font-mono text-[8px] font-bold flex items-center gap-0.5 shadow-md z-30 cursor-grab active:cursor-grabbing border border-white/20 hover:border-emerald-400"
+                title="Hold & Drag to move mini orb"
+              >
+                <GripHorizontal className="w-2.5 h-2.5 text-emerald-400" />
+                <span>DRAG</span>
+              </div>
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  stroke={isWhite ? 'rgba(0,0,0,0.06)' : isBlush ? 'rgba(244,63,94,0.15)' : 'rgba(255,255,255,0.08)'}
+                  strokeWidth="6"
+                  fill="none"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  stroke={isBlush ? '#f43f5e' : '#10b981'}
+                  strokeWidth="6"
+                  strokeDasharray={2 * Math.PI * 42}
+                  strokeDashoffset={2 * Math.PI * 42 - (duoProgress / 100) * 2 * Math.PI * 42}
+                  strokeLinecap="round"
+                  fill="none"
+                  className="transition-all duration-700 ease-out"
+                />
+              </svg>
+
+              {/* Cute Cabbage Mascot in Mini Bubble */}
+              <div className="absolute inset-2 rounded-full overflow-hidden flex items-center justify-center bg-black/10 dark:bg-white/5 backdrop-blur-md">
+                <CabbageLogo size={46} animated />
+              </div>
+
+              {/* Duo Progress Percentage Heart Pill */}
+              <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-mono text-[9px] font-bold px-1.5 py-0.2 rounded-full shadow-md flex items-center gap-0.5 border border-white/40">
+                <Heart className="w-2 h-2 fill-white" />
+                <span>{duoProgress}%</span>
+              </div>
+
+              {/* Live Partner Connection Indicator Dot */}
+              <span className="absolute top-0 right-1 flex h-2.5 w-2.5">
+                {isConnected && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                )}
+                <span
+                  className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-white dark:border-slate-900 ${
+                    isConnected ? 'bg-emerald-500' : 'bg-amber-500'
+                  }`}
+                />
+              </span>
+
+              {/* Active Doubts Indicator on Mini Orb */}
+              {doubtsCount > 0 && (
+                <span className="absolute -top-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 border-2 border-white dark:border-slate-900 text-white font-mono text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                  {doubtsCount}
+                </span>
+              )}
+            </div>
+          </div>
+        )
       ) : (
         /* ============================================================== */
         /* 🔘 3-TIER CONCENTRIC CIRCULAR RADIAL DIAL                      */
@@ -1107,12 +1260,47 @@ export default function FloatingCompanion({
                 </button>
               </div>
 
-              {/* 2. Resizable Circle (Companion Size) */}
+              {/* 1.5. Companion Shape Switcher (Circle Orb vs Rectangle Studio) */}
+              <div className="mb-2.5 p-2 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
+                <div className="flex items-center justify-between text-[10px] font-mono font-bold opacity-75 mb-1.5 uppercase tracking-wide">
+                  <span>Companion Shape</span>
+                  <span className="text-[8.5px] text-cyan-400 font-normal">Per-user preference</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchLayoutShape('circle')}
+                    className={`py-2 px-2.5 rounded-xl text-[9.5px] font-mono font-bold flex items-center justify-center gap-1.5 transition cursor-pointer border ${
+                      currentLayoutShape === 'circle'
+                        ? 'bg-emerald-600 text-white border-emerald-400 font-extrabold shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                    }`}
+                  >
+                    <span>🔮 Circle (Orb)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchLayoutShape('rectangle')}
+                    className={`py-2 px-2.5 rounded-xl text-[9.5px] font-mono font-bold flex items-center justify-center gap-1.5 transition cursor-pointer border ${
+                      currentLayoutShape === 'rectangle'
+                        ? 'bg-cyan-600 text-white border-cyan-400 font-extrabold shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                    }`}
+                  >
+                    <span>📱 Rectangle (Studio)</span>
+                  </button>
+                </div>
+                <p className="text-[8px] opacity-60 mt-1 px-0.5 font-mono">
+                  Independent choice: she can keep Circle while you enjoy widescreen Rectangle!
+                </p>
+              </div>
+
+              {/* 2. Resizable Size (Companion Size) */}
               <div className="mb-2.5 p-2.5 rounded-2xl bg-black/10 dark:bg-white/5 border border-white/10">
                 <div className="flex items-center justify-between text-[10px] mb-1.5 font-mono">
                   <span className="font-bold flex items-center gap-1">
                     <Maximize2 className="w-3 h-3 text-cyan-400" />
-                    <span>Circle Size ({Math.round(companionScale * 100)}%)</span>
+                    <span>{currentLayoutShape === 'rectangle' ? 'Studio Size' : 'Circle Size'} ({Math.round(companionScale * 100)}%)</span>
                   </span>
                   <button
                     type="button"
@@ -1324,14 +1512,552 @@ export default function FloatingCompanion({
           )}
 
           {/* ============================================================ */}
-          {/* 4. DYNAMIC CIRCULAR RADIAL DIAL (EXACTLY 1 RING AT A TIME)   */}
-          {/* CENTER: CAM/MASCOT HUB (116px)                               */}
-          {/* RING: EITHER MENU TOOLS, SYSTEM/PASSWORDS, OR EMOJIS (248px) */}
+          {/* 📱 SHAPE 2: RECTANGLE STUDIO / ISLAND VIEW                    */}
           {/* ============================================================ */}
-          <div
-            style={{
-              width: `${dialDiameter}px`,
-              height: `${dialDiameter}px`,
+          {currentLayoutShape === 'rectangle' && (
+            <div
+              data-amigo-interactive="true"
+              style={{
+                width: '380px',
+                maxWidth: '100%',
+                transform: `scale(${companionScale})`,
+                transformOrigin: 'top center',
+              }}
+              className={`w-full rounded-3xl p-3.5 shadow-2xl backdrop-blur-2xl border transition-all duration-300 ease-out select-none flex flex-col gap-2.5 ${
+                isWhite
+                  ? 'bg-white/95 border-slate-200/90 shadow-slate-300/60 text-slate-800'
+                  : isBlush
+                  ? 'bg-rose-950/95 border-rose-300/30 shadow-rose-950/60 text-white'
+                  : 'bg-slate-900/95 border-white/15 shadow-black/80 text-white'
+              }`}
+            >
+              {/* Top Studio Header Bar */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-white/10 text-xs">
+                {/* Left: Mascot & Room Status */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div
+                    onClick={handleCabbageClick}
+                    title="Amigo Mascot (Click to celebrate!)"
+                    className="cursor-pointer hover:scale-110 active:scale-95 transition"
+                  >
+                    <CabbageLogo size={22} animated />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono font-bold text-[10px] text-emerald-400">#{roomId}</span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                    </div>
+                    <div className="text-[8.5px] font-mono opacity-65 truncate max-w-[95px]">
+                      {realPartner ? datePartner.name : (isConnected ? 'Waiting...' : 'Offline')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center: Duo Synergy Heart Pill */}
+                <div
+                  onClick={onOpenTargetModal}
+                  title="Click to view daily target"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/20 dark:bg-white/10 text-[9px] font-mono font-bold cursor-pointer hover:bg-black/30 transition border border-white/10"
+                >
+                  <Heart className="w-2.5 h-2.5 text-rose-500 fill-rose-500" />
+                  <span>{duoProgress}% DUO</span>
+                </div>
+
+                {/* Right: Switch back to Circle Orb, Settings, Drag handle, Minimize */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    onClick={() => handleSwitchLayoutShape('circle')}
+                    className="px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 text-emerald-300 text-[9px] font-mono font-bold flex items-center gap-0.5 transition cursor-pointer"
+                    title="Switch to Circular Orb View"
+                  >
+                    <span>🔮 Orb</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    onClick={() => setIsOptionsDrawerOpen((prev) => !prev)}
+                    className={`p-1 rounded-lg border text-xs transition cursor-pointer ${
+                      isOptionsDrawerOpen
+                        ? 'bg-indigo-500/30 border-indigo-400/50 text-indigo-300'
+                        : 'bg-white/5 hover:bg-white/15 border-white/10 opacity-70 hover:opacity-100'
+                    }`}
+                    title="Companion Options & Settings"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div
+                    onMouseDown={handleDragButtonMouseDown}
+                    onPointerDown={handleDragButtonMouseDown}
+                    className="app-drag-pill px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[9px] font-bold flex items-center gap-0.5 border border-white/15 cursor-grab active:cursor-grabbing"
+                    title="Hold & Drag to move Studio window"
+                  >
+                    <GripHorizontal className="w-3 h-3 text-cyan-400" />
+                    <span>DRAG</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    onClick={() => setIsCollapsed(true)}
+                    className="p-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-xs opacity-70 hover:opacity-100 transition cursor-pointer"
+                    title="Minimize to Mini Dynamic Island"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Widescreen Video Card (Uncropped 16:9) */}
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 border border-white/15 shadow-inner flex items-center justify-center group/video">
+                {showRemote || (isVideoOn && localCamStream) ? (
+                  <>
+                    {mainIsRemote ? (
+                      showRemote ? (
+                        <video
+                          ref={(el) => {
+                            rectMainVideoRef.current = el;
+                            if (el && remoteCamStream) {
+                              el.muted = true;
+                              el.playsInline = true;
+                              if (el.srcObject !== remoteCamStream) {
+                                el.srcObject = remoteCamStream;
+                              }
+                              el.play().catch(() => {});
+                            }
+                          }}
+                          autoPlay
+                          playsInline
+                          muted
+                          onLoadedMetadata={(e) => {
+                            e.target.muted = true;
+                            e.target.play().catch(() => {});
+                          }}
+                          onWaiting={(e) => e.target.play().catch(() => {})}
+                          onStalled={(e) => e.target.play().catch(() => {})}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-4 text-center">
+                          <CabbageLogo size={36} animated />
+                          <span className="text-[10px] font-mono text-emerald-400 font-bold mt-2">
+                            {isPeerVideoOn ? 'Connecting Partner Camera...' : 'Partner Camera Off'}
+                          </span>
+                        </div>
+                      )
+                    ) : (
+                      <video
+                        ref={(el) => {
+                          rectMainVideoRef.current = el;
+                          if (el && localCamStream) {
+                            el.muted = true;
+                            el.playsInline = true;
+                            if (el.srcObject !== localCamStream) {
+                              el.srcObject = localCamStream;
+                            }
+                            el.play().catch(() => {});
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        muted
+                        onLoadedMetadata={(e) => {
+                          e.target.muted = true;
+                          e.target.play().catch(() => {});
+                        }}
+                        onCanPlay={(e) => {
+                          e.target.muted = true;
+                          e.target.play().catch(() => {});
+                        }}
+                        className="w-full h-full object-cover mirror"
+                      />
+                    )}
+
+                    {/* Picture-in-Picture Floating Thumbnail when both cams are on */}
+                    {hasBoth && (
+                      <div
+                        data-tauri-drag-region="false"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          sounds.playPop();
+                          setIsSwappedVideo((prev) => !prev);
+                        }}
+                        className="absolute bottom-2.5 right-2.5 w-24 aspect-video rounded-xl overflow-hidden border-2 border-emerald-400/80 shadow-2xl bg-black z-30 cursor-pointer hover:scale-110 active:scale-95 transition-all group/pip"
+                        title={`Click to show ${mainIsRemote ? 'You' : datePartner.name} in main window`}
+                      >
+                        {mainIsRemote ? (
+                          <video
+                            ref={(el) => {
+                              rectPipVideoRef.current = el;
+                              if (el && localCamStream) {
+                                el.muted = true;
+                                el.playsInline = true;
+                                if (el.srcObject !== localCamStream) {
+                                  el.srcObject = localCamStream;
+                                }
+                                el.play().catch(() => {});
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            muted
+                            onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                            className="w-full h-full object-cover mirror"
+                          />
+                        ) : (
+                          <video
+                            ref={(el) => {
+                              rectPipVideoRef.current = el;
+                              if (el && remoteCamStream) {
+                                el.muted = true;
+                                el.playsInline = true;
+                                if (el.srcObject !== remoteCamStream) {
+                                  el.srcObject = remoteCamStream;
+                                }
+                                el.play().catch(() => {});
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            muted
+                            onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute top-1 left-1 px-1 py-0.2 rounded bg-black/70 text-[6.5px] font-mono text-white/90">
+                          {mainIsRemote ? 'YOU' : datePartner.name.split(' ')[0]}
+                        </div>
+                        <div className="absolute inset-0 bg-emerald-500/10 group-hover/pip:bg-transparent transition-colors" />
+                      </div>
+                    )}
+
+                    {/* Bottom overlay bar inside video */}
+                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                      <div className="flex items-center gap-1.5 px-2.5 py-0.8 rounded-full bg-black/65 backdrop-blur-md text-[9px] font-mono text-white border border-white/20 shadow-md">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="font-bold truncate max-w-[100px]">
+                          {mainIsRemote ? datePartner.name : `${selfUser?.name || 'You'} (You)`}
+                        </span>
+                        <span className="text-[7.5px] opacity-70">
+                          {mainIsRemote ? (isPeerVideoOn ? 'HD' : '') : 'LOCAL'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 px-2 py-0.8 rounded-full bg-black/65 backdrop-blur-md text-[9px] font-mono text-white border border-white/20 shadow-md">
+                        {mainIsRemote ? (
+                          <>
+                            {isPeerMusicOn && <Music className="w-3 h-3 text-violet-400 animate-pulse" />}
+                            {isPeerMicOn ? <Mic className="w-3 h-3 text-emerald-400" /> : <MicOff className="w-3 h-3 text-slate-400" />}
+                          </>
+                        ) : (
+                          <>
+                            {isSharingMusic && <Music className="w-3 h-3 text-violet-400 animate-pulse" />}
+                            {isMicOn ? <Mic className="w-3 h-3 text-emerald-400" /> : <MicOff className="w-3 h-3 text-slate-400" />}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* Both Cameras Off Placeholder - Adorable Cabbage Mascot Studio */
+                  <div className="flex flex-col items-center justify-center p-4 text-center w-full h-full">
+                    <div
+                      onClick={handleCabbageClick}
+                      className="cursor-pointer hover:scale-110 active:scale-95 transition"
+                    >
+                      <CabbageLogo size={48} animated />
+                    </div>
+                    <div className="mt-2 text-[11px] font-bold text-white flex items-center gap-1.5">
+                      <span>{realPartner ? `${datePartner.name} is Connected` : 'Amigo Study Space'}</span>
+                      <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                    </div>
+                    <p className="text-[9px] text-white/60 font-mono mt-0.5">
+                      {realPartner ? 'Cameras are currently off' : `Share Room #${roomId} to invite study partner`}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={onToggleVideo}
+                        className="px-3 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 text-[10px] font-mono font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Video className="w-3 h-3 text-emerald-400" />
+                        <span>Turn On Camera</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onToggleMic}
+                        className={`px-3 py-1 rounded-xl border text-[10px] font-mono font-bold flex items-center gap-1 transition cursor-pointer ${
+                          isMicOn
+                            ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                            : 'bg-white/10 hover:bg-white/20 border-white/20 text-white/80'
+                        }`}
+                      >
+                        {isMicOn ? <Mic className="w-3 h-3 text-emerald-400" /> : <MicOff className="w-3 h-3 text-slate-400" />}
+                        <span>{isMicOn ? 'Mic On' : 'Unmute'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Active Music Sharing Bar (when active) */}
+              {(isSharingMusic || isPeerMusicOn) && (
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-2xl bg-violet-950/80 border border-violet-500/40 text-white text-[10px] shadow-lg animate-scaleIn">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="flex items-center gap-0.5 text-violet-400">
+                      <span className="w-1 h-2 bg-violet-400 rounded-full animate-pulse" />
+                      <span className="w-1 h-3.5 bg-violet-400 rounded-full animate-pulse delay-75" />
+                      <span className="w-1 h-2 bg-violet-400 rounded-full animate-pulse delay-150" />
+                    </span>
+                    <Music className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                    <span className="font-semibold text-violet-200 truncate max-w-[130px]">
+                      {isSharingMusic ? 'Sharing Music' : `${realPartner ? datePartner.name.split(' ')[0] : 'Partner'} Playing Music`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isSharingMusic ? (
+                      <button
+                        type="button"
+                        onClick={onStopMusic}
+                        className="px-2 py-0.5 text-[9px] font-bold bg-rose-500/25 hover:bg-rose-500/40 text-rose-300 rounded-lg border border-rose-500/30 transition cursor-pointer"
+                      >
+                        Stop
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {/* Rectangular Quick Reactions Ribbon (Expandable) */}
+              {isRectEmojiOpen && (
+                <div className="p-2 rounded-2xl bg-black/25 dark:bg-white/5 border border-amber-400/30 animate-scaleIn">
+                  <div className="flex items-center justify-between mb-1 px-1 text-[9px] font-mono text-amber-300 font-bold">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>QUICK REACTIONS</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenCustomizer && onOpenCustomizer('emojis');
+                      }}
+                      className="text-[8.5px] text-amber-400 hover:text-amber-200 underline cursor-pointer"
+                    >
+                      🎨 Customize Emojis
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-1 overflow-x-auto py-1">
+                    {emojiList.map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          sounds.playPop();
+                          onSendEmoji(emoji, { isFountain: true, direction: 'up' });
+                        }}
+                        className="text-lg p-1.5 rounded-xl hover:bg-white/20 active:scale-90 hover:scale-125 transition-transform cursor-pointer"
+                        title={`Send ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleCabbageClick}
+                      className="px-2 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-[10px] font-bold flex items-center gap-0.5 transition cursor-pointer shrink-0"
+                      title="Amigo celebration bounce & confetti"
+                    >
+                      🎉 Hype
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Rectangular Button Dock (Slightly Rounded Ergonomic Controls) */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {/* 1. MIC */}
+                <button
+                  type="button"
+                  onClick={onToggleMic}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 ${
+                    isMicOn
+                      ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title={isMicOn ? 'Mute Microphone' : 'Unmute Microphone'}
+                >
+                  {isMicOn ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4 text-slate-400" />}
+                  <span className="text-[8.5px] font-mono font-bold">{isMicOn ? 'MIC ON' : 'MUTED'}</span>
+                </button>
+
+                {/* 2. CAM */}
+                <button
+                  type="button"
+                  onClick={onToggleVideo}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 ${
+                    isVideoOn
+                      ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title={isVideoOn ? 'Turn Off Camera' : 'Turn On Camera'}
+                >
+                  {isVideoOn ? <Video className="w-4 h-4 text-emerald-400" /> : <VideoOff className="w-4 h-4 text-slate-400" />}
+                  <span className="text-[8.5px] font-mono font-bold">{isVideoOn ? 'CAM ON' : 'CAM OFF'}</span>
+                </button>
+
+                {/* 3. MUSIC */}
+                <button
+                  type="button"
+                  onClick={onToggleMusic}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 ${
+                    isSharingMusic || isPeerMusicOn
+                      ? 'bg-violet-500/25 border-violet-400/60 text-violet-300 shadow-md shadow-violet-500/20 animate-pulse'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title="Share YouTube Music / System Audio"
+                >
+                  <Music className="w-4 h-4 text-violet-400" />
+                  <span className="text-[8.5px] font-mono font-bold">MUSIC</span>
+                </button>
+
+                {/* 4. SHARE */}
+                <button
+                  type="button"
+                  onClick={isPartnerPresenting ? (onWatchScreen || onOpenScreenShare) : onOpenScreenShare}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 relative ${
+                    isPartnerPresenting || isSharingScreen
+                      ? 'bg-cyan-500/25 border-cyan-400/60 text-cyan-300 shadow-md shadow-cyan-500/20 animate-pulse'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title={isPartnerPresenting ? 'Watch partner screen' : 'Share your screen'}
+                >
+                  <ScreenShare className="w-4 h-4 text-cyan-400" />
+                  <span className="text-[8.5px] font-mono font-bold">{isPartnerPresenting ? 'WATCH' : 'SHARE'}</span>
+                  {isPartnerPresenting && (
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute top-1 right-1" />
+                  )}
+                </button>
+
+                {/* 5. EMOJI */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playPop();
+                    setIsRectEmojiOpen((prev) => !prev);
+                  }}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 ${
+                    isRectEmojiOpen
+                      ? 'bg-amber-500/25 border-amber-400/60 text-amber-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title="Toggle Quick Reactions Ribbon"
+                >
+                  <Smile className="w-4 h-4 text-amber-400" />
+                  <span className="text-[8.5px] font-mono font-bold">EMOJI</span>
+                </button>
+
+                {/* 6. DOUBT */}
+                <button
+                  type="button"
+                  onClick={onOpenDoubtModal}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 relative ${
+                    doubtsCount > 0
+                      ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title="Ephemeral Doubt Hub & Gemma AI"
+                >
+                  <HelpCircle className="w-4 h-4 text-amber-300" />
+                  <span className="text-[8.5px] font-mono font-bold">DOUBT</span>
+                  {doubtsCount > 0 && (
+                    <span className="absolute top-1 right-1 px-1 rounded-full bg-amber-500 text-slate-950 font-mono text-[7px] font-extrabold animate-pulse">
+                      {doubtsCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* 7. TARGET */}
+                <button
+                  type="button"
+                  onClick={onOpenTargetModal}
+                  className="p-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 opacity-70 hover:opacity-100 text-slate-300 text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95"
+                  title="Daily Study Target & Task Checklist"
+                >
+                  <Target className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[8.5px] font-mono font-bold">GOAL</span>
+                </button>
+
+                {/* 8. SOS */}
+                <button
+                  type="button"
+                  onClick={onOpenSos}
+                  className="p-2 rounded-2xl border border-rose-500/30 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95"
+                  title="Emergency Distress SOS Alert"
+                >
+                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                  <span className="text-[8.5px] font-mono font-bold">SOS</span>
+                </button>
+
+                {/* 9. DUAL CAM VIEW */}
+                <button
+                  type="button"
+                  onClick={() => setFaceToFaceMode((prev) => !prev)}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 ${
+                    faceToFaceMode
+                      ? 'bg-indigo-500/25 border-indigo-400/60 text-indigo-300'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title="Side-by-side Dual Cam Mode"
+                >
+                  <Users className="w-4 h-4 text-indigo-400" />
+                  <span className="text-[8.5px] font-mono font-bold">DUAL</span>
+                </button>
+
+                {/* 10. OPTS */}
+                <button
+                  type="button"
+                  onClick={() => setIsOptionsDrawerOpen((prev) => !prev)}
+                  className={`p-2 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition cursor-pointer hover:scale-105 active:scale-95 ${
+                    isOptionsDrawerOpen
+                      ? 'bg-indigo-500/30 border-indigo-400/60 text-indigo-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 opacity-70 text-slate-300'
+                  }`}
+                  title="Settings, Resize & Customizers"
+                >
+                  <Settings className="w-4 h-4 text-indigo-400" />
+                  <span className="text-[8.5px] font-mono font-bold">OPTS</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* 🔮 SHAPE 1: CONCENTRIC CIRCULAR RADIAL DIAL (1 RING AT A TIME) */}
+          {/* ============================================================ */}
+          {currentLayoutShape === 'circle' && (
+            <>
+              {/* Quick Switch to Rectangle Studio Pill */}
+              <div className="mb-2 flex items-center gap-1.5 z-40">
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  onClick={() => handleSwitchLayoutShape('rectangle')}
+                  className="px-3 py-1 rounded-full bg-slate-900/90 hover:bg-slate-800 text-cyan-300 border border-cyan-400/40 text-[9px] font-mono font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md transition hover:scale-105 active:scale-95 cursor-pointer tauri-no-drag"
+                  title="Switch to Rectangle Studio view (uncropped widescreen video + rounded dock)"
+                >
+                  <span>📱 Switch to Rectangle Studio</span>
+                </button>
+              </div>
+
+              {/* DYNAMIC CIRCULAR RADIAL DIAL (EXACTLY 1 RING AT A TIME) */}
+              <div
+                style={{
+                  width: `${dialDiameter}px`,
+                  height: `${dialDiameter}px`,
               transform: `scale(${companionScale})`,
               transformOrigin: 'center center',
             }}
@@ -1985,11 +2711,13 @@ export default function FloatingCompanion({
               )}
             </div>
           </div>
+        </>
+      )}
 
-          {/* ============================================================ */}
-          {/* ACTIVE MUSIC SHARING FLOATING PILL (YOUTUBE MUSIC / SYSTEM)  */}
-          {/* ============================================================ */}
-          {(isSharingMusic || isPeerMusicOn) && (
+      {/* ============================================================ */}
+      {/* ACTIVE MUSIC SHARING FLOATING PILL (FOR CIRCULAR ORB MODE)   */}
+      {/* ============================================================ */}
+      {currentLayoutShape === 'circle' && (isSharingMusic || isPeerMusicOn) && (
             <div
               data-tauri-drag-region="false"
               className="mt-2 flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-slate-900/95 border border-violet-500/50 shadow-xl shadow-violet-500/20 backdrop-blur-md text-[10px] text-white z-40 select-none animate-scaleIn tauri-no-drag"
