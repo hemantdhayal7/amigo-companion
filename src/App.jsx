@@ -190,6 +190,13 @@ export default function App() {
     localStorage.setItem('amigo_display_mode', 'pinned');
     setIsPopoutVisible(true);
     showAppWindow();
+
+    const timer = setTimeout(() => {
+      showAppWindow();
+      updateInteractiveRegions();
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Check if running in Tauri / Electron native floating app or standard browser
@@ -198,8 +205,10 @@ export default function App() {
     Boolean(
       window.__TAURI_INTERNALS__ ||
       window.__TAURI__ ||
+      window.__TAURI_METADATA__ ||
       window.__IS_DESKTOP__ ||
-      navigator.userAgent.includes('Electron')
+      navigator.userAgent.includes('Electron') ||
+      navigator.userAgent.includes('Tauri')
     );
 
   // Browser dragging coordinates fallback

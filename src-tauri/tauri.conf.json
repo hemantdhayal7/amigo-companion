@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
@@ -23,6 +24,8 @@
         "decorations": false,
         "transparent": true,
         "shadow": false,
+        "visible": true,
+        "devtools": true,
         "skipTaskbar": false,
         "visibleOnAllWorkspaces": false
       }
