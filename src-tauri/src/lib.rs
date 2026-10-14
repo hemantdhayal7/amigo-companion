@@ -279,8 +279,8 @@ pub fn run() {
                 });
             }
 
+            #[cfg(not(target_os = "macos"))]
             if let Some(win) = app.get_webview_window("main") {
-                let _ = win.show();
                 let _ = win.set_focus();
             }
 

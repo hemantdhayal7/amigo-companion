@@ -10,7 +10,6 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
@@ -24,7 +23,6 @@
         "decorations": false,
         "transparent": true,
         "shadow": false,
-        "visible": true,
         "skipTaskbar": false,
         "visibleOnAllWorkspaces": false
       }
@@ -35,13 +33,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis",
-      "deb",
-      "appimage",
-      "dmg",
-      "app"
-    ],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

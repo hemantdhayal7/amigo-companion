@@ -103,7 +103,7 @@ jobs:
         run: npm ci
 
       - name: Build Windows Executable (Tauri 2)
-        run: npm run tauri build -- --bundles nsis
+        run: npm run tauri build
 
       - name: Upload Windows EXE artifact
         uses: actions/upload-artifact@v4
@@ -130,7 +130,7 @@ jobs:
       - name: Collect installers
         run: |
           mkdir -p release-files
-          find release-assets -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-files/ \;
+          find release-assets -type f \( -name "*.dmg" -o -name "*setup.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-files/ \;
           ls -la release-files
 
       - name: Upload assets to v1.0.0 Release

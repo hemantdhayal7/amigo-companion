@@ -6,7 +6,6 @@ const isHttps = process.env.VITE_HTTPS === 'true' || process.env.HTTPS === 'true
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: './',
   plugins: [
     react(),
     ...(isHttps ? [basicSsl()] : []),
