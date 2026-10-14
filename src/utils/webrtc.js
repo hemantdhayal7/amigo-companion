@@ -768,23 +768,66 @@ export class PeerCallManager {
 
     if (!this.isVideoOn) {
       try {
-        let stream;
+        let stream = null;
+        let lastError = null;
+
+        // 1. Enumerate available video inputs to discover hardware & virtual webcams (OBS, CamStudio, etc.)
+        let videoDevices = [];
+        try {
+          if (navigator.mediaDevices?.enumerateDevices) {
+            const allDevices = await navigator.mediaDevices.enumerateDevices();
+            videoDevices = allDevices.filter((d) => d.kind === 'videoinput');
+            console.log(
+              `[WebRTC] Detected ${videoDevices.length} video input device(s):`,
+              videoDevices.map((d) => ({ id: d.deviceId, label: d.label || '(Unnamed Camera)' }))
+            );
+          }
+        } catch (e) {
+          console.warn('[WebRTC] enumerateDevices notice:', e);
+        }
+
+        // 2. Primary attempt: Relaxed resolution constraint without strict facingMode
+        // Note: Virtual cameras (OBS, CamStudio, ManyCam) often reject 'facingMode' constraints!
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 640 },
-              height: { ideal: 480 },
-              facingMode: 'user',
-            },
+            video: { width: { ideal: 640 }, height: { ideal: 480 } },
           });
-        } catch {
+        } catch (e1) {
+          console.warn('[WebRTC] Primary getUserMedia with ideal dimensions failed:', e1);
+          lastError = e1;
           try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { width: { ideal: 640 }, height: { ideal: 480 } },
-            });
-          } catch {
             stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          } catch (e2) {
+            console.warn('[WebRTC] Secondary getUserMedia({ video: true }) failed:', e2);
+            lastError = e2;
           }
+        }
+
+        // 3. Fallback attempt: Iterate through each detected video device explicitly
+        if (!stream && videoDevices.length > 0) {
+          for (const dev of videoDevices) {
+            if (!dev.deviceId) continue;
+            try {
+              console.log(`[WebRTC] Trying specific video device: "${dev.label || dev.deviceId}"`);
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: dev.deviceId } },
+              });
+              if (stream) {
+                console.log(`[WebRTC] Successfully opened video device: "${dev.label || dev.deviceId}"`);
+                break;
+              }
+            } catch (devErr) {
+              console.warn(`[WebRTC] Failed to open device "${dev.label || dev.deviceId}":`, devErr);
+              lastError = devErr;
+            }
+          }
+        }
+
+        if (!stream) {
+          throw (
+            lastError ||
+            new Error('No camera stream could be acquired from any available device')
+          );
         }
 
         const newVideoTrack = stream.getVideoTracks()[0];
@@ -933,11 +976,13 @@ export class PeerCallManager {
     let msg = `Unable to access ${deviceName}.`;
 
     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      msg = `🔒 Permission Denied: Please click 'Allow' in your browser or System Settings > Privacy & Security to enable ${deviceName}.`;
+      msg = `🔒 Permission Denied: Please allow Camera access in Windows Settings > Privacy & Security > Camera (turn ON "Let desktop apps access your camera") or click 'Allow' in your browser.`;
     } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      msg = `⚠️ No ${deviceName} found on this computer.`;
+      msg = `⚠️ No camera detected by your OS. If using CamStudio: CamStudio's driver is 32-bit legacy and cannot be seen by 64-bit apps. We recommend OBS Studio ('Start Virtual Camera'). Also ensure Google Meet/Zoom isn't locking it!`;
     } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-      msg = `⚠️ Your ${deviceName} is currently being used by another application (Zoom, FaceTime, Meet). Please close it and retry.`;
+      msg = `⚠️ Your camera or virtual camera is currently busy or locked by another app (Google Meet, Zoom, Discord). Please close other video apps and retry.`;
+    } else if (err.name === 'OverconstrainedError') {
+      msg = `⚠️ Your camera does not support the requested resolution or settings. Try with standard resolution.`;
     }
 
     this.onError(msg);
