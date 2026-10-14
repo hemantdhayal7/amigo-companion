@@ -19,14 +19,12 @@
         "height": 740,
         "minWidth": 340,
         "minHeight": 500,
-        "center": true,
         "resizable": true,
         "alwaysOnTop": true,
         "decorations": false,
         "transparent": true,
-        "shadow": true,
+        "shadow": false,
         "visible": true,
-        "devtools": true,
         "skipTaskbar": false,
         "visibleOnAllWorkspaces": false
       }

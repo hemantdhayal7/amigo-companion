@@ -282,22 +282,6 @@ pub fn run() {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.show();
                 let _ = win.set_focus();
-
-                #[cfg(target_os = "windows")]
-                {
-                    // Workaround for Windows WebView2 transparent window repaint lag:
-                    // Force an immediate DWM layout & compositor repaint
-                    if let Ok(size) = win.inner_size() {
-                        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                            width: size.width + 1,
-                            height: size.height,
-                        }));
-                        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                            width: size.width,
-                            height: size.height,
-                        }));
-                    }
-                }
             }
 
             Ok(())
