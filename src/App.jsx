@@ -827,10 +827,23 @@ export default function App() {
   // Start Screen Share
   const handleStartScreenShare = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always', frameRate: { ideal: 30 } },
-        audio: true,
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: 'always',
+            width: { ideal: 1920, max: 1920 },
+            height: { ideal: 1080, max: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+          },
+          audio: true,
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: true,
+        });
+      }
 
       setLocalStream(stream);
       setIsSharingScreen(true);

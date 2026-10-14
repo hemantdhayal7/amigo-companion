@@ -453,6 +453,7 @@ export class PeerCallManager {
       this.emitDiag('iceconnectionstatechange', { state: pc.iceConnectionState });
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         this.refreshRemoteStream();
+        this.logActiveConnectionRoute();
       } else if (pc.iceConnectionState === 'failed') {
         console.warn('[WebRTC] ICE connection failed, restarting ICE...');
         this.restartIce();
@@ -465,6 +466,7 @@ export class PeerCallManager {
       if (pc.connectionState === 'connected') {
         this.refreshRemoteStream();
         this.broadcastMediaStatus();
+        this.logActiveConnectionRoute();
       } else if (pc.connectionState === 'failed') {
         console.warn('[WebRTC] PeerConnection failed, restarting ICE...');
         this.restartIce();
@@ -472,6 +474,26 @@ export class PeerCallManager {
     };
 
     return pc;
+  }
+
+  async logActiveConnectionRoute() {
+    if (!this.peerConnection?.getStats) return;
+    try {
+      const stats = await this.peerConnection.getStats();
+      stats.forEach((report) => {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+          const localCand = stats.get(report.localCandidateId);
+          const remoteCand = stats.get(report.remoteCandidateId);
+          const rtt = report.currentRoundTripTime ? `${Math.round(report.currentRoundTripTime * 1000)}ms` : 'unknown';
+          const isRelayed = localCand?.candidateType === 'relay' || remoteCand?.candidateType === 'relay';
+          console.log(
+            `[WebRTC ⚡] Connected Route: ${isRelayed ? '🌐 Relayed (TURN Server)' : '⚡ Direct P2P (Zero Relay)'} | ` +
+            `Pair: [${localCand?.candidateType || '?'} <-> ${remoteCand?.candidateType || '?'}] | ` +
+            `Latency / RTT: ${rtt}`
+          );
+        }
+      });
+    } catch {}
   }
 
   async restartIce() {
@@ -900,7 +922,7 @@ export class PeerCallManager {
 
     try {
       if ('contentHint' in screenTrack) {
-        screenTrack.contentHint = 'detail';
+        screenTrack.contentHint = 'motion';
       }
     } catch {}
 
@@ -921,6 +943,23 @@ export class PeerCallManager {
       });
       this.preferVP8(vt);
       this.videoSender = vt.sender;
+    }
+
+    // Configure ultra-low-latency high-priority video encodings
+    if (this.videoSender?.getParameters && this.videoSender?.setParameters) {
+      try {
+        const params = this.videoSender.getParameters();
+        if (params && params.encodings && params.encodings.length > 0) {
+          params.encodings[0].maxBitrate = 3500000;
+          params.encodings[0].networkPriority = 'high';
+          params.encodings[0].priority = 'high';
+          params.degradationPreference = 'maintain-framerate';
+          await this.videoSender.setParameters(params);
+          console.log('[WebRTC] Applied low-latency 3.5Mbps maintain-framerate profile to screen share');
+        }
+      } catch (paramErr) {
+        console.warn('[WebRTC] Note on screen share setParameters:', paramErr);
+      }
     }
 
     await this.negotiate(this.targetPeerId);
