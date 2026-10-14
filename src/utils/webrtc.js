@@ -529,18 +529,17 @@ export class PeerCallManager {
     try {
       const offerCollision = this.isMakingOffer || pc.signalingState !== 'stable';
       if (offerCollision) {
-        if (!isPolite) {
-          console.log('[WebRTC] Impolite peer ignoring colliding remote offer');
-          return;
-        }
-        console.log('[WebRTC] Polite peer rolling back local offer to accept remote offer');
+        console.log('[WebRTC] Offer collision detected (state:', pc.signalingState, 'isPolite:', isPolite, ')');
         if (pc.signalingState === 'have-local-offer') {
-          this.pendingNegotiation = true;
+          console.log('[WebRTC] Rolling back dangling local offer to accept incoming remote offer');
           try {
             await pc.setLocalDescription({ type: 'rollback' });
           } catch (e) {
             console.warn('[WebRTC] Rollback error:', e);
           }
+        } else if (!isPolite && pc.remoteDescription) {
+          console.log('[WebRTC] Impolite peer ignoring colliding remote offer');
+          return;
         }
       }
 
@@ -636,6 +635,12 @@ export class PeerCallManager {
     const pc = this.getOrCreatePeerConnection();
     if (targetUserId) {
       this.targetPeerId = targetUserId;
+    }
+
+    const destId = targetUserId || this.targetPeerId;
+    if (!destId) {
+      console.log('[WebRTC] Skipping negotiate: No target peer specified');
+      return;
     }
 
     if (this.isMakingOffer || pc.signalingState !== 'stable') {

@@ -510,6 +510,13 @@ export default function App() {
         setPeerSharingUser(null);
         setPeerStream(null);
       }
+      if (peerCallManagerRef.current) {
+        console.log('[App] Partner left room, resetting WebRTC peer connection');
+        peerCallManagerRef.current.resetPeerConnection();
+      }
+      setIsPeerMicOn(false);
+      setIsPeerVideoOn(false);
+      setRemoteCamStream(null);
       triggerAutoPopout({
         title: 'Study buddy left',
         detail: 'Disconnected from study date',
