@@ -7,8 +7,12 @@ const RTC_CONFIG = {
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.services.mozilla.com:3478' },
     { urls: 'stun:stun.nextcloud.com:443' },
   ],
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require',
+  iceCandidatePoolSize: 2,
 };
 
 // Guarantee Linux WebKitGTK / Chromium decodes video by prioritizing royalty-free VP8 in SDP
@@ -99,7 +103,7 @@ export class PeerCallManager {
     if (!Array.isArray(servers) || servers.length === 0) return;
     const hasTurn = servers.some((s) => Array.isArray(s.urls) ? s.urls.some(u => u.startsWith('turn:')) : s.urls?.startsWith('turn:'));
     console.log(`[WebRTC] 🔄 Updating ICE servers (Total: ${servers.length}, TURN Relay Enabled: ${hasTurn})`);
-    this.rtcConfig = { iceServers: servers };
+    this.rtcConfig = { ...RTC_CONFIG, iceServers: servers };
     if (this.peerConnection && this.peerConnection.setConfiguration) {
       try {
         this.peerConnection.setConfiguration(this.rtcConfig);
@@ -452,9 +456,27 @@ export class PeerCallManager {
       console.log('[WebRTC] ICE Connection state:', pc.iceConnectionState);
       this.emitDiag('iceconnectionstatechange', { state: pc.iceConnectionState });
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        if (this.disconnectTimer) {
+          clearTimeout(this.disconnectTimer);
+          this.disconnectTimer = null;
+        }
         this.refreshRemoteStream();
         this.logActiveConnectionRoute();
+      } else if (pc.iceConnectionState === 'disconnected') {
+        console.warn('[WebRTC] ICE connection temporarily disconnected, monitoring for recovery...');
+        if (!this.disconnectTimer) {
+          this.disconnectTimer = setTimeout(() => {
+            if (this.peerConnection?.iceConnectionState === 'disconnected') {
+              console.warn('[WebRTC] ICE still disconnected after 2.5s, triggering ICE restart to unfreeze stream...');
+              this.restartIce();
+            }
+          }, 2500);
+        }
       } else if (pc.iceConnectionState === 'failed') {
+        if (this.disconnectTimer) {
+          clearTimeout(this.disconnectTimer);
+          this.disconnectTimer = null;
+        }
         console.warn('[WebRTC] ICE connection failed, restarting ICE...');
         this.restartIce();
       }
@@ -755,7 +777,9 @@ export class PeerCallManager {
         }
 
         this.broadcastMediaStatus();
-        await this.negotiate(this.targetPeerId);
+        if (!audioTransceiver) {
+          await this.negotiate(this.targetPeerId);
+        }
         return { isMicOn: true, stream: this.localStream };
       } catch (err) {
         this.handleMediaError(err, 'microphone');
@@ -780,7 +804,6 @@ export class PeerCallManager {
 
       this.isMicOn = false;
       this.broadcastMediaStatus();
-      await this.negotiate(this.targetPeerId);
       return { isMicOn: false, stream: this.localStream };
     }
   }
@@ -910,7 +933,9 @@ export class PeerCallManager {
         }
 
         this.broadcastMediaStatus();
-        await this.negotiate(this.targetPeerId);
+        if (!videoTransceiver) {
+          await this.negotiate(this.targetPeerId);
+        }
         return { isVideoOn: true, stream: this.localStream };
       } catch (err) {
         this.handleMediaError(err, 'camera');
@@ -935,7 +960,6 @@ export class PeerCallManager {
 
       this.isVideoOn = false;
       this.broadcastMediaStatus();
-      await this.negotiate(this.targetPeerId);
       return { isVideoOn: false, stream: this.localStream };
     }
   }
