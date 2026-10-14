@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
@@ -18,11 +19,13 @@
         "height": 740,
         "minWidth": 340,
         "minHeight": 500,
+        "center": true,
         "resizable": true,
         "alwaysOnTop": true,
         "decorations": false,
         "transparent": true,
-        "shadow": false,
+        "shadow": true,
+        "visible": true,
         "skipTaskbar": false,
         "visibleOnAllWorkspaces": false
       }
@@ -33,7 +36,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "deb",
+      "appimage",
+      "dmg",
+      "app"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
