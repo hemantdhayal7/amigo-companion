@@ -219,6 +219,41 @@ export default function FloatingCompanion({
     }
   }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo]);
 
+  // Anti-Freeze Video Watchdog: detects if remote video playback paused or froze on a frame, and automatically wakes it up
+  useEffect(() => {
+    if (!remoteCamStream || (!isPeerVideoOn && !hasRemoteVideo)) return;
+
+    let lastCurrentTime = -1;
+    let staleCount = 0;
+
+    const watchdog = setInterval(() => {
+      const activeVideos = [remoteVideoRef.current, dualRemoteVideoRef.current].filter(Boolean);
+      for (const v of activeVideos) {
+        if (!v) continue;
+        if (v.srcObject !== remoteCamStream) {
+          v.srcObject = remoteCamStream;
+        }
+        if (v.paused) {
+          v.play().catch(() => {});
+        } else if (v.readyState >= 2) {
+          if (v.currentTime === lastCurrentTime && v.currentTime > 0) {
+            staleCount++;
+            if (staleCount >= 2) {
+              console.log('[Anti-Freeze] Video stalled on frame, re-triggering playback');
+              v.play().catch(() => {});
+              staleCount = 0;
+            }
+          } else {
+            staleCount = 0;
+          }
+          lastCurrentTime = v.currentTime;
+        }
+      }
+    }, 1500);
+
+    return () => clearInterval(watchdog);
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo]);
+
   // Selected date partner: find the real connected peer in the room (no mock Alex and accurately filter local user)
   const selfId = selfUser?.id;
   const selfName = selfUser?.name?.trim()?.toLowerCase();
@@ -1770,6 +1805,12 @@ export default function FloatingCompanion({
                                 e.target.muted = true;
                                 e.target.play().catch(() => {});
                               }}
+                              onWaiting={(e) => {
+                                e.target.play().catch(() => {});
+                              }}
+                              onStalled={(e) => {
+                                e.target.play().catch(() => {});
+                              }}
                               className="w-full h-full object-cover scale-105 pointer-events-none"
                             />
                           ) : (
@@ -1952,6 +1993,8 @@ export default function FloatingCompanion({
                       playsInline
                       muted
                       onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                      onWaiting={(e) => e.target.play().catch(() => {})}
+                      onStalled={(e) => e.target.play().catch(() => {})}
                       className="w-full h-full object-cover"
                     />
                   ) : (

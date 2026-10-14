@@ -888,6 +888,27 @@ export class PeerCallManager {
           this.videoSender = vt.sender;
         }
 
+        if ('contentHint' in newVideoTrack) {
+          newVideoTrack.contentHint = 'motion';
+        }
+
+        // Configure smooth maintain-framerate profile (1.2 Mbps ceiling to prevent Wi-Fi freeze/stutter)
+        if (this.videoSender?.getParameters && this.videoSender?.setParameters) {
+          try {
+            const params = this.videoSender.getParameters();
+            if (params && params.encodings && params.encodings.length > 0) {
+              params.encodings[0].maxBitrate = 1200000;
+              params.encodings[0].networkPriority = 'high';
+              params.encodings[0].priority = 'high';
+              params.degradationPreference = 'maintain-framerate';
+              await this.videoSender.setParameters(params);
+              console.log('[WebRTC] Enforced maintain-framerate & 1.2Mbps cap for smooth camera video');
+            }
+          } catch (paramErr) {
+            console.warn('[WebRTC] Note on camera parameters:', paramErr);
+          }
+        }
+
         this.broadcastMediaStatus();
         await this.negotiate(this.targetPeerId);
         return { isVideoOn: true, stream: this.localStream };
