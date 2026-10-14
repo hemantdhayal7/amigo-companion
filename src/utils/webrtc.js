@@ -159,6 +159,14 @@ export class PeerCallManager {
     console.log('[WebRTC] Initiating call to target user:', this.targetPeerId);
     this.isInitiator = true;
     const pc = this.getOrCreatePeerConnection();
+    if (pc.signalingState === 'have-local-offer') {
+      try {
+        console.log('[WebRTC] Rolling back stale local offer before initiating call');
+        await pc.setLocalDescription({ type: 'rollback' });
+      } catch (e) {
+        console.warn('[WebRTC] Rollback error in initiateCallTo:', e);
+      }
+    }
     if (pc.getTransceivers) {
       pc.getTransceivers().forEach((t) => {
         t.direction = 'sendrecv';
@@ -777,7 +785,7 @@ export class PeerCallManager {
         }
 
         this.broadcastMediaStatus();
-        if (!audioTransceiver) {
+        if (this.targetPeerId) {
           await this.negotiate(this.targetPeerId);
         }
         return { isMicOn: true, stream: this.localStream };
@@ -933,7 +941,7 @@ export class PeerCallManager {
         }
 
         this.broadcastMediaStatus();
-        if (!videoTransceiver) {
+        if (this.targetPeerId) {
           await this.negotiate(this.targetPeerId);
         }
         return { isVideoOn: true, stream: this.localStream };

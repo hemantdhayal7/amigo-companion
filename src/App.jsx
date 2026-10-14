@@ -479,8 +479,9 @@ export default function App() {
         setMembers(data.members);
         const partner = data.members.find((m) => m.id !== socket.id);
         if (partner && peerCallManagerRef.current) {
+          console.log('[App] Existing partner found in room-synced, initiating call to:', partner.id);
           peerCallManagerRef.current.setTargetPeerId(partner.id);
-          peerCallManagerRef.current.getOrCreatePeerConnection();
+          peerCallManagerRef.current.initiateCallTo(partner.id).catch(console.warn);
           setIsPeerVideoOn(Boolean(partner.isVideoOn));
           setIsPeerMicOn(Boolean(partner.isMicOn));
         }
