@@ -27,10 +27,10 @@ const DEFAULT_EMOJIS = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', 
 export default function App() {
   // Read room and server from URL query params (or localStorage / default)
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const rawServer = urlParams?.get('server') || localStorage.getItem('study_server_url') || 'http://localhost:4000';
+  const rawServer = urlParams?.get('server') || localStorage.getItem('study_server_url') || 'https://amigo.degreedost.com';
   const parsedServerLink = parseInviteOrServerLink(rawServer);
 
-  const initialServer = parsedServerLink?.serverUrl || 'http://localhost:4000';
+  const initialServer = parsedServerLink?.serverUrl || 'https://amigo.degreedost.com';
   const initialRoom = urlParams?.get('room') || parsedServerLink?.roomId || localStorage.getItem('study_room_id') || 'our-study-date';
   const initialSecret = urlParams?.get('secret') || parsedServerLink?.roomSecret || localStorage.getItem('study_room_secret') || 'date2026';
 
