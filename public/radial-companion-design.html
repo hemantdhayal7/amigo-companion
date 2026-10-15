@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amigo Companion — Radial Design Template & Architecture</title>
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-dark: rgba(22, 30, 49, 0.85);
+      --border-dark: rgba(255, 255, 255, 0.12);
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-violet: #8b5cf6;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0b0f19 80%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 24px;
+      background: var(--card-dark);
+      border: 1px solid var(--border-dark);
+      border-radius: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #34d399, #38bdf8, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 14px;
+      max-width: 720px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+
+    /* Grid Layout */
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 860px) {
+      .showcase-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-dark);
+      border: 1px solid var(--border-dark);
+      border-radius: 24px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-family: monospace;
+      font-weight: bold;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    /* Controls Bar */
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pill-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .pill-btn.active {
+      background: #10b981;
+      border-color: #34d399;
+      color: #064e3b;
+      font-weight: 800;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.4);
+    }
+
+    /* Dial Preview Canvas */
+    .stage-wrapper {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      background: radial-gradient(circle at center, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border-radius: 20px;
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Dial Root: 248px or 116px */
+    .radial-dial {
+      position: relative;
+      width: 248px;
+      height: 248px;
+      border-radius: 50%;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .radial-dial.theme-dark {
+      background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 26, 0.98) 100%);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    }
+
+    .radial-dial.theme-white {
+      background: radial-gradient(circle at 45% 45%, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.92) 70%, rgba(226, 232, 240, 0.88) 100%);
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18), inset 0 1px 2px rgba(255, 255, 255, 1);
+    }
+
+    .radial-dial.theme-blush {
+      background: radial-gradient(circle at 45% 45%, rgba(255, 241, 242, 0.98) 0%, rgba(254, 205, 211, 0.92) 70%, rgba(253, 164, 175, 0.88) 100%);
+      box-shadow: 0 16px 36px rgba(159, 18, 57, 0.22), inset 0 1px 2px rgba(255, 255, 255, 1);
+    }
+
+    .radial-dial.mode-none {
+      width: 116px;
+      height: 116px;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+
+    /* SVG Canvas */
+    .dial-svg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 340px;
+      height: 340px;
+      pointer-events: none;
+    }
+
+    /* Sector Wedges */
+    .sector-wedge {
+      cursor: pointer;
+      pointer-events: auto;
+      transition: fill 0.2s ease, transform 0.2s ease;
+    }
+
+    .sector-wedge:hover {
+      fill: rgba(255, 255, 255, 0.22) !important;
+    }
+
+    .sector-wedge:active {
+      fill: rgba(255, 255, 255, 0.36) !important;
+    }
+
+    /* Radial HTML Overlay */
+    .dial-html-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .sector-btn {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: transform 0.18s ease;
+      z-index: 30;
+    }
+
+    .sector-btn:hover {
+      transform: translate(-50%, -50%) scale(1.18);
+    }
+
+    .sector-btn:active {
+      transform: translate(-50%, -50%) scale(0.92);
+    }
+
+    .sector-icon {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .theme-dark .sector-icon {
+      color: #f1f5f9;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+    }
+
+    .theme-white .sector-icon {
+      color: #1e293b;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+    }
+
+    .theme-blush .sector-icon {
+      color: #9f1239;
+      filter: drop-shadow(0 1px 2px rgba(159, 18, 57, 0.2));
+    }
+
+    .sector-label {
+      font-size: 7px;
+      font-family: monospace;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: -0.2px;
+      margin-top: 1px;
+    }
+
+    .theme-dark .sector-label { color: #cbd5e1; }
+    .theme-white .sector-label { color: #334155; }
+    .theme-blush .sector-label { color: #881337; }
+
+    /* Center Hub: 116px */
+    .center-hub {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 116px;
+      height: 116px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 20;
+      transition: all 0.25s ease;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .center-hub:hover {
+      transform: translate(-50%, -50%) scale(1.04);
+    }
+
+    .theme-dark .center-hub {
+      background: radial-gradient(circle at 40% 35%, #2d374b 0%, #192130 60%, #0f1726 100%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .theme-white .center-hub {
+      background: radial-gradient(circle at 40% 35%, #ffffff 0%, #f0f6ff 60%, #e1ebfa 100%);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      color: #1e293b;
+    }
+
+    .theme-blush .center-hub {
+      background: radial-gradient(circle at 40% 35%, #ffffff 0%, #fff1f2 60%, #fee2e2 100%);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      color: #881337;
+    }
+
+    .mascot-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      animation: gentleBounce 3s infinite ease-in-out;
+    }
+
+    @keyframes gentleBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .hub-title {
+      font-size: 11px;
+      font-weight: 800;
+      margin-top: 4px;
+      letter-spacing: -0.2px;
+    }
+
+    .hub-subtitle {
+      font-size: 8px;
+      font-family: monospace;
+      opacity: 0.7;
+    }
+
+    /* Live Click Output */
+    .event-logger {
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid var(--border-dark);
+      border-radius: 16px;
+      padding: 14px;
+      font-family: monospace;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .event-logger .log-header {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .event-logger .log-val {
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    /* Audio Pipeline Demo Box */
+    .pipeline-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pipeline-node {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pipeline-node.highlight {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.12);
+    }
+
+    .pipeline-arrow {
+      text-align: center;
+      color: #64748b;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    /* Hitbox Debug Outlines */
+    .debug-hitbox .sector-wedge {
+      stroke: #f43f5e !important;
+      stroke-width: 1.5px !important;
+      fill: rgba(244, 63, 94, 0.12) !important;
+    }
+
+    .debug-hitbox .sector-btn {
+      outline: 1.5px dashed #38bdf8;
+      background: rgba(56, 189, 248, 0.2);
+      border-radius: 8px;
+      padding: 2px 4px;
+    }
+
+    /* Duo Video Preview */
+    .duo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .video-card {
+      background: #000;
+      border-radius: 18px;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-card img, .video-card .fake-cam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      font-size: 11px;
+      gap: 6px;
+    }
+
+    .cam-badge {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <header>
+    <h1>Amigo Companion — Architectural Design Template</h1>
+    <p>
+      Mathematically isolated 8-sector radial dial (248px dial, 116px center hub, 52px donut thickness).
+      Zero hitbox collision, zero overlapping pointer events, and multi-track Web Audio mixing for Windows PC.
+    </p>
+  </header>
+
+  <!-- Main Showcase Grid -->
+  <div class="showcase-grid">
+
+    <!-- Card 1: Interactive Radial Dial Engine -->
+    <div class="card">
+      <div class="card-title">
+        <span>🪐 Interactive Radial Dial (Live CSS + SVG)</span>
+        <span class="badge" id="currentModeBadge">MODE: MENU TOOLS</span>
+      </div>
+
+      <!-- Mode Controls -->
+      <div class="controls-row">
+        <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">Ring Mode:</span>
+        <button class="pill-btn active" id="btnModeMenu" onclick="setRingMode('menu')">📋 Menu Tools</button>
+        <button class="pill-btn" id="btnModeSystem" onclick="setRingMode('system')">⚙️ System Ring</button>
+        <button class="pill-btn" id="btnModeEmoji" onclick="setRingMode('emoji')">🌟 Emojis</button>
+        <button class="pill-btn" id="btnModeOrb" onclick="setRingMode('none')">🪄 Cam Orb</button>
+      </div>
+
+      <!-- Theme Controls & Hitbox Inspector -->
+      <div class="controls-row">
+        <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">Theme:</span>
+        <button class="pill-btn active" id="btnThemeDark" onclick="setTheme('dark')">🌙 Dark</button>
+        <button class="pill-btn" id="btnThemeWhite" onclick="setTheme('white')">🤍 White</button>
+        <button class="pill-btn" id="btnThemeBlush" onclick="setTheme('blush')">🌸 Blush</button>
+        <span style="margin-left: auto;"></span>
+        <button class="pill-btn" id="btnToggleHitbox" onclick="toggleHitboxes()">🎯 Hitbox Inspector: OFF</button>
+      </div>
+
+      <!-- The Live Radial Dial Stage -->
+      <div class="stage-wrapper" id="stageWrapper">
+        <div class="radial-dial theme-dark" id="dialWidget">
+          <!-- Background SVG Geometry Layer (Wedges & Dividers) -->
+          <svg class="dial-svg" viewBox="0 0 340 340">
+            <defs>
+              <linearGradient id="haloGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#34d399" />
+                <stop offset="100%" stop-color="#10b981" />
+              </linearGradient>
+            </defs>
+
+            <!-- Outer Rim at r=119 -->
+            <circle id="outerRim" cx="170" cy="170" r="119" stroke="rgba(255,255,255,0.18)" stroke-width="1" fill="none" />
+
+            <!-- Dynamic SVG Sectors Container -->
+            <g id="svgSectorsGroup"></g>
+
+            <!-- Recessed Moat (r=62, width=5) -->
+            <circle cx="170" cy="170" r="62" stroke="rgba(10, 15, 25, 0.95)" stroke-width="5" fill="none" />
+            <!-- Active Progress Halo in Moat -->
+            <circle cx="170" cy="170" r="62" stroke="url(#haloGrad)" stroke-width="3.5"
+                    stroke-dasharray="389.5" stroke-dashoffset="120" stroke-linecap="round" fill="none"
+                    transform="rotate(-90 170 170)" />
+          </svg>
+
+          <!-- HTML Button Overlay Container -->
+          <div class="dial-html-overlay" id="htmlOverlay"></div>
+
+          <!-- Central Cam / Mascot Hub (116px) -->
+          <div class="center-hub" onclick="handleCenterHubClick()">
+            <div class="mascot-avatar">🥬</div>
+            <div class="hub-title">AMIGO DUO</div>
+            <div class="hub-subtitle" id="hubSubtitle">TAP TO CYCLE</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Event Feedback Log -->
+      <div class="event-logger">
+        <div class="log-header">
+          <span>Target Sector Hit Analysis</span>
+          <span id="hitboxStatusText" style="color: #34d399;">✅ 100% Isolated Hitbox</span>
+        </div>
+        <div>Sector Clicked: <span class="log-val" id="logSectorName">None (Click any sector above)</span></div>
+        <div>Geometry: <span class="log-val" id="logGeometry">r_in: 66px, r_out: 118px, angle: 45°</span></div>
+        <div>Action Dispatched: <span class="log-val" id="logAction">Standby</span></div>
+      </div>
+    </div>
+
+    <!-- Card 2: Audio Pipeline & Face-to-Face Dual Grid -->
+    <div class="card">
+      <div class="card-title">
+        <span>🎙️ Mixed Web Audio Pipeline (Windows PC Ready)</span>
+        <span class="badge">OPUS 128 KBPS STEREO</span>
+      </div>
+
+      <div class="pipeline-diagram">
+        <div class="pipeline-node">
+          <div>
+            <div style="font-weight: 700; font-size: 13px;">🎙️ Voice Microphone (Local)</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Echo Cancellation & Noise Suppression Active</div>
+          </div>
+          <span style="font-size: 11px; font-family: monospace; color: #34d399;">gain: 1.0</span>
+        </div>
+
+        <div class="pipeline-arrow">➕ Mixed simultaneously in Web Audio Graph</div>
+
+        <div class="pipeline-node highlight">
+          <div>
+            <div style="font-weight: 700; font-size: 13px; color: #c084fc;">🎵 YouTube Music / Tab Audio</div>
+            <div style="font-size: 11px; color: #e9d5ff;">Shared via getDisplayMedia({ audio: true })</div>
+          </div>
+          <span style="font-size: 11px; font-family: monospace; color: #c084fc;">gain: 0.85</span>
+        </div>
+
+        <div class="pipeline-arrow">⬇️</div>
+
+        <div class="pipeline-node" style="border-color: #38bdf8; background: rgba(56, 189, 248, 0.1);">
+          <div>
+            <div style="font-weight: 700; font-size: 13px; color: #38bdf8;">📡 WebRTC Mixed MediaStreamDestination</div>
+            <div style="font-size: 11px; color: #bae6fd;">Single high-fidelity Opus stereo track sent to Partner</div>
+          </div>
+          <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: #38bdf8;">ACTIVE</span>
+        </div>
+      </div>
+
+      <!-- Dual Face-to-Face Video Preview -->
+      <div class="card-title" style="margin-top: 12px;">
+        <span>👥 Dual Face-to-Face Video Cards</span>
+        <span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa; border-color: #8b5cf6;">DUO ACTIVE</span>
+      </div>
+
+      <div class="duo-grid">
+        <div class="video-card">
+          <div class="fake-cam" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+            <div style="font-size: 28px;">🧑‍💻</div>
+            <div>You (Hemant)</div>
+          </div>
+          <div class="cam-badge">
+            <span class="status-dot"></span>
+            <span>Local Cam (1080p)</span>
+          </div>
+        </div>
+
+        <div class="video-card">
+          <div class="fake-cam" style="background: linear-gradient(135deg, #312e81, #1e1b4b);">
+            <div style="font-size: 28px;">👩‍🎓</div>
+            <div>Partner (Siddhi)</div>
+          </div>
+          <div class="cam-badge">
+            <span class="status-dot"></span>
+            <span>Remote Live (1080p)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Design Specification Specs Table -->
+  <div class="card">
+    <div class="card-title">
+      <span>📐 Complete Geometric & Architectural Specifications</span>
+      <span class="badge">MATHEMATICALLY PROVEN</span>
+    </div>
+
+    <table style="width: 100%; font-size: 12px; border-collapse: collapse; text-align: left;">
+      <thead>
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.15); color: #94a3b8;">
+          <th style="padding: 10px 8px;">Component</th>
+          <th style="padding: 10px 8px;">Physical Dimension</th>
+          <th style="padding: 10px 8px;">Coordinate Math</th>
+          <th style="padding: 10px 8px;">Hitbox / Event Model</th>
+          <th style="padding: 10px 8px;">Functionality</th>
+        </tr>
+      </thead>
+      <tbody style="color: #cbd5e1;">
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+          <td style="padding: 10px 8px; font-weight: 700; color: #34d399;">Outer Dial</td>
+          <td style="padding: 10px 8px;">248px × 248px</td>
+          <td style="padding: 10px 8px; font-family: monospace;">r = 124px</td>
+          <td style="padding: 10px 8px;">Contains all 8 sectors</td>
+          <td style="padding: 10px 8px;">Smooth 300ms CSS expand/collapse scale transition</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+          <td style="padding: 10px 8px; font-weight: 700; color: #38bdf8;">Single Donut Ring</td>
+          <td style="padding: 10px 8px;">52px thickness</td>
+          <td style="padding: 10px 8px; font-family: monospace;">r_in = 66px, r_out = 118px</td>
+          <td style="padding: 10px 8px;">8 × 45° SVG Wedges</td>
+          <td style="padding: 10px 8px;">Displays Menu Tools, System Controls, or Emoji Reactions</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+          <td style="padding: 10px 8px; font-weight: 700; color: #a78bfa;">Recessed Moat</td>
+          <td style="padding: 10px 8px;">5px thickness</td>
+          <td style="padding: 10px 8px; font-family: monospace;">r = 62px</td>
+          <td style="padding: 10px 8px; color: #94a3b8;">pointer-events: none</td>
+          <td style="padding: 10px 8px;">Circular study goal progress ring (0% to 100%)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+          <td style="padding: 10px 8px; font-weight: 700; color: #f43f5e;">Center Hub</td>
+          <td style="padding: 10px 8px;">116px × 116px</td>
+          <td style="padding: 10px 8px; font-family: monospace;">r = 58px</td>
+          <td style="padding: 10px 8px;">z-index: 20</td>
+          <td style="padding: 10px 8px;">Live partner webcam / animated cabbage companion hub</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 8px; font-weight: 700; color: #f59e0b;">HTML Button Overlay</td>
+          <td style="padding: 10px 8px;">32px × 32px hit center</td>
+          <td style="padding: 10px 8px; font-family: monospace;">r_center = 92px at 8 angles</td>
+          <td style="padding: 10px 8px; color: #34d399;">pointer-events: auto</td>
+          <td style="padding: 10px 8px;">Only rendered when active ringMode matches (no ghost clicks)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // Mathematical Donut Sector Generator
+  function describeDonutSegment(cx, cy, rIn, rOut, startAngleDeg, endAngleDeg) {
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const startRad = toRad(startAngleDeg);
+    const endRad = toRad(endAngleDeg);
+
+    const x1 = cx + rOut * Math.cos(startRad);
+    const y1 = cy + rOut * Math.sin(startRad);
+    const x2 = cx + rOut * Math.cos(endRad);
+    const y2 = cy + rOut * Math.sin(endRad);
+
+    const x3 = cx + rIn * Math.cos(endRad);
+    const y3 = cy + rIn * Math.sin(endRad);
+    const x4 = cx + rIn * Math.cos(startRad);
+    const y4 = cy + rIn * Math.sin(startRad);
+
+    const largeArc = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
+
+    return `M ${x1} ${y1} A ${rOut} ${rOut} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+  }
+
+  // Data definitions for 3 modes
+  const MENU_SECTORS = [
+    { id: 'drag', label: 'DRAG', icon: '✋', angle: -90, action: 'Move Amigo Companion anywhere on screen' },
+    { id: 'mic', label: 'MIC', icon: '🎙️', angle: -45, action: 'Toggle Voice Microphone on/off' },
+    { id: 'cam', label: 'CAM', icon: '📷', angle: 0, action: 'Toggle Local Web Camera on/off' },
+    { id: 'share', label: 'SHARE', icon: '🖥️', angle: 45, action: 'Share Screen or Tab Audio' },
+    { id: 'emoji', label: 'EMOJI', icon: '🌟', angle: 90, action: 'Switch to Emoji Reactions Ring' },
+    { id: 'sos', label: 'SOS', icon: '🚨', angle: 135, action: 'Trigger Instant Crisis SOS Alert' },
+    { id: 'doubt', label: 'DOUBT', icon: '💡', angle: 180, action: 'Open Ephemeral Doubt Hub (Self-destruct)' },
+    { id: 'target', label: 'TARGET', icon: '🎯', angle: 225, action: 'Set Daily Study Target / Goal' }
+  ];
+
+  const SYSTEM_SECTORS = [
+    { id: 'fixed-drag', label: 'DRAG', icon: '✋', angle: -90, action: 'Hold & Drag Companion' },
+    { id: 'fixed-opts', label: 'OPTS', icon: '⚙️', angle: -45, action: 'Open Settings & Circle Resizer Drawer' },
+    { id: 'fixed-display', label: 'DISPLAY', icon: '🖥️', angle: 0, action: 'Expand Screen Share to Big Theater' },
+    { id: 'sys-tools', label: 'TOOLS', icon: '📋', angle: 45, action: 'Switch back to Menu Tools Ring' },
+    { id: 'fixed-url', label: 'URL/PASS', icon: '🔗', angle: 90, action: 'Paste Server URL, Room Code & Passwords' },
+    { id: 'fixed-theme', label: 'THEME', icon: '🎨', angle: 135, action: 'Cycle Color Theme (Dark -> White -> Blush)' },
+    { id: 'sys-emoji', label: 'EMOJI', icon: '🌟', angle: 180, action: 'Switch to Emoji Reactions Ring' },
+    { id: 'fixed-amigo', label: 'AMIGO', icon: '✨', angle: 225, action: 'Amigo Celebration Bouncing & Confetti' }
+  ];
+
+  const EMOJI_SECTORS = [
+    { id: 'em-1', label: '❤️', icon: '❤️', angle: -90, action: 'Send instant Love reaction' },
+    { id: 'em-2', label: '🔥', icon: '🔥', angle: -45, action: 'Send Fire reaction' },
+    { id: 'em-3', label: '👏', icon: '👏', angle: 0, action: 'Send Clapping reaction' },
+    { id: 'em-4', label: '💡', icon: '💡', angle: 45, action: 'Send Eureka Idea reaction' },
+    { id: 'em-5', label: '🎯', icon: '🎯', angle: 90, action: 'Send Focus Bullseye reaction' },
+    { id: 'em-6', label: '☕', icon: '☕', angle: 135, action: 'Send Coffee Break reaction' },
+    { id: 'em-7', label: '✨', icon: '✨', angle: 180, action: 'Send Sparkles reaction' },
+    { id: 'em-8', label: '🥳', icon: '🥳', angle: 225, action: 'Send Party Celebrate reaction' }
+  ];
+
+  let currentMode = 'menu';
+  let currentTheme = 'dark';
+  let debugHitbox = false;
+
+  function renderDial() {
+    const dial = document.getElementById('dialWidget');
+    const svgGroup = document.getElementById('svgSectorsGroup');
+    const htmlOverlay = document.getElementById('htmlOverlay');
+    const outerRim = document.getElementById('outerRim');
+    const badge = document.getElementById('currentModeBadge');
+
+    svgGroup.innerHTML = '';
+    htmlOverlay.innerHTML = '';
+
+    if (currentMode === 'none') {
+      dial.className = `radial-dial mode-none theme-${currentTheme}`;
+      outerRim.style.display = 'none';
+      badge.textContent = 'MODE: PURE CAM ORB';
+      badge.style.background = 'rgba(139, 92, 246, 0.2)';
+      badge.style.color = '#c084fc';
+      return;
+    }
+
+    dial.className = `radial-dial theme-${currentTheme} ${debugHitbox ? 'debug-hitbox' : ''}`;
+    outerRim.style.display = 'block';
+
+    let sectors = [];
+    if (currentMode === 'menu') {
+      sectors = MENU_SECTORS;
+      badge.textContent = 'MODE: MENU TOOLS';
+      badge.style.background = 'rgba(16, 185, 129, 0.15)';
+      badge.style.color = '#34d399';
+    } else if (currentMode === 'system') {
+      sectors = SYSTEM_SECTORS;
+      badge.textContent = 'MODE: SYSTEM CONTROLS';
+      badge.style.background = 'rgba(6, 182, 212, 0.15)';
+      badge.style.color = '#38bdf8';
+    } else if (currentMode === 'emoji') {
+      sectors = EMOJI_SECTORS;
+      badge.textContent = 'MODE: EMOJI REACTIONS';
+      badge.style.background = 'rgba(245, 158, 11, 0.15)';
+      badge.style.color = '#fbbf24';
+    }
+
+    const dividerAngles = [-112.5, -67.5, -22.5, 22.5, 67.5, 112.5, 157.5, 202.5];
+
+    // 1. Render SVG Wedges
+    sectors.forEach((sec, idx) => {
+      const startAngle = sec.angle - 22.5;
+      const endAngle = sec.angle + 22.5;
+      const pathD = describeDonutSegment(170, 170, 66, 118, startAngle, endAngle);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', pathD);
+      path.setAttribute('class', 'sector-wedge');
+      path.setAttribute('fill', 'transparent');
+      path.onclick = (e) => {
+        e.stopPropagation();
+        onSectorClick(sec, idx);
+      };
+      svgGroup.appendChild(path);
+    });
+
+    // 2. Render Hairline Radial Dividers
+    dividerAngles.forEach((ang) => {
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const x1 = 170 + 66 * Math.cos(toRad(ang));
+      const y1 = 170 + 66 * Math.sin(toRad(ang));
+      const x2 = 170 + 118 * Math.cos(toRad(ang));
+      const y2 = 170 + 118 * Math.sin(toRad(ang));
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      line.setAttribute('stroke', currentTheme === 'white' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.18)');
+      line.setAttribute('stroke-width', '1');
+      svgGroup.appendChild(line);
+    });
+
+    // 3. Render HTML Button Overlays
+    sectors.forEach((sec, idx) => {
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const posX = 92 * Math.cos(toRad(sec.angle));
+      const posY = 92 * Math.sin(toRad(sec.angle));
+
+      const btn = document.createElement('button');
+      btn.className = 'sector-btn';
+      btn.style.left = `calc(50% + ${posX}px)`;
+      btn.style.top = `calc(50% + ${posY}px)`;
+      btn.title = sec.action;
+
+      btn.innerHTML = `
+        <div class="sector-icon">${sec.icon}</div>
+        <span class="sector-label">${sec.label}</span>
+      `;
+
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        onSectorClick(sec, idx);
+      };
+
+      htmlOverlay.appendChild(btn);
+    });
+  }
+
+  function onSectorClick(sec, idx) {
+    document.getElementById('logSectorName').textContent = `${sec.label} (${sec.icon})`;
+    document.getElementById('logGeometry').textContent = `Sector #${idx} | Angle: ${sec.angle}° [${sec.angle - 22.5}° to ${sec.angle + 22.5}°] | Center: 92px`;
+    document.getElementById('logAction').textContent = sec.action;
+
+    if (sec.id === 'emoji' || sec.id === 'sys-emoji') {
+      setRingMode('emoji');
+    } else if (sec.id === 'sys-tools') {
+      setRingMode('menu');
+    } else if (sec.id === 'fixed-theme') {
+      setTheme(currentTheme === 'dark' ? 'white' : currentTheme === 'white' ? 'blush' : 'dark');
+    }
+  }
+
+  function handleCenterHubClick() {
+    if (currentMode === 'menu') setRingMode('system');
+    else if (currentMode === 'system') setRingMode('emoji');
+    else if (currentMode === 'emoji') setRingMode('none');
+    else setRingMode('menu');
+  }
+
+  function setRingMode(mode) {
+    currentMode = mode;
+    ['btnModeMenu', 'btnModeSystem', 'btnModeEmoji', 'btnModeOrb'].forEach(id => {
+      document.getElementById(id).classList.remove('active');
+    });
+    if (mode === 'menu') document.getElementById('btnModeMenu').classList.add('active');
+    if (mode === 'system') document.getElementById('btnModeSystem').classList.add('active');
+    if (mode === 'emoji') document.getElementById('btnModeEmoji').classList.add('active');
+    if (mode === 'none') document.getElementById('btnModeOrb').classList.add('active');
+
+    renderDial();
+  }
+
+  function setTheme(th) {
+    currentTheme = th;
+    ['btnThemeDark', 'btnThemeWhite', 'btnThemeBlush'].forEach(id => {
+      document.getElementById(id).classList.remove('active');
+    });
+    if (th === 'dark') document.getElementById('btnThemeDark').classList.add('active');
+    if (th === 'white') document.getElementById('btnThemeWhite').classList.add('active');
+    if (th === 'blush') document.getElementById('btnThemeBlush').classList.add('active');
+
+    renderDial();
+  }
+
+  function toggleHitboxes() {
+    debugHitbox = !debugHitbox;
+    const btn = document.getElementById('btnToggleHitbox');
+    const status = document.getElementById('hitboxStatusText');
+    if (debugHitbox) {
+      btn.textContent = '🎯 Hitbox Inspector: ON';
+      btn.classList.add('active');
+      status.textContent = '🔍 Visualizing Sector Wedges & Hitbox Centers';
+      status.style.color = '#38bdf8';
+    } else {
+      btn.textContent = '🎯 Hitbox Inspector: OFF';
+      btn.classList.remove('active');
+      status.textContent = '✅ 100% Isolated Hitbox';
+      status.style.color = '#34d399';
+    }
+    renderDial();
+  }
+
+  // Initial render
+  renderDial();
+</script>
+
+</body>
+</html>

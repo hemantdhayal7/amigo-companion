@@ -1402,6 +1402,8 @@ export default function App() {
           isSharingMusic={isSharingMusic}
           isPeerMusicOn={isPeerMusicOn}
           musicVolume={musicVolume}
+          musicShareError={musicShareError}
+          onDismissMusicShareError={() => setMusicShareError(null)}
           onToggleMusic={handleToggleMusic}
           onStopMusic={handleStopMusicShare}
           onChangeMusicVolume={handleSetMusicVolume}
