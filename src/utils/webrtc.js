@@ -634,16 +634,17 @@ export class PeerCallManager {
       const offerCollision = this.isMakingOffer || pc.signalingState !== 'stable';
       if (offerCollision) {
         console.log('[WebRTC] Offer collision detected (state:', pc.signalingState, 'isPolite:', isPolite, ')');
+        if (!isPolite) {
+          console.log('[WebRTC] Impolite peer ignoring colliding remote offer to allow local offer to complete');
+          return;
+        }
         if (pc.signalingState === 'have-local-offer') {
-          console.log('[WebRTC] Rolling back dangling local offer to accept incoming remote offer');
+          console.log('[WebRTC] Polite peer rolling back dangling local offer to accept incoming remote offer');
           try {
             await pc.setLocalDescription({ type: 'rollback' });
           } catch (e) {
             console.warn('[WebRTC] Rollback error:', e);
           }
-        } else if (!isPolite && pc.remoteDescription) {
-          console.log('[WebRTC] Impolite peer ignoring colliding remote offer');
-          return;
         }
       }
 

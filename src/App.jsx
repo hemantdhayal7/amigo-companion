@@ -520,8 +520,8 @@ export default function App() {
         icon: newUser.avatar || '🌸',
       });
       if (peerCallManagerRef.current) {
-        console.log('[App] Partner joined room, initiating WebRTC connection to:', newUser.id);
-        peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
+        console.log('[App] Partner joined room, setting target peer and broadcasting status:', newUser.id);
+        peerCallManagerRef.current.setTargetPeerId(newUser.id);
         peerCallManagerRef.current.broadcastMediaStatus();
       }
     });
@@ -713,7 +713,7 @@ export default function App() {
       if (!peerCallManagerRef.current) return;
       const res = await peerCallManagerRef.current.toggleVideo();
       setIsVideoOn(res.isVideoOn);
-      setLocalCamStream(res.isVideoOn ? res.stream : null);
+      setLocalCamStream(res.isVideoOn && res.stream ? new MediaStream(res.stream.getVideoTracks()) : null);
       if (res.isVideoOn) {
         sounds.playCelebration();
       } else {
@@ -742,10 +742,10 @@ export default function App() {
 
   // When partner's video stream is detected, ensure our camera is active if not already
   useEffect(() => {
-    if (isPeerVideoOn && !isVideoOn && !hasAutoStartedVideoRef.current) {
-      hasAutoStartedVideoRef.current = true;
+    if (isPeerVideoOn && !isVideoOn) {
+      console.log('[App] Partner video detected, auto-starting local camera for two-way video...');
       handleToggleVideo().catch((err) => {
-        console.warn('[App] Partner video detected, auto-starting local camera:', err);
+        console.warn('[App] Partner video auto-start error:', err);
       });
     }
   }, [isPeerVideoOn, isVideoOn]);

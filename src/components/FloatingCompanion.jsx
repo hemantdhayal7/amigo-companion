@@ -1838,7 +1838,15 @@ export default function FloatingCompanion({
                         {mainIsRemote ? (
                           hasRemoteVideo ? (
                             <video
-                              ref={remoteVideoRef}
+                              ref={(el) => {
+                                remoteVideoRef.current = el;
+                                if (el && remoteCamStream && el.srcObject !== remoteCamStream) {
+                                  el.muted = true;
+                                  el.playsInline = true;
+                                  el.srcObject = remoteCamStream;
+                                  if (el.paused) el.play().catch(() => {});
+                                }
+                              }}
                               autoPlay
                               playsInline
                               muted
@@ -1848,12 +1856,6 @@ export default function FloatingCompanion({
                               }}
                               onCanPlay={(e) => {
                                 e.target.muted = true;
-                                if (e.target.paused) e.target.play().catch(() => {});
-                              }}
-                              onWaiting={(e) => {
-                                if (e.target.paused) e.target.play().catch(() => {});
-                              }}
-                              onStalled={(e) => {
                                 if (e.target.paused) e.target.play().catch(() => {});
                               }}
                               className="w-full h-full object-cover scale-105 pointer-events-none"
@@ -1868,7 +1870,15 @@ export default function FloatingCompanion({
                           )
                         ) : (
                           <video
-                            ref={localVideoRef}
+                            ref={(el) => {
+                              localVideoRef.current = el;
+                              if (el && localCamStream && el.srcObject !== localCamStream) {
+                                el.muted = true;
+                                el.playsInline = true;
+                                el.srcObject = localCamStream;
+                                if (el.paused) el.play().catch(() => {});
+                              }
+                            }}
                             autoPlay
                             playsInline
                             muted
@@ -1894,11 +1904,22 @@ export default function FloatingCompanion({
                               sounds.playPop();
                               setIsSwappedVideo((prev) => !prev);
                             }}
-                            className="absolute bottom-2 right-2 w-9 h-9 rounded-full overflow-hidden border-2 border-emerald-400 shadow-xl bg-black z-30 cursor-pointer hover:scale-115 active:scale-95 transition-all tauri-no-drag"
+                            className="absolute bottom-2 right-2 w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-400 shadow-xl bg-black z-30 cursor-pointer hover:scale-115 active:scale-95 transition-all tauri-no-drag"
                             title={`Click to show ${mainIsRemote ? 'You' : datePartner.name} in main circle`}
                           >
                             <video
-                              ref={pipVideoRef}
+                              ref={(el) => {
+                                pipVideoRef.current = el;
+                                if (el) {
+                                  el.muted = true;
+                                  el.playsInline = true;
+                                  const targetStream = isSwappedVideo ? remoteCamStream : localCamStream;
+                                  if (targetStream && el.srcObject !== targetStream) {
+                                    el.srcObject = targetStream;
+                                  }
+                                  if (el.paused) el.play().catch(() => {});
+                                }
+                              }}
                               autoPlay
                               playsInline
                               muted
@@ -1909,6 +1930,9 @@ export default function FloatingCompanion({
                               className={`w-full h-full object-cover pointer-events-none ${mainIsRemote ? 'mirror' : ''}`}
                             />
                             <div className="absolute inset-0 bg-emerald-500/10 hover:bg-transparent pointer-events-none transition-colors" />
+                            <span className="absolute bottom-0.5 right-0.5 text-[6.5px] font-mono font-bold bg-black/80 text-emerald-300 px-1 rounded pointer-events-none">
+                              {mainIsRemote ? 'YOU' : datePartner.name.slice(0, 3).toUpperCase()}
+                            </span>
                           </div>
                         )}
 
@@ -1918,9 +1942,19 @@ export default function FloatingCompanion({
                           <span className="truncate max-w-[70px]">{mainIsRemote ? datePartner.name.split(' ')[0] : 'YOU'}</span>
                         </div>
 
-                        {/* Gesture Hint Subtitle */}
-                        <div className="absolute bottom-2 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-white/90 font-mono text-[6.5px] z-20 border border-white/20 pointer-events-none">
-                          {hasBoth ? 'TAP PIP TO SWAP' : 'AMIGO LIVE'}
+                        {/* Gesture Hint / Duo View Subtitle */}
+                        <div
+                          data-tauri-drag-region="false"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sounds.playPop();
+                            setFaceToFaceMode((prev) => !prev);
+                          }}
+                          className="absolute bottom-2 px-2 py-0.5 rounded-full bg-black/85 backdrop-blur-md text-emerald-300 font-mono text-[6.5px] font-bold z-20 border border-emerald-400/40 cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition-all tauri-no-drag"
+                          title="Click to toggle Side-by-Side Dual Face-to-Face Cards"
+                        >
+                          {faceToFaceMode ? '✕ CLOSE DUO' : hasBoth ? '👥 2-WAY (TAP FOR DUO)' : 'AMIGO LIVE'}
                         </div>
                       </>
                     );
