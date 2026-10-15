@@ -161,64 +161,75 @@ export default function FloatingCompanion({
 
   // Synchronize dual face-to-face video elements
   useEffect(() => {
-    if (dualLocalVideoRef.current && localCamStream) {
-      if (dualLocalVideoRef.current.srcObject !== localCamStream) {
-        dualLocalVideoRef.current.srcObject = localCamStream;
+    const video = dualLocalVideoRef.current;
+    if (video && localCamStream) {
+      video.muted = true;
+      video.playsInline = true;
+      if (video.srcObject !== localCamStream) {
+        video.srcObject = localCamStream;
       }
-      if (isVideoOn) {
-        dualLocalVideoRef.current.play().catch(() => {});
+      if (isVideoOn && video.paused) {
+        video.play().catch(() => {});
       }
     }
   }, [localCamStream, isVideoOn, faceToFaceMode]);
 
   useEffect(() => {
-    if (dualRemoteVideoRef.current && remoteCamStream) {
-      if (dualRemoteVideoRef.current.srcObject !== remoteCamStream) {
-        dualRemoteVideoRef.current.srcObject = remoteCamStream;
+    const video = dualRemoteVideoRef.current;
+    if (video && remoteCamStream) {
+      video.muted = true;
+      video.playsInline = true;
+      if (video.srcObject !== remoteCamStream) {
+        video.srcObject = remoteCamStream;
       }
-      if (isPeerVideoOn || hasRemoteVideo) {
-        dualRemoteVideoRef.current.play().catch(() => {});
+      if ((isPeerVideoOn || hasRemoteVideo) && video.paused) {
+        video.play().catch(() => {});
       }
     }
   }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, faceToFaceMode]);
 
   // Attach local webcam stream
   useEffect(() => {
-    if (localVideoRef.current && localCamStream) {
-      localVideoRef.current.muted = true;
-      localVideoRef.current.playsInline = true;
-      if (localVideoRef.current.srcObject !== localCamStream) {
-        localVideoRef.current.srcObject = localCamStream;
+    const video = localVideoRef.current;
+    if (video && localCamStream) {
+      video.muted = true;
+      video.playsInline = true;
+      if (video.srcObject !== localCamStream) {
+        video.srcObject = localCamStream;
       }
-      if (isVideoOn) {
-        localVideoRef.current.play().catch(() => {});
+      if (isVideoOn && video.paused) {
+        video.play().catch(() => {});
       }
     }
   }, [localCamStream, isVideoOn, showRemote, isSwappedVideo]);
 
   // Attach pip video stream
   useEffect(() => {
-    if (pipVideoRef.current) {
-      pipVideoRef.current.muted = true;
-      pipVideoRef.current.playsInline = true;
+    const video = pipVideoRef.current;
+    if (video) {
+      video.muted = true;
+      video.playsInline = true;
       const pipStream = isSwappedVideo ? remoteCamStream : localCamStream;
-      if (pipStream && pipVideoRef.current.srcObject !== pipStream) {
-        pipVideoRef.current.srcObject = pipStream;
+      if (pipStream && video.srcObject !== pipStream) {
+        video.srcObject = pipStream;
       }
-      pipVideoRef.current.play().catch(() => {});
+      if (video.paused && (isVideoOn || isPeerVideoOn || hasRemoteVideo)) {
+        video.play().catch(() => {});
+      }
     }
-  }, [localCamStream, remoteCamStream, isSwappedVideo, showRemote, isVideoOn]);
+  }, [localCamStream, remoteCamStream, isSwappedVideo, showRemote, isVideoOn, isPeerVideoOn, hasRemoteVideo]);
 
   // Attach remote partner's webcam stream and guarantee instant playback resumption
   useEffect(() => {
-    if (remoteVideoRef.current && remoteCamStream) {
-      remoteVideoRef.current.muted = true;
-      remoteVideoRef.current.playsInline = true;
-      if (remoteVideoRef.current.srcObject !== remoteCamStream) {
-        remoteVideoRef.current.srcObject = remoteCamStream;
+    const video = remoteVideoRef.current;
+    if (video && remoteCamStream) {
+      video.muted = true;
+      video.playsInline = true;
+      if (video.srcObject !== remoteCamStream) {
+        video.srcObject = remoteCamStream;
       }
-      if (isPeerVideoOn || hasRemoteVideo) {
-        remoteVideoRef.current.play().catch((err) => {
+      if ((isPeerVideoOn || hasRemoteVideo) && video.paused) {
+        video.play().catch((err) => {
           console.debug('[FloatingCompanion] Remote video play postponed:', err);
         });
       }
@@ -229,33 +240,31 @@ export default function FloatingCompanion({
   useEffect(() => {
     if (!remoteCamStream || (!isPeerVideoOn && !hasRemoteVideo)) return;
 
-    let lastCurrentTime = -1;
+    let lastRemoteTime = -1;
     let staleCount = 0;
 
     const watchdog = setInterval(() => {
-      const activeVideos = [remoteVideoRef.current, dualRemoteVideoRef.current].filter(Boolean);
-      for (const v of activeVideos) {
-        if (!v) continue;
-        if (v.srcObject !== remoteCamStream) {
-          v.srcObject = remoteCamStream;
-        }
-        if (v.paused) {
-          v.play().catch(() => {});
-        } else if (v.readyState >= 2) {
-          if (v.currentTime === lastCurrentTime && v.currentTime > 0) {
-            staleCount++;
-            if (staleCount >= 2) {
-              console.log('[Anti-Freeze] Video stalled on frame, re-triggering playback');
-              v.play().catch(() => {});
-              staleCount = 0;
-            }
-          } else {
+      const v = remoteVideoRef.current;
+      if (!v) return;
+      if (v.srcObject !== remoteCamStream) {
+        v.srcObject = remoteCamStream;
+      }
+      if (v.paused) {
+        v.play().catch(() => {});
+      } else if (v.readyState >= 2) {
+        if (v.currentTime === lastRemoteTime && v.currentTime > 0) {
+          staleCount++;
+          if (staleCount >= 2) {
+            console.log('[Anti-Freeze] Video stalled on frame, re-triggering playback');
+            v.play().catch(() => {});
             staleCount = 0;
           }
-          lastCurrentTime = v.currentTime;
+        } else {
+          staleCount = 0;
         }
+        lastRemoteTime = v.currentTime;
       }
-    }, 1500);
+    }, 2000);
 
     return () => clearInterval(watchdog);
   }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo]);
@@ -1829,33 +1838,23 @@ export default function FloatingCompanion({
                         {mainIsRemote ? (
                           hasRemoteVideo ? (
                             <video
-                              ref={(el) => {
-                                remoteVideoRef.current = el;
-                                if (el && remoteCamStream) {
-                                  el.muted = true;
-                                  el.playsInline = true;
-                                  if (el.srcObject !== remoteCamStream) {
-                                    el.srcObject = remoteCamStream;
-                                  }
-                                  el.play().catch(() => {});
-                                }
-                              }}
+                              ref={remoteVideoRef}
                               autoPlay
                               playsInline
                               muted
                               onLoadedMetadata={(e) => {
                                 e.target.muted = true;
-                                e.target.play().catch(() => {});
+                                if (e.target.paused) e.target.play().catch(() => {});
                               }}
                               onCanPlay={(e) => {
                                 e.target.muted = true;
-                                e.target.play().catch(() => {});
+                                if (e.target.paused) e.target.play().catch(() => {});
                               }}
                               onWaiting={(e) => {
-                                e.target.play().catch(() => {});
+                                if (e.target.paused) e.target.play().catch(() => {});
                               }}
                               onStalled={(e) => {
-                                e.target.play().catch(() => {});
+                                if (e.target.paused) e.target.play().catch(() => {});
                               }}
                               className="w-full h-full object-cover scale-105 pointer-events-none"
                             />
@@ -1869,27 +1868,17 @@ export default function FloatingCompanion({
                           )
                         ) : (
                           <video
-                            ref={(el) => {
-                              localVideoRef.current = el;
-                              if (el) {
-                                el.muted = true;
-                                el.playsInline = true;
-                                if (localCamStream && el.srcObject !== localCamStream) {
-                                  el.srcObject = localCamStream;
-                                  el.play().catch(() => {});
-                                }
-                              }
-                            }}
+                            ref={localVideoRef}
                             autoPlay
                             playsInline
                             muted
                             onLoadedMetadata={(e) => {
                               e.target.muted = true;
-                              e.target.play().catch(() => {});
+                              if (e.target.paused) e.target.play().catch(() => {});
                             }}
                             onCanPlay={(e) => {
                               e.target.muted = true;
-                              e.target.play().catch(() => {});
+                              if (e.target.paused) e.target.play().catch(() => {});
                             }}
                             className="w-full h-full object-cover mirror scale-105 pointer-events-none"
                           />
@@ -1908,41 +1897,17 @@ export default function FloatingCompanion({
                             className="absolute bottom-2 right-2 w-9 h-9 rounded-full overflow-hidden border-2 border-emerald-400 shadow-xl bg-black z-30 cursor-pointer hover:scale-115 active:scale-95 transition-all tauri-no-drag"
                             title={`Click to show ${mainIsRemote ? 'You' : datePartner.name} in main circle`}
                           >
-                            {mainIsRemote ? (
-                              <video
-                                ref={(el) => {
-                                  pipVideoRef.current = el;
-                                  if (el && localCamStream) {
-                                    if (el.srcObject !== localCamStream) {
-                                      el.srcObject = localCamStream;
-                                    }
-                                    el.play().catch(() => {});
-                                  }
-                                }}
-                                autoPlay
-                                playsInline
-                                muted
-                                onLoadedMetadata={(e) => e.target.play().catch(() => {})}
-                                className="w-full h-full object-cover mirror pointer-events-none"
-                              />
-                            ) : (
-                              <video
-                                ref={(el) => {
-                                  pipVideoRef.current = el;
-                                  if (el && remoteCamStream) {
-                                    if (el.srcObject !== remoteCamStream) {
-                                      el.srcObject = remoteCamStream;
-                                    }
-                                    el.play().catch(() => {});
-                                  }
-                                }}
-                                autoPlay
-                                playsInline
-                                muted
-                                onLoadedMetadata={(e) => e.target.play().catch(() => {})}
-                                className="w-full h-full object-cover pointer-events-none"
-                              />
-                            )}
+                            <video
+                              ref={pipVideoRef}
+                              autoPlay
+                              playsInline
+                              muted
+                              onLoadedMetadata={(e) => {
+                                e.target.muted = true;
+                                if (e.target.paused) e.target.play().catch(() => {});
+                              }}
+                              className={`w-full h-full object-cover pointer-events-none ${mainIsRemote ? 'mirror' : ''}`}
+                            />
                             <div className="absolute inset-0 bg-emerald-500/10 hover:bg-transparent pointer-events-none transition-colors" />
                           </div>
                         )}
@@ -2059,21 +2024,14 @@ export default function FloatingCompanion({
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-950 border border-white/15 flex items-center justify-center shadow-inner">
                   {showRemote ? (
                     <video
-                      ref={(el) => {
-                        dualRemoteVideoRef.current = el;
-                        if (el && remoteCamStream) {
-                          if (el.srcObject !== remoteCamStream) {
-                            el.srcObject = remoteCamStream;
-                          }
-                          el.play().catch(() => {});
-                        }
-                      }}
+                      ref={dualRemoteVideoRef}
                       autoPlay
                       playsInline
                       muted
-                      onLoadedMetadata={(e) => e.target.play().catch(() => {})}
-                      onWaiting={(e) => e.target.play().catch(() => {})}
-                      onStalled={(e) => e.target.play().catch(() => {})}
+                      onLoadedMetadata={(e) => {
+                        e.target.muted = true;
+                        if (e.target.paused) e.target.play().catch(() => {});
+                      }}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -2105,19 +2063,14 @@ export default function FloatingCompanion({
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-950 border border-white/15 flex items-center justify-center shadow-inner">
                   {isVideoOn && localCamStream ? (
                     <video
-                      ref={(el) => {
-                        dualLocalVideoRef.current = el;
-                        if (el && localCamStream) {
-                          if (el.srcObject !== localCamStream) {
-                            el.srcObject = localCamStream;
-                          }
-                          el.play().catch(() => {});
-                        }
-                      }}
+                      ref={dualLocalVideoRef}
                       autoPlay
                       playsInline
                       muted
-                      onLoadedMetadata={(e) => e.target.play().catch(() => {})}
+                      onLoadedMetadata={(e) => {
+                        e.target.muted = true;
+                        if (e.target.paused) e.target.play().catch(() => {});
+                      }}
                       className="w-full h-full object-cover mirror"
                     />
                   ) : (

@@ -15,32 +15,34 @@ const RTC_CONFIG = {
   iceCandidatePoolSize: 2,
 };
 
-// Guarantee Linux WebKitGTK / Chromium decodes video by prioritizing royalty-free VP8 in SDP
-function preferVP8InSdp(sdp) {
+// Prioritize hardware-accelerated H264 (NVENC, Intel QuickSync, Apple VideoToolbox)
+// with VP8 as reliable software fallback across Linux/Windows/Mac
+function preferHardwareCodecsInSdp(sdp) {
   if (!sdp || typeof sdp !== 'string') return sdp;
   try {
     const lines = sdp.split('\r\n');
     const mVideoIdx = lines.findIndex((l) => l.startsWith('m=video '));
     if (mVideoIdx === -1) return sdp;
 
-    let vp8Pt = null;
+    const h264Pts = [];
+    const vp8Pts = [];
     for (const line of lines) {
-      const match = line.match(/^a=rtpmap:(\d+)\s+VP8\/90000/i);
-      if (match) {
-        vp8Pt = match[1];
-        break;
-      }
+      const h264Match = line.match(/^a=rtpmap:(\d+)\s+H264\/90000/i);
+      if (h264Match) h264Pts.push(h264Match[1]);
+      const vp8Match = line.match(/^a=rtpmap:(\d+)\s+VP8\/90000/i);
+      if (vp8Match) vp8Pts.push(vp8Match[1]);
     }
 
-    if (vp8Pt) {
+    const priorityPts = [...h264Pts, ...vp8Pts];
+    if (priorityPts.length > 0) {
       const parts = lines[mVideoIdx].split(' ');
       const header = parts.slice(0, 3);
-      const rest = parts.slice(3).filter((p) => p !== vp8Pt);
-      lines[mVideoIdx] = [...header, vp8Pt, ...rest].join(' ');
+      const rest = parts.slice(3).filter((p) => !priorityPts.includes(p));
+      lines[mVideoIdx] = [...header, ...priorityPts, ...rest].join(' ');
       return lines.join('\r\n');
     }
   } catch (err) {
-    console.warn('[WebRTC] SDP VP8 sort warning:', err);
+    console.warn('[WebRTC] SDP codec sort warning:', err);
   }
   return sdp;
 }
@@ -70,7 +72,7 @@ function optimizeOpusInSdp(sdp) {
 
 function optimizeSdp(sdp) {
   if (!sdp || typeof sdp !== 'string') return sdp;
-  return optimizeOpusInSdp(preferVP8InSdp(sdp));
+  return optimizeOpusInSdp(preferHardwareCodecsInSdp(sdp));
 }
 
 export class PeerCallManager {
@@ -182,23 +184,32 @@ export class PeerCallManager {
     }
   }
 
-  preferVP8(transceiver) {
+  preferCodecs(transceiver) {
     if (!transceiver || !transceiver.setCodecPreferences) return;
     try {
       if (typeof RTCRtpReceiver !== 'undefined' && RTCRtpReceiver.getCapabilities) {
         const caps = RTCRtpReceiver.getCapabilities('video');
         if (caps && caps.codecs) {
+          // Prioritize hardware-accelerated H264 (NVENC, QuickSync, Apple VideoToolbox), then VP8, then others
+          const h264Codecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() === 'video/h264');
           const vp8Codecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() === 'video/vp8');
-          const otherCodecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() !== 'video/vp8');
-          if (vp8Codecs.length > 0) {
-            transceiver.setCodecPreferences([...vp8Codecs, ...otherCodecs]);
-            console.log('[WebRTC] Set video transceiver codec preferences to prefer VP8');
+          const otherCodecs = caps.codecs.filter(
+            (c) => c.mimeType && c.mimeType.toLowerCase() !== 'video/h264' && c.mimeType.toLowerCase() !== 'video/vp8'
+          );
+          const preferred = [...h264Codecs, ...vp8Codecs, ...otherCodecs];
+          if (preferred.length > 0) {
+            transceiver.setCodecPreferences(preferred);
+            console.log('[WebRTC] Set video codec preferences: H.264 (Hardware) -> VP8 -> Others');
           }
         }
       }
     } catch (e) {
-      console.warn('[WebRTC] Error setting VP8 codec preferences:', e);
+      console.warn('[WebRTC] Error setting codec preferences:', e);
     }
+  }
+
+  preferVP8(transceiver) {
+    this.preferCodecs(transceiver);
   }
 
   async initiateCallTo(targetUserId) {
@@ -425,7 +436,7 @@ export class PeerCallManager {
         const hasVideo = pc.getTransceivers().some((t) => t.receiver?.track?.kind === 'video');
         if (!hasVideo) {
           const vt = pc.addTransceiver('video', { direction: 'sendrecv' });
-          this.preferVP8(vt);
+          this.preferCodecs(vt);
           this.videoSender = vt.sender;
         }
       } catch (e) {
@@ -441,6 +452,13 @@ export class PeerCallManager {
       console.log('[WebRTC] Remote track received:', event.track?.kind, event.track?.id);
       const incomingTrack = event.track;
       if (!incomingTrack) return;
+
+      // Minimize receiver jitter buffer delay for real-time video and audio (50ms hint)
+      if (event.receiver && 'playoutDelayHint' in event.receiver) {
+        try {
+          event.receiver.playoutDelayHint = 0.05;
+        } catch {}
+      }
 
       // Clean out any stale or ended tracks of the same kind to prevent video freeze
       this.remoteStream.getTracks().forEach((existingTrack) => {
@@ -1110,20 +1128,31 @@ export class PeerCallManager {
           console.warn('[WebRTC] enumerateDevices notice:', e);
         }
 
-        // 2. Primary attempt: Relaxed resolution constraint without strict facingMode
+        // 2. Primary attempt: 30fps target framerate with ideal 640x480 resolution
         // Note: Virtual cameras (OBS, CamStudio, ManyCam) often reject 'facingMode' constraints!
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 } },
+            video: {
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 },
+              frameRate: { ideal: 30, min: 24, max: 30 },
+            },
           });
         } catch (e1) {
           console.warn('[WebRTC] Primary getUserMedia with ideal dimensions failed:', e1);
           lastError = e1;
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { frameRate: { ideal: 30, min: 20 } },
+            });
           } catch (e2) {
-            console.warn('[WebRTC] Secondary getUserMedia({ video: true }) failed:', e2);
+            console.warn('[WebRTC] Secondary getUserMedia failed:', e2);
             lastError = e2;
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (e3) {
+              lastError = e3;
+            }
           }
         }
 
@@ -1134,7 +1163,10 @@ export class PeerCallManager {
             try {
               console.log(`[WebRTC] Trying specific video device: "${dev.label || dev.deviceId}"`);
               stream = await navigator.mediaDevices.getUserMedia({
-                video: { deviceId: { exact: dev.deviceId } },
+                video: {
+                  deviceId: { exact: dev.deviceId },
+                  frameRate: { ideal: 30, min: 20 },
+                },
               });
               if (stream) {
                 console.log(`[WebRTC] Successfully opened video device: "${dev.label || dev.deviceId}"`);
@@ -1172,7 +1204,7 @@ export class PeerCallManager {
         if (videoTransceiver) {
           console.log('[WebRTC] Attaching video track to transceiver sender');
           videoTransceiver.direction = 'sendrecv';
-          this.preferVP8(videoTransceiver);
+          this.preferCodecs(videoTransceiver);
           await videoTransceiver.sender.replaceTrack(newVideoTrack);
           this.videoSender = videoTransceiver.sender;
         } else {
@@ -1181,7 +1213,7 @@ export class PeerCallManager {
             direction: 'sendrecv',
             streams: [this.localStream],
           });
-          this.preferVP8(vt);
+          this.preferCodecs(vt);
           this.videoSender = vt.sender;
         }
 
@@ -1189,17 +1221,18 @@ export class PeerCallManager {
           newVideoTrack.contentHint = 'motion';
         }
 
-        // Configure smooth maintain-framerate profile (1.2 Mbps ceiling to prevent Wi-Fi freeze/stutter)
+        // Configure ultra-smooth 30fps maintain-framerate profile (750 kbps sweet spot eliminates Wi-Fi bufferbloat and frame drops)
         if (this.videoSender?.getParameters && this.videoSender?.setParameters) {
           try {
             const params = this.videoSender.getParameters();
             if (params && params.encodings && params.encodings.length > 0) {
-              params.encodings[0].maxBitrate = 1200000;
+              params.encodings[0].maxBitrate = 750000; // 750 kbps
+              params.encodings[0].maxFramerate = 30;
               params.encodings[0].networkPriority = 'high';
               params.encodings[0].priority = 'high';
               params.degradationPreference = 'maintain-framerate';
               await this.videoSender.setParameters(params);
-              console.log('[WebRTC] Enforced maintain-framerate & 1.2Mbps cap for smooth camera video');
+              console.log('[WebRTC] Enforced maintain-framerate, 30fps cap & 750kbps bitrate for smooth video');
             }
           } catch (paramErr) {
             console.warn('[WebRTC] Note on camera parameters:', paramErr);
@@ -1256,7 +1289,7 @@ export class PeerCallManager {
     if (videoTransceiver) {
       console.log('[WebRTC] Replacing video sender track with screen share track');
       videoTransceiver.direction = 'sendrecv';
-      this.preferVP8(videoTransceiver);
+      this.preferCodecs(videoTransceiver);
       await videoTransceiver.sender.replaceTrack(screenTrack);
       this.videoSender = videoTransceiver.sender;
     } else {
@@ -1265,7 +1298,7 @@ export class PeerCallManager {
         direction: 'sendrecv',
         streams: [this.localStream],
       });
-      this.preferVP8(vt);
+      this.preferCodecs(vt);
       this.videoSender = vt.sender;
     }
 
