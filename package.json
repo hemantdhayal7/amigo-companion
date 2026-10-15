@@ -10,7 +10,7 @@
     "preview": "vite preview --host",
     "server": "node server.js",
     "electron": "electron electron-main.cjs --no-sandbox",
-    "start": "npm run build && concurrently \"node server.js\" \"electron electron-main.cjs --no-sandbox\"",
+    "start": "node server.js",
     "tauri": "tauri"
   },
   "dependencies": {

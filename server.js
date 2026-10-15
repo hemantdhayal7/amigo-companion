@@ -661,7 +661,7 @@ httpServer.on('error', (err) => {
   }
 });
 
-httpServer.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '::', () => {
   const net = getNetworkInfo();
   console.log(`\n======================================================`);
   console.log(`🥬 Amigo Secure Signaling Server is LIVE!`);

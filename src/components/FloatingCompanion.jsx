@@ -123,6 +123,8 @@ export default function FloatingCompanion({
   onToggleMusic = () => {},
   onStopMusic = () => {},
   onChangeMusicVolume = () => {},
+  onMouseEnter = () => {},
+  onMouseLeave = () => {},
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCabbageBouncing, setIsCabbageBouncing] = useState(false);
