@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amigo 🥬 Full To-Do, Time Tracking & App Suite Design Prototype</title>
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --card-bg: rgba(20, 27, 45, 0.85);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #6366f1;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-violet: #8b5cf6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 10%, #171e38 0%, #080c14 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 80px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Top Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cabbage-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    }
+
+    .hero-text h1 {
+      font-size: 20px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #34d399, #38bdf8, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .hero-badges {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-family: monospace;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Main App Layout: Sidebar + Main Workspace */
+    .app-frame {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      overflow: hidden;
+      min-height: 720px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(20px);
+    }
+
+    @media (max-width: 900px) {
+      .app-frame {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sidebar Navigation */
+    .app-sidebar {
+      background: rgba(11, 16, 27, 0.85);
+      border-right: 1px solid var(--card-border);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .nav-group-title {
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      padding-left: 8px;
+    }
+
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 12px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: transparent;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+    }
+
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(16, 185, 129, 0.2));
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #fff;
+    }
+
+    .nav-item-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-pill-count {
+      font-size: 10px;
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+
+    /* Partner Status Card in Sidebar */
+    .partner-sidebar-card {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.8), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .partner-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .partner-live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .partner-task-preview {
+      font-size: 11px;
+      color: #c4b5fd;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 6px 8px;
+      border-radius: 8px;
+      line-height: 1.3;
+    }
+
+    /* Workspace / Main Content */
+    .app-workspace {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    /* Top Focus Bar with Live Stopwatch */
+    .active-focus-bar {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 18px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15);
+    }
+
+    .focus-task-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .focus-icon {
+      font-size: 22px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    .focus-text h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .focus-text span {
+      font-size: 11px;
+      color: #6ee7b7;
+      font-family: monospace;
+    }
+
+    .stopwatch-display {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 8px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .timer-digits {
+      font-family: monospace;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #34d399;
+    }
+
+    .btn-timer-toggle {
+      background: #10b981;
+      border: none;
+      color: #064e3b;
+      padding: 6px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-timer-toggle:hover {
+      background: #34d399;
+      transform: scale(1.04);
+    }
+
+    .btn-timer-toggle.paused {
+      background: #f59e0b;
+      color: #78350f;
+    }
+
+    /* Analytics Summary Cards (3 Columns) */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    @media (max-width: 700px) {
+      .stats-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .stat-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .stat-donut {
+      width: 48px;
+      height: 48px;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .stat-donut svg {
+      width: 48px;
+      height: 48px;
+      transform: rotate(-90deg);
+    }
+
+    .donut-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.1);
+      stroke-width: 4;
+    }
+
+    .donut-fg {
+      fill: none;
+      stroke-width: 4;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.8s ease;
+    }
+
+    .stat-donut-val {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 800;
+    }
+
+    .stat-info .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-info .stat-num {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 2px;
+    }
+
+    /* Task Management Header & Quick Add */
+    .task-mgmt-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .filter-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      color: #fff;
+    }
+
+    .filter-btn.active {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .add-task-bar {
+      display: flex;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 6px 8px 6px 16px;
+      align-items: center;
+    }
+
+    .add-task-bar input[type="text"] {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .add-task-bar input[type="text"]::placeholder {
+      color: var(--text-dim);
+    }
+
+    .select-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn-add-task {
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-add-task:hover {
+      background: #4f46e5;
+      transform: translateY(-1px);
+    }
+
+    /* Tasks List */
+    .tasks-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .task-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.25s ease;
+    }
+
+    .task-card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: rgba(20, 29, 52, 0.75);
+    }
+
+    .task-card.active-running {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+    }
+
+    .task-card.completed {
+      opacity: 0.6;
+    }
+
+    .task-main-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .task-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .task-checkbox {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .task-checkbox:hover {
+      border-color: #10b981;
+    }
+
+    .task-checkbox.checked {
+      background: #10b981;
+      border-color: #10b981;
+      color: #fff;
+    }
+
+    .task-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .task-card.completed .task-title {
+      text-decoration: line-through;
+      color: var(--text-dim);
+    }
+
+    .task-meta-tags {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-left: 8px;
+    }
+
+    .tag-category {
+      font-size: 9px;
+      font-family: monospace;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .tag-priority-high {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(244, 63, 94, 0.2);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .tag-priority-med {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(245, 158, 11, 0.2);
+      color: #fde68a;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .task-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .task-time-spent {
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-task-action {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-task-action:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-task-action.play {
+      background: #10b981;
+      border-color: #34d399;
+      color: #064e3b;
+    }
+
+    .btn-task-action.pause {
+      background: #f59e0b;
+      border-color: #fbbf24;
+      color: #78350f;
+    }
+
+    /* Subtasks expandable section */
+    .subtasks-section {
+      padding-top: 8px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 32px;
+    }
+
+    .subtask-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .subtask-checkbox {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      border: 1.5px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+    }
+
+    .subtask-checkbox.checked {
+      background: #6366f1;
+      border-color: #6366f1;
+    }
+
+    .subtask-item.checked {
+      text-decoration: line-through;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Top Hero Header -->
+  <div class="hero-banner">
+    <div class="hero-title">
+      <div class="cabbage-avatar">🥬</div>
+      <div class="hero-text">
+        <h1>Amigo — Complete Productivity & Study Suite</h1>
+        <p>Full To-Do Engine • Stopwatch & Pomodoro Time Tracker • Progress Analytics • Duo Co-Working</p>
+      </div>
+    </div>
+    <div class="hero-badges">
+      <span class="badge" id="liveClockBadge">🕒 02:45:10 Today</span>
+      <span class="badge" style="background: rgba(99,102,241,0.2); color: #a5b4fc; border-color: #6366f1;">
+        👥 Duo Room: #our-study-date
+      </span>
+    </div>
+  </div>
+
+  <!-- Main Complete App Frame -->
+  <div class="app-frame">
+    <!-- Left App Sidebar (Full App Navigation) -->
+    <div class="app-sidebar">
+      <div>
+        <div class="nav-group-title">Command Center</div>
+        <div class="nav-list">
+          <div class="nav-item active" onclick="switchNav(this, 'tasks')">
+            <div class="nav-item-left">
+              <span>📋</span>
+              <span>To-Do & Tasks</span>
+            </div>
+            <span class="nav-pill-count" id="navCountTotal">4</span>
+          </div>
+
+          <div class="nav-item" onclick="switchNav(this, 'tracker')">
+            <div class="nav-item-left">
+              <span>⏱️</span>
+              <span>Time Tracker</span>
+            </div>
+            <span class="badge" style="font-size: 9px; padding: 2px 6px;">LIVE</span>
+          </div>
+
+          <div class="nav-item" onclick="switchNav(this, 'analytics')">
+            <div class="nav-item-left">
+              <span>📊</span>
+              <span>Progress & Goals</span>
+            </div>
+          </div>
+
+          <div class="nav-item" onclick="switchNav(this, 'duo')">
+            <div class="nav-item-left">
+              <span>👥</span>
+              <span>Duo Study Lounge</span>
+            </div>
+            <span class="nav-pill-count">2/2</span>
+          </div>
+
+          <div class="nav-item" onclick="switchNav(this, 'doubts')">
+            <div class="nav-item-left">
+              <span>💡</span>
+              <span>Ephemeral Doubts</span>
+            </div>
+            <span class="nav-pill-count">1</span>
+          </div>
+
+          <div class="nav-item" onclick="switchNav(this, 'settings')">
+            <div class="nav-item-left">
+              <span>⚙️</span>
+              <span>App Settings</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Partner Accountability Card in Sidebar -->
+      <div class="partner-sidebar-card">
+        <div class="partner-header">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="partner-live-dot"></span>
+            <span>Siddhi (Study Mate)</span>
+          </div>
+          <span style="color: #34d399; font-family: monospace;">75% Done</span>
+        </div>
+        <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Currently Focusing:</div>
+        <div class="partner-task-preview" id="partnerLiveTask">
+          📖 Solving Calculus Problem Set 4 (28m active)
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Workspace Area -->
+    <div class="app-workspace">
+      <!-- 1. Active Focus & Live Task Stopwatch Header -->
+      <div class="active-focus-bar" id="activeFocusBar">
+        <div class="focus-task-info">
+          <div class="focus-icon" id="focusIcon">⚡</div>
+          <div class="focus-text">
+            <h3 id="focusTaskTitle">Review Chapter 3 formulas & summary notes</h3>
+            <span id="focusTaskMeta">Category: Quantitative • Priority: High</span>
+          </div>
+        </div>
+
+        <div class="stopwatch-display">
+          <div class="timer-digits" id="timerDigits">00:23:45</div>
+          <button class="btn-timer-toggle" id="btnTimerToggle" onclick="toggleMainStopwatch()">
+            <span id="timerActionIcon">⏸️</span>
+            <span id="timerActionText">Pause</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Analytics & Progress Row (3 Cards) -->
+      <div class="stats-row">
+        <!-- Card A: Daily Tasks Progress -->
+        <div class="stat-card">
+          <div class="stat-donut">
+            <svg viewBox="0 0 48 48">
+              <circle class="donut-bg" cx="24" cy="24" r="20" />
+              <circle class="donut-fg" id="tasksDonut" cx="24" cy="24" r="20" stroke="#10b981" stroke-dasharray="125.6" stroke-dashoffset="62.8" />
+            </svg>
+            <div class="stat-donut-val" id="tasksPercentText" style="color: #34d399;">50%</div>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">Tasks Completed</div>
+            <div class="stat-num" id="tasksFractionText">2 / 4 Done</div>
+          </div>
+        </div>
+
+        <!-- Card B: Total Time Studied Today -->
+        <div class="stat-card">
+          <div class="stat-donut">
+            <svg viewBox="0 0 48 48">
+              <circle class="donut-bg" cx="24" cy="24" r="20" />
+              <circle class="donut-fg" cx="24" cy="24" r="20" stroke="#06b6d4" stroke-dasharray="125.6" stroke-dashoffset="37.6" />
+            </svg>
+            <div class="stat-donut-val" style="color: #38bdf8;">70%</div>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">Focus Time Today</div>
+            <div class="stat-num" id="totalTimeDisplay">2h 45m</div>
+          </div>
+        </div>
+
+        <!-- Card C: Duo Progress Moat (Combined Score with Siddhi) -->
+        <div class="stat-card">
+          <div class="stat-donut">
+            <svg viewBox="0 0 48 48">
+              <circle class="donut-bg" cx="24" cy="24" r="20" />
+              <circle class="donut-fg" cx="24" cy="24" r="20" stroke="#8b5cf6" stroke-dasharray="125.6" stroke-dashoffset="47.1" />
+            </svg>
+            <div class="stat-donut-val" style="color: #c084fc;">62%</div>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">Duo Harmony Score</div>
+            <div class="stat-num">You (50%) + Siddhi (75%)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Task Management Toolbar & Quick-Add -->
+      <div class="task-mgmt-header">
+        <div class="filter-tabs">
+          <button class="filter-btn active" onclick="setFilter('all', this)">All (4)</button>
+          <button class="filter-btn" onclick="setFilter('active', this)">Active (2)</button>
+          <button class="filter-btn" onclick="setFilter('done', this)">Completed (2)</button>
+          <button class="filter-btn" onclick="setFilter('high', this)">🔥 High Priority</button>
+        </div>
+
+        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">
+          Sort: <span style="color: #fff; cursor: pointer;">Priority ▾</span>
+        </div>
+      </div>
+
+      <!-- Quick Add Task Bar -->
+      <form class="add-task-bar" onsubmit="handleAddTask(event)">
+        <span style="font-size: 16px;">➕</span>
+        <input type="text" id="inputNewTask" placeholder="Add a new task (e.g. 'Solve 10 practice problems', 'Draft certification notes')..." required />
+        
+        <select class="select-pill" id="selectCategory">
+          <option value="Quantitative">📐 Quantitative</option>
+          <option value="Coding">💻 Coding</option>
+          <option value="Revision">📖 Revision</option>
+          <option value="Exam Prep">🎯 Exam Prep</option>
+        </select>
+
+        <select class="select-pill" id="selectPriority">
+          <option value="high">🔥 High</option>
+          <option value="med" selected>⚡ Medium</option>
+          <option value="low">☕ Low</option>
+        </select>
+
+        <button type="submit" class="btn-add-task">
+          <span>Add Task</span>
+        </button>
+      </form>
+
+      <!-- 4. Interactive Tasks List with Subtasks & Stopwatch -->
+      <div class="tasks-container" id="tasksList">
+        <!-- Rendered dynamically by JavaScript below -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Initial Mock Data
+  let tasks = [
+    {
+      id: 1,
+      title: 'Review Chapter 3 formulas & summary notes',
+      category: 'Quantitative',
+      priority: 'high',
+      completed: false,
+      timeSpent: 1425, // seconds (23m 45s)
+      isRunning: true,
+      subtasks: [
+        { id: 101, text: 'Review Calculus integration formulas', completed: true },
+        { id: 102, text: 'Write 1-page formula cheatsheet', completed: false }
+      ]
+    },
+    {
+      id: 2,
+      title: 'Solve 10 practice exam questions',
+      category: 'Exam Prep',
+      priority: 'high',
+      completed: false,
+      timeSpent: 900, // 15m
+      isRunning: false,
+      subtasks: [
+        { id: 201, text: 'Questions 1 to 5 (Timed)', completed: false },
+        { id: 202, text: 'Questions 6 to 10 (Analysis)', completed: false }
+      ]
+    },
+    {
+      id: 3,
+      title: 'Draft certification summary sheet',
+      category: 'Revision',
+      priority: 'med',
+      completed: true,
+      timeSpent: 2700, // 45m
+      isRunning: false,
+      subtasks: []
+    },
+    {
+      id: 4,
+      title: 'Setup GitHub repository & deployment pipeline',
+      category: 'Coding',
+      priority: 'low',
+      completed: true,
+      timeSpent: 1800, // 30m
+      isRunning: false,
+      subtasks: []
+    }
+  ];
+
+  let currentFilter = 'all';
+  let activeRunningTaskId = 1;
+
+  function formatTime(totalSeconds) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) {
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function renderTasks() {
+    const container = document.getElementById('tasksList');
+    container.innerHTML = '';
+
+    const filtered = tasks.filter(t => {
+      if (currentFilter === 'active') return !t.completed;
+      if (currentFilter === 'done') return t.completed;
+      if (currentFilter === 'high') return t.priority === 'high';
+      return true;
+    });
+
+    filtered.forEach(task => {
+      const card = document.createElement('div');
+      card.className = `task-card ${task.completed ? 'completed' : ''} ${task.isRunning ? 'active-running' : ''}`;
+
+      const priorityBadge = task.priority === 'high' 
+        ? '<span class="tag-priority-high">🔥 High</span>'
+        : task.priority === 'med'
+        ? '<span class="tag-priority-med">⚡ Med</span>'
+        : '<span class="tag-priority-med">☕ Low</span>';
+
+      let subtasksHtml = '';
+      if (task.subtasks && task.subtasks.length > 0) {
+        subtasksHtml = `
+          <div class="subtasks-section">
+            ${task.subtasks.map(st => `
+              <div class="subtask-item ${st.completed ? 'checked' : ''}" onclick="toggleSubtask(${task.id}, ${st.id})">
+                <div class="subtask-checkbox ${st.completed ? 'checked' : ''}"></div>
+                <span>${st.text}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      card.innerHTML = `
+        <div class="task-main-row">
+          <div class="task-left">
+            <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="toggleTask(${task.id})">
+              ${task.completed ? '✓' : ''}
+            </div>
+            <div>
+              <div class="task-title">${task.title}</div>
+            </div>
+            <div class="task-meta-tags">
+              <span class="tag-category">${task.category}</span>
+              ${priorityBadge}
+            </div>
+          </div>
+
+          <div class="task-right">
+            <div class="task-time-spent">
+              <span>⏱️</span>
+              <span id="taskTimer-${task.id}">${formatTime(task.timeSpent)}</span>
+            </div>
+
+            ${!task.completed ? `
+              <button class="btn-task-action ${task.isRunning ? 'pause' : 'play'}" onclick="toggleTaskTimer(${task.id})">
+                <span>${task.isRunning ? '⏸️ Pause' : '▶️ Track'}</span>
+              </button>
+            ` : ''}
+
+            <button style="background: transparent; border: none; color: #64748b; cursor: pointer;" onclick="deleteTask(${task.id})" title="Delete Task">
+              🗑️
+            </button>
+          </div>
+        </div>
+        ${subtasksHtml}
+      `;
+
+      container.appendChild(card);
+    });
+
+    updateStats();
+  }
+
+  function updateStats() {
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.completed).length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    document.getElementById('tasksFractionText').textContent = `${completed} / ${total} Done`;
+    document.getElementById('tasksPercentText').textContent = `${percent}%`;
+
+    const circumference = 125.6;
+    const offset = circumference - (percent / 100) * circumference;
+    document.getElementById('tasksDonut').style.strokeDashoffset = offset;
+
+    const totalSeconds = tasks.reduce((acc, t) => acc + t.timeSpent, 0);
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    document.getElementById('totalTimeDisplay').textContent = `${hrs}h ${mins}m`;
+  }
+
+  function toggleTask(id) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    task.completed = !task.completed;
+    if (task.completed && task.isRunning) {
+      task.isRunning = false;
+      if (activeRunningTaskId === id) activeRunningTaskId = null;
+    }
+    renderTasks();
+  }
+
+  function toggleSubtask(taskId, subtaskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const st = task.subtasks.find(s => s.id === subtaskId);
+    if (!st) return;
+    st.completed = !st.completed;
+    renderTasks();
+  }
+
+  function toggleTaskTimer(id) {
+    const target = tasks.find(t => t.id === id);
+    if (!target) return;
+
+    if (target.isRunning) {
+      target.isRunning = false;
+      activeRunningTaskId = null;
+    } else {
+      tasks.forEach(t => t.isRunning = false);
+      target.isRunning = true;
+      activeRunningTaskId = id;
+
+      document.getElementById('focusTaskTitle').textContent = target.title;
+      document.getElementById('focusTaskMeta').textContent = `Category: ${target.category} • Priority: ${target.priority.toUpperCase()}`;
+    }
+
+    renderTasks();
+  }
+
+  function toggleMainStopwatch() {
+    if (activeRunningTaskId) {
+      const task = tasks.find(t => t.id === activeRunningTaskId);
+      if (task) {
+        task.isRunning = !task.isRunning;
+      }
+    }
+    renderTasks();
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    if (activeRunningTaskId === id) activeRunningTaskId = null;
+    renderTasks();
+  }
+
+  function handleAddTask(e) {
+    e.preventDefault();
+    const input = document.getElementById('inputNewTask');
+    const category = document.getElementById('selectCategory').value;
+    const priority = document.getElementById('selectPriority').value;
+    const text = input.value.trim();
+    if (!text) return;
+
+    const newTask = {
+      id: Date.now(),
+      title: text,
+      category,
+      priority,
+      completed: false,
+      timeSpent: 0,
+      isRunning: false,
+      subtasks: []
+    };
+
+    tasks.unshift(newTask);
+    input.value = '';
+    renderTasks();
+  }
+
+  function setFilter(flt, btn) {
+    currentFilter = flt;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderTasks();
+  }
+
+  function switchNav(el, tabName) {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Live Timer Ticking Interval
+  setInterval(() => {
+    if (activeRunningTaskId) {
+      const task = tasks.find(t => t.id === activeRunningTaskId);
+      if (task && task.isRunning) {
+        task.timeSpent++;
+        const digits = document.getElementById('timerDigits');
+        if (digits) digits.textContent = formatTime(task.timeSpent);
+
+        const taskTimeSpan = document.getElementById(`taskTimer-${task.id}`);
+        if (taskTimeSpan) taskTimeSpan.textContent = formatTime(task.timeSpent);
+      }
+    }
+  }, 1000);
+
+  // Initial render
+  renderTasks();
+</script>
+
+</body>
+</html>
