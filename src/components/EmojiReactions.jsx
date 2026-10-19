@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
 import { Heart, Sparkles, SmilePlus, Flame, Coffee, ArrowDownCircle, ArrowUpCircle, Palette } from 'lucide-react';
 
-const DEFAULT_EMOJIS = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'];
+const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '🎉'];
 
 export default function EmojiReactions({
   onSendEmoji,
@@ -131,16 +131,16 @@ export default function EmojiReactions({
                 emoji === '❤️' || emoji === '🥰' || emoji === '💖'
               )
             }
-            title={`Slot ${idx + 1}`}
-            className={`group relative w-7 h-7 flex items-center justify-center rounded-xl active:scale-95 transition-all text-base border ${
+            title={`Send ${emoji}`}
+            className={`group relative w-8 h-8 flex items-center justify-center rounded-xl active:scale-90 transition-all text-lg shadow-sm border ${
               isWhite
                 ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
                 : isBlush
                 ? 'bg-rose-200/60 hover:bg-rose-200 border-rose-300/40 text-rose-900'
-                : 'bg-slate-800/60 hover:bg-slate-700/80 border-white/5 text-white'
+                : 'bg-slate-800/80 hover:bg-slate-700 border-white/10 text-white'
             }`}
           >
-            <span className="group-hover:scale-130 transition-transform">
+            <span className="group-hover:scale-125 transition-transform select-none">
               {emoji}
             </span>
           </button>

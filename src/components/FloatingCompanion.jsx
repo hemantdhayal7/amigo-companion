@@ -1363,6 +1363,24 @@ export default function FloatingCompanion({
           {/* CENTER: CAM/MASCOT HUB (116px)                               */}
           {/* RING: EITHER MENU TOOLS, SYSTEM/PASSWORDS, OR EMOJIS (248px) */}
           {/* ============================================================ */}
+          {/* Always-Visible Drag Pill for Radial Dial (Drag anywhere: Top, Mid, Bottom) */}
+          <div
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              handleDragButtonMouseDown(e);
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              handleDragButtonMouseDown(e);
+            }}
+            data-amigo-interactive="true"
+            className="app-drag-pill mb-2 px-3 py-1 rounded-full bg-slate-900/90 text-white font-mono text-[8.5px] font-bold flex items-center gap-1.5 shadow-lg border border-white/20 hover:border-emerald-400 cursor-grab active:cursor-grabbing transition z-30 select-none group"
+            title="Hold & Drag Amigo anywhere on screen (Top, Mid, Bottom)"
+          >
+            <GripHorizontal className="w-3 h-3 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <span>DRAG AMIGO</span>
+          </div>
+
           <div
             style={{
               width: `${dialDiameter}px`,
@@ -1764,7 +1782,7 @@ export default function FloatingCompanion({
                         top: `calc(50% + ${posY}px)`,
                         transform: 'translate(-50%, -50%)',
                       }}
-                      className={`pointer-events-auto emoji-pod-btn tauri-no-drag w-8 h-8 rounded-full flex items-center justify-center text-base hover:scale-130 active:scale-90 transition-all duration-200 cursor-pointer shadow-md select-none z-30 ${
+                      className={`pointer-events-auto emoji-pod-btn tauri-no-drag w-9 h-9 rounded-full flex items-center justify-center text-xl hover:scale-135 active:scale-90 transition-all duration-200 cursor-pointer shadow-lg select-none z-30 ${
                         isWhite ? 'emoji-pod-white' : isBlush ? 'emoji-pod-blush' : 'emoji-pod-dark'
                       }`}
                       title={`Send instant reaction: ${emoji}`}

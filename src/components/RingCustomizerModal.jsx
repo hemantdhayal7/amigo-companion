@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export const DEFAULT_EMOJIS = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'];
+export const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '🎉'];
 
 export const DEFAULT_MENU_TOOLS = ['drag', 'mic', 'cam', 'share', 'emoji', 'sos', 'doubt', 'target'];
 

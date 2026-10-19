@@ -22,7 +22,7 @@ const INITIAL_TASKS = [
   { id: '3', text: 'Draft certification summary sheet', completed: false },
 ];
 
-const DEFAULT_EMOJIS = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'];
+const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '🎉'];
 
 export default function App() {
   // Read room and server from URL query params (or localStorage / default)
@@ -1089,7 +1089,7 @@ export default function App() {
     <div
       className={
         isTauri
-          ? "w-full h-full flex flex-col justify-end items-center p-2 select-none relative"
+          ? "w-full h-full flex flex-col justify-center items-center p-2 select-none relative"
           : "fixed inset-0 pointer-events-none select-none z-50 overflow-hidden"
       }
     >

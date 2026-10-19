@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Amigo 🥬 Full Production Launch App</title>
+  <title>Amigo 🥬 Full Production Launch App — Free Drag Anywhere & Lovely Emojis</title>
   <style>
     :root {
       --bg: #070b14;
@@ -148,7 +148,27 @@
     .status-and-tools {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+    }
+
+    .btn-download-win {
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+      transition: all 0.18s;
+    }
+
+    .btn-download-win:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(56, 189, 248, 0.5);
     }
 
     .live-status-pill {
@@ -200,7 +220,7 @@
     }
 
     /* ======================================================== */
-    /* VIEW A: FLOATING DESKTOP COMPANION WIDGET                */
+    /* VIEW A: FLOATING DESKTOP COMPANION WIDGET (FREE DRAG)    */
     /* ======================================================== */
     .view-desktop-widget {
       display: none;
@@ -210,7 +230,7 @@
 
     .desktop-monitor-frame {
       width: 100%;
-      height: 620px;
+      height: 640px;
       border-radius: 22px;
       border: 1px solid var(--border);
       background: radial-gradient(circle at 50% 20%, #1e293b 0%, #090e1a 100%);
@@ -254,17 +274,41 @@
       opacity: 0.7;
     }
 
-    /* Floating Companion Widget Floating On Desktop */
+    /* FLOATING COMPANION WIDGET (FREE 2D DRAGGABLE ANYWHERE) */
     .floating-companion-anchor {
       position: absolute;
-      bottom: 36px;
-      right: 44px;
+      top: 180px;
+      right: 60px;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 10px;
       user-select: none;
       filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.7));
+      cursor: grab;
+      transition: box-shadow 0.2s;
+      z-index: 50;
+    }
+
+    .floating-companion-anchor:active {
+      cursor: grabbing;
+    }
+
+    /* Drag Handle Pill on Top */
+    .drag-top-handle {
+      background: rgba(14, 22, 38, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 12px;
+      padding: 3px 12px;
+      font-size: 9px;
+      font-weight: 800;
+      color: #34d399;
+      font-family: monospace;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: grab;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
     }
 
     /* 8-Sector Donut Radial Ring */
@@ -337,6 +381,34 @@
       border-radius: 10px;
       border: 1px solid #fff;
       font-family: monospace;
+    }
+
+    /* LOVELY EMOJIS QUICK PALETTE (BIG & SWEET) */
+    .lovely-emojis-bar {
+      background: rgba(14, 22, 38, 0.95);
+      border: 1.5px solid rgba(244, 63, 94, 0.4);
+      border-radius: 20px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 8px 24px rgba(244, 63, 94, 0.25);
+      backdrop-filter: blur(12px);
+    }
+
+    .btn-lovely-emoji {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 8px;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    .btn-lovely-emoji:hover {
+      transform: scale(1.35) rotate(-6deg);
+      background: rgba(244, 63, 94, 0.2);
     }
 
     /* Floating Pills Below Companion */
@@ -1002,6 +1074,35 @@
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
       z-index: 10000;
     }
+
+    /* FLOATING EMOJI RAIN EFFECT */
+    .floating-rain-item {
+      position: fixed;
+      font-size: 48px;
+      pointer-events: none;
+      z-index: 99999;
+      animation: floatUp 2.8s forwards ease-out;
+      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+    }
+
+    @keyframes floatUp {
+      0% {
+        opacity: 0;
+        transform: translateY(20px) scale(0.6);
+      }
+      20% {
+        opacity: 1;
+        transform: translateY(-40px) scale(1.2);
+      }
+      80% {
+        opacity: 0.9;
+        transform: translateY(-240px) scale(1.0);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-380px) scale(0.8);
+      }
+    }
   </style>
 </head>
 <body class="theme-dark">
@@ -1027,6 +1128,9 @@
   </div>
 
   <div class="status-and-tools">
+    <a href="https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_x64-setup.exe" class="btn-download-win" target="_blank" title="Download Official Windows Installer (.exe)">
+      <span>📥 Windows .EXE</span>
+    </a>
     <div class="live-status-pill">
       <span class="dot-pulse"></span>
       <span>Siddhi Connected</span>
@@ -1060,6 +1164,12 @@
         </div>
       </div>
       <div class="ribbon-actions">
+        <!-- Big Lovely Emoji Buttons directly in Ribbon -->
+        <button class="btn-lovely-emoji" title="Send Sweet Love" onclick="triggerLovelyEmoji('🥰')">🥰</button>
+        <button class="btn-lovely-emoji" title="Send Sparkling Heart" onclick="triggerLovelyEmoji('💖')">💖</button>
+        <button class="btn-lovely-emoji" title="Send Sakura Blossom" onclick="triggerLovelyEmoji('🌸')">🌸</button>
+        <button class="btn-lovely-emoji" title="Send Warm Hug" onclick="triggerLovelyEmoji('🫂')">🫂</button>
+        <button class="btn-lovely-emoji" title="Send Celebration" onclick="triggerLovelyEmoji('🎉')">🎉</button>
         <button class="btn-quick-nudge" onclick="sendNudgeToSiddhi()">
           <span>💬 Nudge Siddhi</span>
         </button>
@@ -1264,16 +1374,26 @@
           </div>
         </div>
 
-        <!-- TAB 5: ALL SETTINGS -->
+        <!-- TAB 5: ALL SETTINGS & WINDOWS DOWNLOAD -->
         <div class="tab-view-pane" id="pane-settings">
           <div class="tab-header-row">
             <div class="tab-title-text">
-              <h2><span>⚙️</span> Application Settings & Ring Configuration</h2>
-              <p>Circle resizer, room security credentials, and radial menu tools</p>
+              <h2><span>⚙️</span> Application Settings & Windows App</h2>
+              <p>Circle resizer, room security credentials, and Windows installer</p>
             </div>
           </div>
 
           <div class="settings-group-grid">
+            <div class="setting-item-box">
+              <div style="font-size: 13px; font-weight: 700;">🪟 Windows Desktop App</div>
+              <div style="font-size: 12px; color: var(--text-muted);">
+                Install Amigo as a native always-on-top desktop app on your Windows PC.
+              </div>
+              <a href="https://github.com/hemantdhayal7/amigo-companion/releases/download/v1.0.0/Amigo_1.0.0_x64-setup.exe" class="btn-download-win" style="display: inline-flex; width: fit-content;" target="_blank">
+                <span>📥 Download Amigo for Windows (.exe)</span>
+              </a>
+            </div>
+
             <div class="setting-item-box">
               <div style="font-size: 13px; font-weight: 700;">Floating Circle Resizer</div>
               <input type="range" min="70" max="150" value="100" style="accent-color: #10b981;" oninput="updateOrbScale(this.value)" />
@@ -1296,15 +1416,15 @@
   <!-- 2. DESKTOP WIDGET MODE (HOW APP FLOATS ON COMPUTER)      -->
   <!-- ======================================================== -->
   <div class="view-desktop-widget" id="viewWidget">
-    <div class="desktop-monitor-frame">
+    <div class="desktop-monitor-frame" id="desktopFrameArea">
       <div class="monitor-topbar">
         <div class="mac-dots">
           <div class="mac-dot" style="background: #ef4444;"></div>
           <div class="mac-dot" style="background: #eab308;"></div>
           <div class="mac-dot" style="background: #22c55e;"></div>
         </div>
-        <span>Study Workspace (VS Code / Notes)</span>
-        <span>21:10 PM</span>
+        <span>Study Workspace (VS Code / Notes) • Hold & Drag Amigo anywhere (Top, Mid, Bottom)</span>
+        <span>21:30 PM</span>
       </div>
 
       <div class="desktop-study-screen">
@@ -1312,21 +1432,26 @@
         <p>1. \int x \cdot e^x dx = x \cdot e^x - \int e^x dx = e^x(x - 1) + C</p>
         <p>2. Partial Fraction Decomposition: P(x)/Q(x) where deg(P) < deg(Q)</p>
         <br>
-        <p>// Amigo floats in the corner without blocking your material.</p>
-        <p>// Click the companion orb to expand back to your full suite anytime.</p>
+        <p>// 💡 NEW: You can now drag Amigo ANYWHERE on screen (Mid, Top, Left, Right)!</p>
+        <p>// 💖 Extra Lovely Big Emojis added below for study date reactions!</p>
       </div>
 
-      <!-- Floating Companion Widget Anchored Bottom-Right -->
-      <div class="floating-companion-anchor">
+      <!-- Floating Companion Widget (DRAGGABLE ANYWHERE ON SCREEN) -->
+      <div class="floating-companion-anchor" id="draggableCompanionWidget">
+        <!-- Top Drag Pill -->
+        <div class="drag-top-handle" id="widgetDragPill" title="Click & Drag to move anywhere on screen">
+          <span>✋ DRAG ANYWHERE</span>
+        </div>
+
         <!-- 8-Sector Donut Ring -->
         <div class="radial-ring-box">
           <svg class="radial-svg" viewBox="0 0 160 160">
             <!-- 8 Ring Sectors -->
-            <path class="sector-arc" d="M 80 5 A 75 75 0 0 1 133.03 26.97 L 115.35 44.64 A 50 50 0 0 0 80 30 Z" title="Drag" onclick="playBeep('pop')" />
+            <path class="sector-arc" d="M 80 5 A 75 75 0 0 1 133.03 26.97 L 115.35 44.64 A 50 50 0 0 0 80 30 Z" title="Drag Handle" />
             <path class="sector-arc" d="M 133.03 26.97 A 75 75 0 0 1 155 80 L 130 80 A 50 50 0 0 0 115.35 44.64 Z" title="Mic" onclick="playBeep('pop')" />
             <path class="sector-arc" d="M 155 80 A 75 75 0 0 1 133.03 133.03 L 115.35 115.35 A 50 50 0 0 0 130 80 Z" title="Cam" onclick="toggleWebcam()" />
             <path class="sector-arc" d="M 133.03 133.03 A 75 75 0 0 1 80 155 L 80 130 A 50 50 0 0 0 115.35 115.35 Z" title="Share" onclick="playBeep('pop')" />
-            <path class="sector-arc" d="M 80 155 A 75 75 0 0 1 26.97 133.03 L 44.64 115.35 A 50 50 0 0 0 80 130 Z" title="Emoji" onclick="triggerEmojiRain('🎉')" />
+            <path class="sector-arc" d="M 80 155 A 75 75 0 0 1 26.97 133.03 L 44.64 115.35 A 50 50 0 0 0 80 130 Z" title="Emoji" onclick="triggerLovelyEmoji('🎉')" />
             <path class="sector-arc" d="M 26.97 133.03 A 75 75 0 0 1 5 80 L 30 80 A 50 50 0 0 0 44.64 115.35 Z" title="Nudge" onclick="sendNudgeToSiddhi()" />
             <path class="sector-arc" d="M 5 80 A 75 75 0 0 1 26.97 26.97 L 44.64 44.64 A 50 50 0 0 0 30 80 Z" title="Doubt" onclick="showTab('doubts')" />
             <path class="sector-arc" d="M 26.97 26.97 A 75 75 0 0 1 80 5 L 80 30 A 50 50 0 0 0 44.64 44.64 Z" title="Tasks" onclick="switchMainMode('dashboard')" />
@@ -1338,6 +1463,18 @@
             <video class="orb-video-stream" id="orbLiveVideo" autoplay playsinline muted></video>
             <div class="orb-badge-pill" id="widgetOrbBadge">67% DONE</div>
           </div>
+        </div>
+
+        <!-- LOVELY EMOJIS QUICK PALETTE (BIG & SWEET) -->
+        <div class="lovely-emojis-bar">
+          <button class="btn-lovely-emoji" title="Sweet Adoration" onclick="triggerLovelyEmoji('🥰')">🥰</button>
+          <button class="btn-lovely-emoji" title="Sparkling Heart" onclick="triggerLovelyEmoji('💖')">💖</button>
+          <button class="btn-lovely-emoji" title="Sakura Blossom" onclick="triggerLovelyEmoji('🌸')">🌸</button>
+          <button class="btn-lovely-emoji" title="Warm Hug" onclick="triggerLovelyEmoji('🫂')">🫂</button>
+          <button class="btn-lovely-emoji" title="Love Letter" onclick="triggerLovelyEmoji('💌')">💌</button>
+          <button class="btn-lovely-emoji" title="Magical Sparkles" onclick="triggerLovelyEmoji('✨')">✨</button>
+          <button class="btn-lovely-emoji" title="Cozy Chai/Coffee" onclick="triggerLovelyEmoji('☕')">☕</button>
+          <button class="btn-lovely-emoji" title="Party Celebration" onclick="triggerLovelyEmoji('🎉')">🎉</button>
         </div>
 
         <!-- Floating Info Stack -->
@@ -1738,7 +1875,26 @@
 
   function sendNudgeToSiddhi() {
     playBeep('chime');
+    triggerLovelyEmoji('💖');
     triggerToast("Nudge Sent to Siddhi! 💬", "Hemant sent: 'Hydration & break time! 💧❤️'");
+  }
+
+  // BIG LOVELY EMOJI REACTIONS SHOWER EFFECT
+  function triggerLovelyEmoji(emoji) {
+    playBeep('chime');
+    triggerToast(`Sent ${emoji} Reaction!`, "Floating love emoji sent to Siddhi");
+
+    // Spawn 7 cascading floating emojis across screen
+    for (let i = 0; i < 7; i++) {
+      const el = document.createElement('div');
+      el.className = 'floating-rain-item';
+      el.textContent = emoji;
+      el.style.left = `${15 + Math.random() * 70}%`;
+      el.style.top = `${60 + Math.random() * 30}%`;
+      el.style.animationDelay = `${i * 120}ms`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 3200);
+    }
   }
 
   function triggerToast(heading, msg) {
@@ -1791,7 +1947,7 @@
     orb.style.height = `${size}px`;
   }
 
-  // Live Camera Activation in Widget & Lounge
+  // Live Camera Activation
   let localStream = null;
   async function toggleWebcam() {
     const orbVideo = document.getElementById('orbLiveVideo');
@@ -1817,7 +1973,89 @@
     }
   }
 
-  // Timer loop
+  // ========================================================
+  // FREE 2D DRAG AND DROP ANYWHERE (TOP, MID, BOTTOM)
+  // ========================================================
+  (function initFreeDrag() {
+    const widget = document.getElementById('draggableCompanionWidget');
+    const frame = document.getElementById('desktopFrameArea');
+    const dragHandle = document.getElementById('widgetDragPill');
+    const mascotOrb = document.getElementById('desktopCompanionOrb');
+
+    if (!widget || !frame) return;
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    function onPointerDown(e) {
+      // Don't drag if clicking buttons, inputs, or interactive controls unless it's the drag handle
+      if (e.target.closest('button, input, select, textarea, a') && !e.target.closest('#widgetDragPill')) return;
+      isDragging = true;
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (err) {}
+
+      const frameRect = frame.getBoundingClientRect();
+      const widgetRect = widget.getBoundingClientRect();
+
+      // Convert current computed position to relative left/top within frame
+      initialLeft = widgetRect.left - frameRect.left;
+      initialTop = widgetRect.top - frameRect.top;
+
+      startX = e.clientX;
+      startY = e.clientY;
+
+      widget.style.bottom = 'auto';
+      widget.style.right = 'auto';
+      widget.style.left = `${initialLeft}px`;
+      widget.style.top = `${initialTop}px`;
+      widget.style.boxShadow = '0 20px 40px rgba(16, 185, 129, 0.4)';
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      const frameRect = frame.getBoundingClientRect();
+      const widgetRect = widget.getBoundingClientRect();
+
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      // Full freedom bounds within desktop monitor frame (top, mid, bottom, left, right)
+      newLeft = Math.max(10, Math.min(frameRect.width - widgetRect.width - 10, newLeft));
+      newTop = Math.max(10, Math.min(frameRect.height - widgetRect.height - 10, newTop));
+
+      widget.style.left = `${newLeft}px`;
+      widget.style.top = `${newTop}px`;
+    }
+
+    function onPointerUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      try {
+        e.target.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      widget.style.boxShadow = '';
+      playBeep('pop');
+    }
+
+    if (dragHandle) {
+      dragHandle.addEventListener('pointerdown', onPointerDown);
+    }
+    if (mascotOrb) {
+      mascotOrb.addEventListener('pointerdown', onPointerDown);
+    }
+    widget.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  })();
+
+  // 1-Second Timer Loop
   setInterval(() => {
     let changed = false;
     tasks.forEach(t => {
