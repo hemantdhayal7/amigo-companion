@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amigo 🥬 Complete App Suite & All Settings Prototype</title>
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --card-bg: rgba(20, 27, 45, 0.88);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --sidebar-bg: rgba(11, 16, 27, 0.95);
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #6366f1;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-violet: #8b5cf6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    /* THEME OVERRIDES */
+    body.theme-white {
+      --bg-dark: #eef2f6;
+      --card-bg: rgba(255, 255, 255, 0.95);
+      --card-border: rgba(15, 23, 42, 0.12);
+      --sidebar-bg: rgba(241, 245, 249, 0.98);
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      background: radial-gradient(circle at 50% 10%, #e2e8f0 0%, #cbd5e1 100%) !important;
+    }
+
+    body.theme-blush {
+      --bg-dark: #fff1f2;
+      --card-bg: rgba(255, 241, 242, 0.95);
+      --card-border: rgba(244, 63, 94, 0.2);
+      --sidebar-bg: rgba(255, 228, 230, 0.98);
+      --text-main: #881337;
+      --text-muted: #9f1239;
+      --text-dim: #be123c;
+      background: radial-gradient(circle at 50% 10%, #ffe4e6 0%, #fecdd3 100%) !important;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 10%, #171e38 0%, #080c14 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 16px 80px;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1220px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* FLOATING COMPANION SIMULATOR (STAYS PRESENT ALL THE TIME) */
+    .floating-companion-preview {
+      position: fixed;
+      bottom: 24px;
+      right: 28px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: grab;
+      user-select: none;
+      filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.6));
+    }
+
+    .companion-orb {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #2d374b 0%, #192130 60%, #0f1726 100%);
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+    }
+
+    .companion-orb:hover {
+      transform: scale(1.05);
+      border-color: #34d399;
+    }
+
+    .companion-mascot {
+      font-size: 38px;
+      animation: gentleBounce 2.8s infinite ease-in-out;
+    }
+
+    @keyframes gentleBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .companion-badge {
+      position: absolute;
+      bottom: -4px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #064e3b;
+      font-size: 9px;
+      font-weight: 800;
+      font-family: monospace;
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid #fff;
+    }
+
+    .companion-pill-btn {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .companion-pill-btn:hover {
+      background: #10b981;
+      color: #064e3b;
+      transform: translateY(-2px);
+    }
+
+    /* TOP BAR */
+    .top-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .brand-text h2 {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-toggle-view {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(16, 185, 129, 0.3));
+      border: 1px solid rgba(99, 102, 241, 0.5);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-toggle-view:hover {
+      background: #6366f1;
+      transform: translateY(-1px);
+    }
+
+    /* MAIN APP WORKSPACE (FULL MENU EXPERIENCE) */
+    .app-shell {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      overflow: hidden;
+      min-height: 700px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+    }
+
+    @media (max-width: 920px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* SIDEBAR */
+    .app-sidebar {
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--card-border);
+      padding: 20px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .sidebar-section-title {
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      padding-left: 8px;
+      margin-bottom: 8px;
+    }
+
+    .nav-items {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 12px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+      background: transparent;
+      border: 1px solid transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+    }
+
+    .nav-btn.active {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(16, 185, 129, 0.25));
+      border-color: rgba(99, 102, 241, 0.4);
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pill-counter {
+      font-size: 10px;
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.12);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    /* Partner Status Card */
+    .partner-card {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.8), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .partner-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .dot-live {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .partner-task {
+      font-size: 11px;
+      color: #c4b5fd;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 6px 8px;
+      border-radius: 8px;
+      line-height: 1.3;
+    }
+
+    /* MAIN VIEWPORT PANELS */
+    .app-viewport {
+      padding: 24px;
+      overflow-y: auto;
+      max-height: 750px;
+    }
+
+    .tab-panel {
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    .tab-panel.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 12px;
+    }
+
+    .panel-title {
+      font-size: 18px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* TAB 1: TO-DO SUITE */
+    .focus-bar {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 18px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .timer-badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 6px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .timer-num {
+      font-family: monospace;
+      font-size: 20px;
+      font-weight: 800;
+      color: #34d399;
+    }
+
+    .btn-play-pause {
+      background: #10b981;
+      border: none;
+      color: #064e3b;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-play-pause.paused {
+      background: #f59e0b;
+      color: #78350f;
+    }
+
+    .task-input-bar {
+      display: flex;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 8px 12px;
+      align-items: center;
+    }
+
+    .task-input-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-size: 13px;
+    }
+
+    .task-pill-select {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .task-row {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+
+    .task-row.active {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .task-row.done {
+      opacity: 0.55;
+    }
+
+    .task-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .task-check.checked {
+      background: #10b981;
+      border-color: #10b981;
+      color: #fff;
+    }
+
+    /* TAB 6: SETTINGS GRID */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 800px) {
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .settings-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .settings-box-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .theme-picker-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .theme-btn {
+      padding: 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 2px solid transparent;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .theme-btn.dark {
+      background: #0f172a;
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .theme-btn.white {
+      background: #f8fafc;
+      color: #0f172a;
+      border-color: rgba(0, 0, 0, 0.15);
+    }
+
+    .theme-btn.blush {
+      background: #ffe4e6;
+      color: #9f1239;
+      border-color: rgba(244, 63, 94, 0.3);
+    }
+
+    .theme-btn.active {
+      border-color: #10b981 !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+
+    /* SLIDER CONTROL */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: #10b981;
+      cursor: pointer;
+    }
+
+    .btn-preset {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-preset.active {
+      background: #10b981;
+      color: #064e3b;
+      border-color: #34d399;
+    }
+
+    /* 8-SECTOR RING CUSTOMIZER VISUAL GRID */
+    .ring-slots-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .ring-slot-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .ring-slot-pill:hover {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    /* DUO LOUNGE VIEW */
+    .duo-lounge-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .duo-cam-box {
+      background: #000;
+      border-radius: 18px;
+      aspect-ratio: 16 / 10;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .cam-overlay-pill {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .music-bar-slider {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body class="theme-dark">
+
+<div class="container">
+  <!-- Top Navigation & Branding -->
+  <div class="top-bar">
+    <div class="brand-group">
+      <div class="brand-icon">🥬</div>
+      <div class="brand-text">
+        <h2>Amigo — Unified Productivity Suite & Command Center</h2>
+        <p>Full-Featured App View + Persistent Floating Companion</p>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn-toggle-view" onclick="toggleCompanionPreview()">
+        <span>Toggle Mini Companion Orb</span>
+        <span>✨</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Unified App Shell -->
+  <div class="app-shell" id="appShell">
+    <!-- Sidebar Menu (All App Navigation) -->
+    <div class="app-sidebar">
+      <div>
+        <div class="sidebar-section-title">Productivity Core</div>
+        <div class="nav-items">
+          <button class="nav-btn active" onclick="showTab('todo', this)">
+            <div class="nav-left">
+              <span>📋</span>
+              <span>To-Do & Tasks</span>
+            </div>
+            <span class="pill-counter" id="badgeTodoCount">4</span>
+          </button>
+
+          <button class="nav-btn" onclick="showTab('timer', this)">
+            <div class="nav-left">
+              <span>⏱️</span>
+              <span>Task Stopwatch</span>
+            </div>
+            <span class="pill-counter" style="background: rgba(16,185,129,0.25); color: #34d399;">LIVE</span>
+          </button>
+
+          <button class="nav-btn" onclick="showTab('progress', this)">
+            <div class="nav-left">
+              <span>📊</span>
+              <span>Progress & Goals</span>
+            </div>
+          </button>
+
+          <button class="nav-btn" onclick="showTab('duo', this)">
+            <div class="nav-left">
+              <span>👥</span>
+              <span>Duo Study Lounge</span>
+            </div>
+            <span class="pill-counter">2/2</span>
+          </button>
+
+          <button class="nav-btn" onclick="showTab('doubts', this)">
+            <div class="nav-left">
+              <span>💡</span>
+              <span>AI Doubt Solver</span>
+            </div>
+            <span class="pill-counter">1</span>
+          </button>
+        </div>
+
+        <div class="sidebar-section-title" style="margin-top: 24px;">Configuration</div>
+        <div class="nav-items">
+          <button class="nav-btn" onclick="showTab('settings', this)">
+            <div class="nav-left">
+              <span>⚙️</span>
+              <span>All Settings & Themes</span>
+            </div>
+          </button>
+
+          <button class="nav-btn" onclick="showTab('radial', this)">
+            <div class="nav-left">
+              <span>🪐</span>
+              <span>Radial Ring Customizer</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Partner Accountability Card -->
+      <div class="partner-card">
+        <div class="partner-top">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="dot-live"></span>
+            <span>Siddhi (Partner)</span>
+          </div>
+          <span style="color: #34d399; font-family: monospace;">75% Done</span>
+        </div>
+        <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Active Task:</div>
+        <div class="partner-task">
+          📖 Solving Calculus Integration Set 4 (28m spent)
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Viewport (Changes based on selected sidebar tab) -->
+    <div class="app-viewport">
+      <!-- ============================================================ -->
+      <!-- TAB 1: FULL TO-DO & TASKS SUITE                              -->
+      <!-- ============================================================ -->
+      <div class="tab-panel active" id="tab-todo">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>📋</span> To-Do List & Task Management</div>
+            <div class="panel-subtitle">Create, organize, prioritize, and track time spent per task</div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-preset active">All (4)</button>
+            <button class="btn-preset">Active (2)</button>
+            <button class="btn-preset">Done (2)</button>
+          </div>
+        </div>
+
+        <!-- Active Focus Live Bar -->
+        <div class="focus-bar">
+          <div>
+            <div style="font-size: 11px; color: #34d399; font-weight: 700; text-transform: uppercase;">⚡ Currently Focusing:</div>
+            <div style="font-size: 14px; font-weight: 700; margin-top: 2px;" id="focusTaskName">Review Chapter 3 formulas & summary notes</div>
+          </div>
+          <div class="timer-badge">
+            <span class="timer-num" id="liveTickerDigits">00:24:12</span>
+            <button class="btn-play-pause" id="btnMainPlayPause" onclick="toggleLiveStopwatch()">⏸️ Pause</button>
+          </div>
+        </div>
+
+        <!-- Quick Add Form -->
+        <form class="task-input-bar" onsubmit="addTask(event)">
+          <span>➕</span>
+          <input type="text" id="newTaskInput" placeholder="Add a new task (e.g. 'Solve 10 practice questions', 'Revise organic chemistry')..." required />
+          <select class="task-pill-select" id="newTaskCategory">
+            <option value="Quantitative">📐 Quantitative</option>
+            <option value="Coding">💻 Coding</option>
+            <option value="Revision">📖 Revision</option>
+            <option value="Exams">🎯 Exams</option>
+          </select>
+          <select class="task-pill-select" id="newTaskPriority">
+            <option value="high">🔥 High</option>
+            <option value="med" selected>⚡ Med</option>
+            <option value="low">☕ Low</option>
+          </select>
+          <button type="submit" class="btn-play-pause" style="padding: 8px 14px;">Add Task</button>
+        </form>
+
+        <!-- Tasks List -->
+        <div class="task-list" id="taskListContainer">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 2: TIME TRACKER & POMODORO                               -->
+      <!-- ============================================================ -->
+      <div class="tab-panel" id="tab-timer">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>⏱️</span> Focus Stopwatch & Pomodoro Timer</div>
+            <div class="panel-subtitle">Dedicated deep focus mode with continuous tracking and break intervals</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; background: rgba(0,0,0,0.3); border-radius: 20px; border: 1px solid var(--card-border); gap: 16px;">
+          <div style="font-size: 12px; font-family: monospace; color: var(--text-dim); text-transform: uppercase;">Active Task Focus</div>
+          <div style="font-size: 18px; font-weight: 700; color: #fff;">Review Chapter 3 formulas & summary notes</div>
+          <div style="font-size: 64px; font-family: monospace; font-weight: 800; color: #34d399; text-shadow: 0 0 20px rgba(52, 211, 153, 0.3);" id="bigStopwatchDigits">
+            00:24:12
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <button class="btn-play-pause" style="padding: 10px 24px; font-size: 14px;" onclick="toggleLiveStopwatch()">⏸️ Pause</button>
+            <button class="btn-preset" style="padding: 10px 18px; font-size: 14px;" onclick="resetStopwatch()">🔄 Reset</button>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 10px;">
+            💡 Time automatically saves to your task card and updates your daily study goal.
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 3: PROGRESS & GOALS                                      -->
+      <!-- ============================================================ -->
+      <div class="tab-panel" id="tab-progress">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>📊</span> Progress Analytics & Daily Velocity</div>
+            <div class="panel-subtitle">Track completion rates, focus streaks, and combined duo accountability</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+          <div class="settings-box">
+            <div class="settings-box-title">Tasks Completed</div>
+            <div style="font-size: 32px; font-weight: 800; color: #34d399;">50%</div>
+            <div style="font-size: 11px; color: var(--text-muted);">2 of 4 tasks checked off today</div>
+          </div>
+
+          <div class="settings-box">
+            <div class="settings-box-title">Total Study Time</div>
+            <div style="font-size: 32px; font-weight: 800; color: #38bdf8;">2h 45m</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Goal: 4h 00m (68% achieved)</div>
+          </div>
+
+          <div class="settings-box">
+            <div class="settings-box-title">Duo Harmony Score</div>
+            <div style="font-size: 32px; font-weight: 800; color: #c084fc;">62%</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Combined with Siddhi (75%)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 4: DUO STUDY LOUNGE                                      -->
+      <!-- ============================================================ -->
+      <div class="tab-panel" id="tab-duo">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>👥</span> Duo Study Lounge & Media Streaming</div>
+            <div class="panel-subtitle">Face-to-face video cards, screen sharing, and blended YouTube Music</div>
+          </div>
+        </div>
+
+        <div class="duo-lounge-grid">
+          <div class="duo-cam-box">
+            <div style="font-size: 44px;">🧑‍💻</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">You (Hemant)</div>
+            <div class="cam-overlay-pill">
+              <span class="dot-live"></span>
+              <span>Local 1080p HD</span>
+            </div>
+          </div>
+
+          <div class="duo-cam-box">
+            <div style="font-size: 44px;">👩‍🎓</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Siddhi (Partner)</div>
+            <div class="cam-overlay-pill">
+              <span class="dot-live"></span>
+              <span>Remote Live Feed</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="music-bar-slider">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">🎵</span>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: #c084fc;">YouTube Music / Tab Audio Volume</div>
+              <div style="font-size: 10px; color: #ddd6fe;">Simultaneously mixed with your voice mic</div>
+            </div>
+          </div>
+          <div class="slider-row" style="width: 200px;">
+            <input type="range" min="0" max="100" value="80" oninput="document.getElementById('musicVolTxt').textContent = this.value + '%'" />
+            <span style="font-family: monospace; font-size: 11px; min-width: 32px;" id="musicVolTxt">80%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 5: EPHEMERAL DOUBTS                                      -->
+      <!-- ============================================================ -->
+      <div class="tab-panel" id="tab-doubts">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>💡</span> Ephemeral Doubt Hub & AI Tutor</div>
+            <div class="panel-subtitle">3-hour self-destruct questions with local Gemma AI answers</div>
+          </div>
+        </div>
+
+        <div class="settings-box">
+          <div class="settings-box-title">Ask a Quick Question</div>
+          <input type="text" class="task-input-bar" style="background: rgba(0,0,0,0.3);" placeholder="Type a concept or paste code (e.g. 'Explain integration by parts')..." />
+          <div style="display: flex; justify-content: flex-end;">
+            <button class="btn-play-pause">Ask AI Tutor 🧠</button>
+          </div>
+        </div>
+
+        <div class="task-row">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 20px;">💡</span>
+            <div>
+              <div style="font-size: 13px; font-weight: 700;">How to evaluate indefinite integral of x * e^x dx?</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Asked by Siddhi • ⏳ Expires in 2h 15m</div>
+            </div>
+          </div>
+          <span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">AI ANSWERED</span>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 6: COMPLETE SETTINGS & CUSTOMIZATION                     -->
+      <!-- ============================================================ -->
+      <div class="tab-panel" id="tab-settings">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>⚙️</span> All Settings & Configuration</div>
+            <div class="panel-subtitle">Circle resizer, themes, server URLs, passcodes, and window docking</div>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <!-- 1. Theme Selector -->
+          <div class="settings-box">
+            <div class="settings-box-title">
+              <span>🎨 Color Theme</span>
+              <span style="font-size: 10px; color: var(--text-dim);">Live Switching</span>
+            </div>
+            <div class="theme-picker-row">
+              <button class="theme-btn dark active" onclick="setAppTheme('dark', this)">
+                <span>🌙</span>
+                <span>Dark Space</span>
+              </button>
+              <button class="theme-btn white" onclick="setAppTheme('white', this)">
+                <span>🤍</span>
+                <span>Ceramic White</span>
+              </button>
+              <button class="theme-btn blush" onclick="setAppTheme('blush', this)">
+                <span>🌸</span>
+                <span>Sakura Blush</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Companion Circle Size -->
+          <div class="settings-box">
+            <div class="settings-box-title">
+              <span>🔍 Floating Circle Size</span>
+              <span id="circleSizeDisplay" style="font-family: monospace; font-size: 11px; color: #34d399;">100% (Normal)</span>
+            </div>
+            <div class="slider-row">
+              <input type="range" min="70" max="160" value="100" id="circleSlider" oninput="updateCircleSize(this.value)" />
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn-preset" onclick="setCirclePreset(80)">S (80%)</button>
+              <button class="btn-preset active" onclick="setCirclePreset(100)">M (100%)</button>
+              <button class="btn-preset" onclick="setCirclePreset(125)">L (125%)</button>
+              <button class="btn-preset" onclick="setCirclePreset(150)">XL (150%)</button>
+            </div>
+          </div>
+
+          <!-- 3. Room & Security Credentials -->
+          <div class="settings-box">
+            <div class="settings-box-title">
+              <span>🔒 Room Code & Security Passcode</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div>
+                <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Room Code</label>
+                <input type="text" class="task-input-bar" style="background: rgba(0,0,0,0.3); width: 100%; padding: 6px 10px; margin-top: 2px;" value="our-study-date" />
+              </div>
+              <div>
+                <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Passcode (2-Device Lock)</label>
+                <input type="text" class="task-input-bar" style="background: rgba(0,0,0,0.3); width: 100%; padding: 6px 10px; margin-top: 2px;" value="date2026" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Signaling Server URL -->
+          <div class="settings-box">
+            <div class="settings-box-title">
+              <span>📡 Cloud Signaling Server URL</span>
+            </div>
+            <div>
+              <input type="text" class="task-input-bar" style="background: rgba(0,0,0,0.3); width: 100%; padding: 6px 10px;" value="https://amigo-companion.onrender.com" />
+              <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">
+                ☁️ 24/7 Render Cloud Server (Pure Mac Independence)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- TAB 7: RADIAL RING CUSTOMIZER                                -->
+      <!-- ============================================================ -->
+      <div class="tab-panel" id="tab-radial">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><span>🪐</span> Radial Dial & Ring Customizer</div>
+            <div class="panel-subtitle">Configure which 8 tools and emoji shortcuts appear on your floating ring</div>
+          </div>
+        </div>
+
+        <div class="settings-box">
+          <div class="settings-box-title">Current 8 Slots on Floating Dial Ring</div>
+          <div class="ring-slots-grid">
+            <div class="ring-slot-pill"><span>✋</span><span>1. DRAG</span></div>
+            <div class="ring-slot-pill"><span>🎙️</span><span>2. MIC</span></div>
+            <div class="ring-slot-pill"><span>📷</span><span>3. CAM</span></div>
+            <div class="ring-slot-pill"><span>🖥️</span><span>4. SHARE</span></div>
+            <div class="ring-slot-pill"><span>🌟</span><span>5. EMOJI</span></div>
+            <div class="ring-slot-pill"><span>🚨</span><span>6. SOS</span></div>
+            <div class="ring-slot-pill"><span>💡</span><span>7. DOUBT</span></div>
+            <div class="ring-slot-pill"><span>🎯</span><span>8. TARGET</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FLOATING COMPANION PREVIEW (DEMONSTRATES HOW IT LOOKS ALL THE TIME) -->
+<div class="floating-companion-preview" id="floatingCompanionPreview">
+  <div class="companion-orb" id="demoOrb">
+    <div class="companion-mascot">🥬</div>
+    <div class="companion-badge" id="demoOrbBadge">50% DONE</div>
+  </div>
+  <button class="companion-pill-btn" onclick="toggleAppShell()">
+    <span>📋 Toggle Menu</span>
+  </button>
+</div>
+
+<script>
+  // Mock Data
+  let tasks = [
+    { id: 1, title: 'Review Chapter 3 formulas & summary notes', category: 'Quantitative', priority: 'high', completed: false, timeSpent: 1452, isRunning: true },
+    { id: 2, title: 'Solve 10 practice exam questions', category: 'Exams', priority: 'high', completed: false, timeSpent: 900, isRunning: false },
+    { id: 3, title: 'Draft certification summary sheet', category: 'Revision', priority: 'med', completed: true, timeSpent: 2700, isRunning: false },
+    { id: 4, title: 'Setup GitHub repository & deployment pipeline', category: 'Coding', priority: 'low', completed: true, timeSpent: 1800, isRunning: false }
+  ];
+
+  function formatTime(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  function renderTasks() {
+    const container = document.getElementById('taskListContainer');
+    container.innerHTML = '';
+
+    tasks.forEach(task => {
+      const row = document.createElement('div');
+      row.className = `task-row ${task.isRunning ? 'active' : ''} ${task.completed ? 'done' : ''}`;
+
+      const priorityTag = task.priority === 'high' 
+        ? '<span style="font-size: 9px; padding: 2px 6px; border-radius: 6px; background: rgba(244,63,94,0.2); color: #fda4af;">🔥 High</span>'
+        : '<span style="font-size: 9px; padding: 2px 6px; border-radius: 6px; background: rgba(245,158,11,0.2); color: #fde68a;">⚡ Med</span>';
+
+      row.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+          <div class="task-check ${task.completed ? 'checked' : ''}" onclick="toggleTask(${task.id})">
+            ${task.completed ? '✓' : ''}
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 600; ${task.completed ? 'text-decoration: line-through;' : ''}">${task.title}</div>
+            <div style="display: flex; gap: 6px; align-items: center; margin-top: 3px;">
+              <span style="font-size: 9px; font-family: monospace; padding: 1px 6px; border-radius: 6px; background: rgba(99,102,241,0.2); color: #a5b4fc;">${task.category}</span>
+              ${priorityTag}
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">⏱️ ${formatTime(task.timeSpent)}</span>
+          ${!task.completed ? `
+            <button class="btn-play-pause ${task.isRunning ? 'paused' : ''}" onclick="toggleTaskTimer(${task.id})">
+              ${task.isRunning ? '⏸️ Pause' : '▶️ Track'}
+            </button>
+          ` : ''}
+          <button style="background: transparent; border: none; cursor: pointer; color: #64748b;" onclick="deleteTask(${task.id})">🗑️</button>
+        </div>
+      `;
+
+      container.appendChild(row);
+    });
+
+    // Update Counts & Badges
+    const completed = tasks.filter(t => t.completed).length;
+    const total = tasks.length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    document.getElementById('badgeTodoCount').textContent = total;
+    document.getElementById('demoOrbBadge').textContent = `${pct}% DONE`;
+  }
+
+  function toggleTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.completed = !t.completed;
+    if (t.completed) t.isRunning = false;
+    renderTasks();
+  }
+
+  function toggleTaskTimer(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (t.isRunning) {
+      t.isRunning = false;
+    } else {
+      tasks.forEach(x => x.isRunning = false);
+      t.isRunning = true;
+      document.getElementById('focusTaskName').textContent = t.title;
+    }
+    renderTasks();
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(x => x.id !== id);
+    renderTasks();
+  }
+
+  function addTask(e) {
+    e.preventDefault();
+    const input = document.getElementById('newTaskInput');
+    const cat = document.getElementById('newTaskCategory').value;
+    const pri = document.getElementById('newTaskPriority').value;
+    const txt = input.value.trim();
+    if (!txt) return;
+
+    tasks.unshift({
+      id: Date.now(),
+      title: txt,
+      category: cat,
+      priority: pri,
+      completed: false,
+      timeSpent: 0,
+      isRunning: false
+    });
+    input.value = '';
+    renderTasks();
+  }
+
+  function showTab(tabId, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  function toggleLiveStopwatch() {
+    const running = tasks.find(t => t.isRunning);
+    if (running) {
+      running.isRunning = false;
+    } else if (tasks.length > 0) {
+      tasks[0].isRunning = true;
+      document.getElementById('focusTaskName').textContent = tasks[0].title;
+    }
+    renderTasks();
+  }
+
+  function setAppTheme(th, btn) {
+    document.body.className = `theme-${th}`;
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function updateCircleSize(val) {
+    document.getElementById('circleSizeDisplay').textContent = `${val}%`;
+    const orb = document.getElementById('demoOrb');
+    const size = Math.round(96 * (val / 100));
+    orb.style.width = `${size}px`;
+    orb.style.height = `${size}px`;
+  }
+
+  function setCirclePreset(val) {
+    document.getElementById('circleSlider').value = val;
+    updateCircleSize(val);
+  }
+
+  function toggleAppShell() {
+    const shell = document.getElementById('appShell');
+    shell.style.display = shell.style.display === 'none' ? 'grid' : 'none';
+  }
+
+  function toggleCompanionPreview() {
+    const cp = document.getElementById('floatingCompanionPreview');
+    cp.style.display = cp.style.display === 'none' ? 'flex' : 'none';
+  }
+
+  // Live Timer Loop
+  setInterval(() => {
+    const running = tasks.find(t => t.isRunning);
+    if (running) {
+      running.timeSpent++;
+      const timeStr = formatTime(running.timeSpent);
+      const digits1 = document.getElementById('liveTickerDigits');
+      const digits2 = document.getElementById('bigStopwatchDigits');
+      if (digits1) digits1.textContent = timeStr;
+      if (digits2) digits2.textContent = timeStr;
+    }
+  }, 1000);
+
+  // Initial Render
+  renderTasks();
+</script>
+
+</body>
+</html>
