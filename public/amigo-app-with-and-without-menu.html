@@ -311,14 +311,15 @@
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
     }
 
-    /* 8-Sector Donut Radial Ring */
+    /* 8-Sector Donut Radial Ring & In-Circle Buttons */
     .radial-ring-box {
       position: relative;
-      width: 160px;
-      height: 160px;
+      width: 220px;
+      height: 220px;
       display: flex;
       align-items: center;
       justify-content: center;
+      user-select: none;
     }
 
     .radial-svg {
@@ -327,13 +328,13 @@
       left: 0;
       width: 100%;
       height: 100%;
+      pointer-events: none;
     }
 
     .sector-arc {
-      fill: rgba(30, 41, 59, 0.85);
-      stroke: rgba(255, 255, 255, 0.2);
+      fill: rgba(22, 34, 56, 0.9);
+      stroke: rgba(255, 255, 255, 0.15);
       stroke-width: 1.5;
-      cursor: pointer;
       transition: all 0.2s;
     }
 
@@ -342,21 +343,24 @@
       stroke: #34d399;
     }
 
+    /* Center Mascot Orb */
     .center-companion-orb {
       position: relative;
-      width: 86px;
-      height: 86px;
+      width: 96px;
+      height: 96px;
       border-radius: 50%;
       background: radial-gradient(circle at 40% 35%, #2d374b 0%, #151d2e 60%, #0d131f 100%);
-      border: 2.5px solid var(--accent-emerald);
+      border: 3px solid var(--accent-emerald);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       font-size: 38px;
       cursor: pointer;
-      box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 28px rgba(16, 185, 129, 0.45);
       transition: transform 0.2s;
       overflow: hidden;
+      z-index: 20;
     }
 
     .center-companion-orb:hover {
@@ -372,43 +376,128 @@
 
     .orb-badge-pill {
       position: absolute;
-      bottom: -3px;
+      bottom: 2px;
       background: linear-gradient(135deg, #10b981, #06b6d4);
       color: #064e3b;
-      font-size: 9px;
+      font-size: 7.5px;
       font-weight: 800;
       padding: 1px 7px;
       border-radius: 10px;
       border: 1px solid #fff;
       font-family: monospace;
+      letter-spacing: 0.5px;
     }
 
-    /* LOVELY EMOJIS QUICK PALETTE (BIG & SWEET) */
-    .lovely-emojis-bar {
-      background: rgba(14, 22, 38, 0.95);
+    /* In-Circle Sector Buttons Overlay */
+    .ring-buttons-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .ring-sector-btn {
+      position: absolute;
+      pointer-events: auto;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(14, 22, 38, 0.94);
+      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+      transition: transform 0.18s, border-color 0.18s, background 0.18s, box-shadow 0.18s;
+      z-index: 10;
+      user-select: none;
+    }
+
+    .ring-sector-btn:hover {
+      transform: translate(-50%, -50%) scale(1.18);
+      background: rgba(22, 34, 56, 1);
+      border-color: #34d399;
+      box-shadow: 0 6px 18px rgba(16, 185, 129, 0.5);
+    }
+
+    .ring-sector-btn:active {
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+
+    .ring-btn-icon {
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .ring-btn-label {
+      font-size: 7px;
+      font-weight: 800;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      color: #94a3b8;
+      margin-top: 1px;
+    }
+
+    .ring-sector-btn:hover .ring-btn-label {
+      color: #34d399;
+    }
+
+    /* In-Circle Lovely Emoji Buttons */
+    .ring-emoji-btn {
+      position: absolute;
+      pointer-events: auto;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(14, 22, 38, 0.94);
       border: 1.5px solid rgba(244, 63, 94, 0.4);
-      border-radius: 20px;
-      padding: 6px 10px;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+      transition: transform 0.18s, border-color 0.18s, background 0.18s;
+      z-index: 10;
+      user-select: none;
+    }
+
+    .ring-emoji-btn:hover {
+      transform: translate(-50%, -50%) scale(1.25) rotate(-6deg);
+      border-color: #fb7185;
+      background: rgba(244, 63, 94, 0.25);
+      box-shadow: 0 6px 20px rgba(244, 63, 94, 0.6);
+    }
+
+    /* Quick Ring Mode Switcher Pill */
+    .ring-switcher-pill {
+      margin-bottom: 6px;
       display: flex;
       align-items: center;
       gap: 6px;
-      box-shadow: 0 8px 24px rgba(244, 63, 94, 0.25);
-      backdrop-filter: blur(12px);
-    }
-
-    .btn-lovely-emoji {
-      background: transparent;
-      border: none;
-      font-size: 24px;
+      background: rgba(14, 22, 38, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 3px 10px;
+      font-size: 9px;
+      font-weight: 700;
+      color: #94a3b8;
       cursor: pointer;
-      padding: 2px 4px;
-      border-radius: 8px;
-      transition: transform 0.15s, background 0.15s;
+      transition: all 0.18s;
     }
 
-    .btn-lovely-emoji:hover {
-      transform: scale(1.35) rotate(-6deg);
-      background: rgba(244, 63, 94, 0.2);
+    .ring-switcher-pill:hover {
+      border-color: #34d399;
+      color: #fff;
+    }
+
+    .ring-switcher-pill.active-emoji {
+      border-color: rgba(244, 63, 94, 0.6);
+      color: #fbcfe8;
+      background: rgba(244, 63, 94, 0.15);
     }
 
     /* Floating Pills Below Companion */
@@ -1443,59 +1532,62 @@
           <span>✋ DRAG ANYWHERE</span>
         </div>
 
-        <!-- 8-Sector Donut Ring -->
-        <div class="radial-ring-box">
-          <svg class="radial-svg" viewBox="0 0 160 160">
-            <!-- 8 Ring Sectors -->
-            <path class="sector-arc" d="M 80 5 A 75 75 0 0 1 133.03 26.97 L 115.35 44.64 A 50 50 0 0 0 80 30 Z" title="Drag Handle" />
-            <path class="sector-arc" d="M 133.03 26.97 A 75 75 0 0 1 155 80 L 130 80 A 50 50 0 0 0 115.35 44.64 Z" title="Mic" onclick="playBeep('pop')" />
-            <path class="sector-arc" d="M 155 80 A 75 75 0 0 1 133.03 133.03 L 115.35 115.35 A 50 50 0 0 0 130 80 Z" title="Cam" onclick="toggleWebcam()" />
-            <path class="sector-arc" d="M 133.03 133.03 A 75 75 0 0 1 80 155 L 80 130 A 50 50 0 0 0 115.35 115.35 Z" title="Share" onclick="playBeep('pop')" />
-            <path class="sector-arc" d="M 80 155 A 75 75 0 0 1 26.97 133.03 L 44.64 115.35 A 50 50 0 0 0 80 130 Z" title="Emoji" onclick="triggerLovelyEmoji('🎉')" />
-            <path class="sector-arc" d="M 26.97 133.03 A 75 75 0 0 1 5 80 L 30 80 A 50 50 0 0 0 44.64 115.35 Z" title="Nudge" onclick="sendNudgeToSiddhi()" />
-            <path class="sector-arc" d="M 5 80 A 75 75 0 0 1 26.97 26.97 L 44.64 44.64 A 50 50 0 0 0 30 80 Z" title="Doubt" onclick="showTab('doubts')" />
-            <path class="sector-arc" d="M 26.97 26.97 A 75 75 0 0 1 80 5 L 80 30 A 50 50 0 0 0 44.64 44.64 Z" title="Tasks" onclick="switchMainMode('dashboard')" />
+        <!-- Mode Switcher Pill (Tools Ring vs Lovely Emojis Ring) -->
+        <div class="ring-switcher-pill" id="ringModeTogglePill" onclick="toggleCompanionRingMode()" title="Click to flip between Tools and Lovely Emojis">
+          <span id="ringModeText">🛠️ Ring: Tools Mode</span>
+          <span style="opacity: 0.6; font-size: 8px;">(Tap to switch)</span>
+        </div>
+
+        <!-- 8-Sector Donut Radial Ring (220px) -->
+        <div class="radial-ring-box" id="radialRingBox">
+          <svg class="radial-svg" viewBox="0 0 220 220">
+            <defs>
+              <linearGradient id="moatRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#34d399" />
+                <stop offset="100%" stopColor="#10b981" />
+              </linearGradient>
+            </defs>
+            <!-- 8 Sector Arcs Background (Outer r=108, Inner r=52) -->
+            <path class="sector-arc" d="M 110 2 A 108 108 0 0 1 186.37 33.63 L 146.77 73.23 A 52 52 0 0 0 110 58 Z" />
+            <path class="sector-arc" d="M 186.37 33.63 A 108 108 0 0 1 218 110 L 162 110 A 52 52 0 0 0 146.77 73.23 Z" />
+            <path class="sector-arc" d="M 218 110 A 108 108 0 0 1 186.37 186.37 L 146.77 146.77 A 52 52 0 0 0 162 110 Z" />
+            <path class="sector-arc" d="M 186.37 186.37 A 108 108 0 0 1 110 218 L 110 162 A 52 52 0 0 0 146.77 146.77 Z" />
+            <path class="sector-arc" d="M 110 218 A 108 108 0 0 1 33.63 186.37 L 73.23 146.77 A 52 52 0 0 0 110 162 Z" />
+            <path class="sector-arc" d="M 33.63 186.37 A 108 108 0 0 1 2 110 L 58 110 A 52 52 0 0 0 73.23 146.77 Z" />
+            <path class="sector-arc" d="M 2 110 A 108 108 0 0 1 33.63 33.63 L 73.23 73.23 A 52 52 0 0 0 58 110 Z" />
+            <path class="sector-arc" d="M 33.63 33.63 A 108 108 0 0 1 110 2 L 110 58 A 52 52 0 0 0 73.23 73.23 Z" />
+            <!-- Progress Moat Halo -->
+            <circle cx="110" cy="110" r="50" stroke="url(#moatRingGrad)" stroke-width="3" fill="none" opacity="0.9" />
           </svg>
 
+          <!-- Dynamic In-Circle Buttons Layer (Tools or Lovely Emojis) -->
+          <div class="ring-buttons-layer" id="ringButtonsContainer">
+            <!-- Rendered by JS -->
+          </div>
+
           <!-- Center Mascot Orb -->
-          <div class="center-companion-orb" id="desktopCompanionOrb" onclick="switchMainMode('dashboard')">
+          <div class="center-companion-orb" id="desktopCompanionOrb" onclick="handleCenterOrbClick()" title="Center Mascot (Tap to switch mode or open dashboard)">
             <span id="orbMascotEmoji">🥬</span>
             <video class="orb-video-stream" id="orbLiveVideo" autoplay playsinline muted></video>
             <div class="orb-badge-pill" id="widgetOrbBadge">67% DONE</div>
           </div>
         </div>
 
-        <!-- LOVELY EMOJIS QUICK PALETTE (BIG & SWEET) -->
-        <div class="lovely-emojis-bar">
-          <button class="btn-lovely-emoji" title="Sweet Adoration" onclick="triggerLovelyEmoji('🥰')">🥰</button>
-          <button class="btn-lovely-emoji" title="Sparkling Heart" onclick="triggerLovelyEmoji('💖')">💖</button>
-          <button class="btn-lovely-emoji" title="Sakura Blossom" onclick="triggerLovelyEmoji('🌸')">🌸</button>
-          <button class="btn-lovely-emoji" title="Warm Hug" onclick="triggerLovelyEmoji('🫂')">🫂</button>
-          <button class="btn-lovely-emoji" title="Love Letter" onclick="triggerLovelyEmoji('💌')">💌</button>
-          <button class="btn-lovely-emoji" title="Magical Sparkles" onclick="triggerLovelyEmoji('✨')">✨</button>
-          <button class="btn-lovely-emoji" title="Cozy Chai/Coffee" onclick="triggerLovelyEmoji('☕')">☕</button>
-          <button class="btn-lovely-emoji" title="Party Celebration" onclick="triggerLovelyEmoji('🎉')">🎉</button>
-        </div>
-
-        <!-- Floating Info Stack -->
+        <!-- Floating Info Stack (Clean, Single Running Task Pill) -->
         <div class="floating-pills-col">
-          <div class="active-task-pill">
+          <div class="active-task-pill" onclick="switchMainMode('dashboard')" style="cursor: pointer;" title="Click to open Full Task Suite">
             <span style="color: #10b981; font-weight: 800;">⚡</span>
-            <span id="widgetTaskTitle" style="max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">
+            <span id="widgetTaskTitle" style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">
               Calculus Problem Set 4
             </span>
             <span style="font-family: monospace; color: #34d399;" id="widgetTimer">00:28:45</span>
-            <button class="btn-track-ticker" id="btnWidgetPlayPause" onclick="toggleActiveMyTimer()">⏸️</button>
+            <button class="btn-track-ticker" id="btnWidgetPlayPause" onclick="event.stopPropagation(); toggleActiveMyTimer()">⏸️</button>
           </div>
 
-          <div class="partner-live-pill">
+          <div class="partner-live-pill" onclick="switchMainMode('dashboard')" style="cursor: pointer;" title="Click to view Siddhi's tasks">
             <span class="dot-pulse"></span>
             <span id="widgetPartnerTitle">👩‍🎓 Siddhi: Organic Chem (22m)</span>
           </div>
-
-          <button class="btn-expand-dash" onclick="switchMainMode('dashboard')">
-            <span>📋 Open Full Suite</span>
-          </button>
         </div>
       </div>
     </div>
@@ -2067,8 +2159,118 @@
     if (changed) updateLaunchStats();
   }, 1000);
 
+  // ========================================================
+  // IN-CIRCLE BUTTONS ENGINE (TOOLS RING & LOVELY EMOJIS)
+  // ========================================================
+  let currentRingMode = 'tools'; // 'tools' or 'emoji'
+
+  const TOOL_BUTTONS = [
+    { id: 'tasks', label: 'TASKS', icon: '📋', angle: -90, action: () => switchMainMode('dashboard') },
+    { id: 'mic', label: 'MIC', icon: '🎙️', angle: -45, action: () => { playBeep('pop'); triggerToast('Microphone', 'Toggled mic audio'); } },
+    { id: 'cam', label: 'CAM', icon: '📷', angle: 0, action: () => toggleWebcam() },
+    { id: 'share', label: 'SCREEN', icon: '🖥️', angle: 45, action: () => { playBeep('pop'); triggerToast('Screen Sharing', 'Screen share preview active'); } },
+    { id: 'emoji', label: 'EMOJIS', icon: '🥰', angle: 90, action: () => toggleCompanionRingMode() },
+    { id: 'nudge', label: 'NUDGE', icon: '💬', angle: 135, action: () => sendNudgeToSiddhi() },
+    { id: 'doubt', label: 'DOUBT', icon: '❓', angle: 180, action: () => showTab('doubts') },
+    { id: 'suite', label: 'SUITE', icon: '⚙️', angle: 225, action: () => switchMainMode('dashboard') },
+  ];
+
+  const LOVELY_EMOJIS = [
+    { emoji: '🥰', name: 'Adoration', angle: -90 },
+    { emoji: '💖', name: 'Sparkles', angle: -45 },
+    { emoji: '🌸', name: 'Sakura', angle: 0 },
+    { emoji: '🫂', name: 'Warm Hug', angle: 45 },
+    { emoji: '💌', name: 'Love Letter', angle: 90 },
+    { emoji: '✨', name: 'Magic', angle: 135 },
+    { emoji: '☕', name: 'Cozy Chai', angle: 180 },
+    { emoji: '🎉', name: 'Party', angle: 225 },
+  ];
+
+  function toggleCompanionRingMode() {
+    currentRingMode = currentRingMode === 'tools' ? 'emoji' : 'tools';
+    playBeep('pop');
+    renderCompanionRing();
+  }
+
+  function handleCenterOrbClick() {
+    if (currentRingMode === 'emoji') {
+      currentRingMode = 'tools';
+      playBeep('pop');
+      renderCompanionRing();
+      triggerToast('Switched to Tools', 'Tools Ring is now active');
+    } else {
+      switchMainMode('dashboard');
+    }
+  }
+
+  function renderCompanionRing() {
+    const container = document.getElementById('ringButtonsContainer');
+    const togglePill = document.getElementById('ringModeTogglePill');
+    const toggleText = document.getElementById('ringModeText');
+    const badge = document.getElementById('widgetOrbBadge');
+
+    if (!container) return;
+    container.innerHTML = '';
+
+    const R = 80;
+    const CX = 110;
+    const CY = 110;
+
+    if (currentRingMode === 'tools') {
+      if (togglePill) togglePill.classList.remove('active-emoji');
+      if (toggleText) toggleText.textContent = '🛠️ Ring: Tools Mode';
+      if (badge) badge.textContent = '67% DONE';
+
+      TOOL_BUTTONS.forEach(btn => {
+        const rad = (btn.angle * Math.PI) / 180;
+        const x = Math.round(CX + R * Math.cos(rad));
+        const y = Math.round(CY + R * Math.sin(rad));
+
+        const el = document.createElement('button');
+        el.className = 'ring-sector-btn';
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.transform = 'translate(-50%, -50%)';
+        el.title = `${btn.label} - Click to activate`;
+        el.innerHTML = `
+          <span class="ring-btn-icon">${btn.icon}</span>
+          <span class="ring-btn-label">${btn.label}</span>
+        `;
+        el.onclick = (e) => {
+          e.stopPropagation();
+          btn.action();
+        };
+        container.appendChild(el);
+      });
+    } else {
+      if (togglePill) togglePill.classList.add('active-emoji');
+      if (toggleText) toggleText.textContent = '💖 Ring: Lovely Emojis';
+      if (badge) badge.textContent = 'TAP 🥬 TOOLS';
+
+      LOVELY_EMOJIS.forEach(item => {
+        const rad = (item.angle * Math.PI) / 180;
+        const x = Math.round(CX + R * Math.cos(rad));
+        const y = Math.round(CY + R * Math.sin(rad));
+
+        const el = document.createElement('button');
+        el.className = 'ring-emoji-btn';
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.transform = 'translate(-50%, -50%)';
+        el.title = `Send ${item.name} (${item.emoji})`;
+        el.textContent = item.emoji;
+        el.onclick = (e) => {
+          e.stopPropagation();
+          triggerLovelyEmoji(item.emoji);
+        };
+        container.appendChild(el);
+      });
+    }
+  }
+
   // Initialize
   renderLaunchTasks();
+  renderCompanionRing();
 </script>
 
 </body>
