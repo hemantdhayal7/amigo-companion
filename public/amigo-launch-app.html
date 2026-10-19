@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amigo 🥬 Full Production Launch App</title>
+  <style>
+    :root {
+      --bg: #070b14;
+      --surface-1: #0e1626;
+      --surface-2: #162238;
+      --surface-3: #1f2f4c;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.18);
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-rose: #f43f5e;
+      --accent-pink: #ec4899;
+      --accent-violet: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    body.theme-white {
+      --bg: #f8fafc;
+      --surface-1: #ffffff;
+      --surface-2: #f1f5f9;
+      --surface-3: #e2e8f0;
+      --border: rgba(15, 23, 42, 0.08);
+      --border-hover: rgba(15, 23, 42, 0.16);
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+    }
+
+    body.theme-blush {
+      --bg: #fff1f2;
+      --surface-1: #ffffff;
+      --surface-2: #ffe4e6;
+      --surface-3: #fecdd3;
+      --border: rgba(244, 63, 94, 0.16);
+      --border-hover: rgba(244, 63, 94, 0.3);
+      --text: #881337;
+      --text-muted: #9f1239;
+      --text-dim: #be123c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px;
+      transition: background 0.25s ease, color 0.25s ease;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* TOP MASTER BAR */
+    .master-header {
+      width: 100%;
+      max-width: 1180px;
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      margin-bottom: 16px;
+      backdrop-filter: blur(20px);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo-sq {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    }
+
+    .brand-names h1 {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-names p {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* View Switcher */
+    .view-pills {
+      display: flex;
+      background: var(--surface-2);
+      padding: 4px;
+      border-radius: 12px;
+      gap: 4px;
+    }
+
+    .view-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 9px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.18s;
+    }
+
+    .view-btn.active {
+      background: var(--surface-1);
+      color: var(--text);
+      font-weight: 800;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .status-and-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .live-status-pill {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot-pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseGlow 2s infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    .theme-dropdown {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: 9px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* MAIN CONTAINER */
+    .app-viewport {
+      width: 100%;
+      max-width: 1180px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ======================================================== */
+    /* VIEW A: FLOATING DESKTOP COMPANION WIDGET                */
+    /* ======================================================== */
+    .view-desktop-widget {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .desktop-monitor-frame {
+      width: 100%;
+      height: 620px;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at 50% 20%, #1e293b 0%, #090e1a 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .monitor-topbar {
+      height: 38px;
+      background: rgba(14, 22, 38, 0.85);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .mac-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mac-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .desktop-study-screen {
+      padding: 40px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.8;
+      user-select: none;
+      opacity: 0.7;
+    }
+
+    /* Floating Companion Widget Floating On Desktop */
+    .floating-companion-anchor {
+      position: absolute;
+      bottom: 36px;
+      right: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+      filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.7));
+    }
+
+    /* 8-Sector Donut Radial Ring */
+    .radial-ring-box {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radial-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .sector-arc {
+      fill: rgba(30, 41, 59, 0.85);
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 1.5;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sector-arc:hover {
+      fill: rgba(16, 185, 129, 0.35);
+      stroke: #34d399;
+    }
+
+    .center-companion-orb {
+      position: relative;
+      width: 86px;
+      height: 86px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #2d374b 0%, #151d2e 60%, #0d131f 100%);
+      border: 2.5px solid var(--accent-emerald);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 38px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+      transition: transform 0.2s;
+      overflow: hidden;
+    }
+
+    .center-companion-orb:hover {
+      transform: scale(1.06);
+    }
+
+    .orb-video-stream {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .orb-badge-pill {
+      position: absolute;
+      bottom: -3px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #064e3b;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 7px;
+      border-radius: 10px;
+      border: 1px solid #fff;
+      font-family: monospace;
+    }
+
+    /* Floating Pills Below Companion */
+    .floating-pills-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .active-task-pill {
+      background: rgba(14, 22, 38, 0.95);
+      border: 1px solid var(--border-hover);
+      border-radius: 18px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      max-width: 320px;
+    }
+
+    .partner-live-pill {
+      background: linear-gradient(135deg, rgba(88, 28, 135, 0.9), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      border-radius: 14px;
+      padding: 4px 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #fbcfe8;
+    }
+
+    .btn-expand-dash {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #064e3b;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 7px 18px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+      transition: transform 0.15s;
+    }
+
+    .btn-expand-dash:hover {
+      transform: translateY(-1px);
+    }
+
+    /* ======================================================== */
+    /* VIEW B: FULL APP DASHBOARD (LAUNCH SUITE)                */
+    /* ======================================================== */
+    .view-full-dashboard {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Duo Progress Ribbon */
+    .duo-sync-ribbon {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      flex-wrap: wrap;
+    }
+
+    .ribbon-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .partner-avatar-circle {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #831843;
+      border: 2px solid var(--accent-rose);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .live-dot-green {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 9px;
+      height: 9px;
+      background: #10b981;
+      border-radius: 50%;
+      border: 2px solid var(--surface-1);
+    }
+
+    .ribbon-partner-details h3 {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .ribbon-partner-details p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .ribbon-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-quick-nudge {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.18s;
+    }
+
+    .btn-quick-nudge:hover {
+      background: var(--accent-rose);
+      color: #fff;
+    }
+
+    /* Full App Shell */
+    .dashboard-shell {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      min-height: 680px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sidebar Navigation */
+    .dash-sidebar {
+      background: var(--surface-2);
+      border-right: 1px solid var(--border);
+      padding: 18px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .sidebar-section-name {
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      padding-left: 8px;
+      margin-bottom: 8px;
+    }
+
+    .dash-nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 11px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: transparent;
+      border: 1px solid transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .dash-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+    }
+
+    .dash-nav-btn.active {
+      background: var(--surface-1);
+      border-color: var(--border-hover);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .nav-tag-count {
+      font-size: 10px;
+      font-family: monospace;
+      background: var(--border);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    /* Main Tab Content Viewport */
+    .dash-content {
+      padding: 22px;
+      overflow-y: auto;
+      max-height: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .tab-view-pane {
+      display: none;
+      flex-direction: column;
+      gap: 18px;
+      animation: tabFadeIn 0.18s ease-out;
+    }
+
+    .tab-view-pane.active {
+      display: flex;
+    }
+
+    @keyframes tabFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .tab-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .tab-title-text h2 {
+      font-size: 17px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-title-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ======================================================== */
+    /* TAB 1: DUAL TASK BOARDS (ORGANIZED & CALM)               */
+    /* ======================================================== */
+    .dual-boards-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 800px) {
+      .dual-boards-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .board-column-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .board-column-card.her-accent {
+      border-color: rgba(244, 63, 94, 0.25);
+    }
+
+    .board-header-mini {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .board-header-mini h4 {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .board-pct-tag {
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    /* Quick Add Bar in Board */
+    .board-add-trigger {
+      background: var(--surface-1);
+      border: 1px dashed var(--border-hover);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s;
+    }
+
+    .board-add-trigger:hover {
+      border-color: var(--accent-emerald);
+      color: var(--text);
+    }
+
+    .board-add-trigger.her-trigger:hover {
+      border-color: var(--accent-rose);
+      color: #fda4af;
+    }
+
+    /* Task Items Stack */
+    .task-rows-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .task-entry-row {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.15s;
+    }
+
+    .task-entry-row:hover {
+      border-color: var(--border-hover);
+    }
+
+    .task-entry-row.running {
+      border-color: var(--accent-emerald);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .task-entry-row.her-running {
+      border-color: var(--accent-rose);
+      background: rgba(244, 63, 94, 0.08);
+    }
+
+    .task-entry-row.completed {
+      opacity: 0.45;
+    }
+
+    .task-check-box {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 1.5px solid var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .task-check-box.checked {
+      background: var(--accent-emerald);
+      border-color: var(--accent-emerald);
+      color: #fff;
+    }
+
+    .task-info-block {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+    }
+
+    .task-name-text {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .task-labels-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .task-label-chip {
+      font-size: 9px;
+      font-family: monospace;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      color: var(--text-muted);
+    }
+
+    .task-reminder-chip {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fde68a;
+    }
+
+    .task-actions-cluster {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-track-ticker {
+      background: var(--accent-emerald);
+      border: none;
+      color: #064e3b;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-track-ticker.paused {
+      background: var(--accent-amber);
+      color: #78350f;
+    }
+
+    .btn-row-action {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 25px;
+      height: 25px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+
+    .btn-row-action:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    /* ======================================================== */
+    /* TAB 2: POMODORO & STOPWATCH                             */
+    /* ======================================================== */
+    .timer-screen-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 36px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .timer-digits-hero {
+      font-size: 68px;
+      font-family: monospace;
+      font-weight: 800;
+      color: #34d399;
+      text-shadow: 0 0 25px rgba(52, 211, 153, 0.3);
+    }
+
+    .timer-controls-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .pomo-preset-btn {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .pomo-preset-btn.active {
+      background: var(--accent-emerald);
+      color: #064e3b;
+      border-color: #34d399;
+    }
+
+    /* ======================================================== */
+    /* TAB 3: DUO LOUNGE (AUDIO / VIDEO)                        */
+    /* ======================================================== */
+    .video-grid-dual {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .video-feed-box {
+      background: #000;
+      border-radius: 16px;
+      aspect-ratio: 16 / 10;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+    }
+
+    .video-feed-overlay {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 4px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+    }
+
+    .music-mixer-bar {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    /* ======================================================== */
+    /* TAB 4: AI DOUBT SOLVER                                   */
+    /* ======================================================== */
+    .doubt-card-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ======================================================== */
+    /* TAB 5: ALL SETTINGS                                      */
+    /* ======================================================== */
+    .settings-group-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .setting-item-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* MODAL POPUPS */
+    .clean-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .clean-modal-dialog {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-hover);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-line-input {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .modal-line-input:focus {
+      border-color: var(--accent-emerald);
+    }
+
+    /* TOAST */
+    .toast-popup {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: var(--surface-1);
+      border: 1px solid var(--accent-emerald);
+      border-radius: 14px;
+      padding: 12px 18px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+    }
+  </style>
+</head>
+<body class="theme-dark">
+
+<!-- TOP MASTER APP BAR -->
+<div class="master-header">
+  <div class="brand-left">
+    <div class="brand-logo-sq">🥬</div>
+    <div class="brand-names">
+      <h1>Amigo Companion</h1>
+      <p>Launch Edition • Live Duo Synchronization</p>
+    </div>
+  </div>
+
+  <!-- Mode Switcher -->
+  <div class="view-pills">
+    <button class="view-btn active" id="btnNavDash" onclick="switchMainMode('dashboard')">
+      <span>📋 Full Command Center</span>
+    </button>
+    <button class="view-btn" id="btnNavWidget" onclick="switchMainMode('widget')">
+      <span>🪟 Desktop Widget Mode</span>
+    </button>
+  </div>
+
+  <div class="status-and-tools">
+    <div class="live-status-pill">
+      <span class="dot-pulse"></span>
+      <span>Siddhi Connected</span>
+    </div>
+    <select class="theme-dropdown" onchange="changeTheme(this.value)">
+      <option value="dark">🌙 Dark</option>
+      <option value="white">🤍 White</option>
+      <option value="blush">🌸 Blush</option>
+    </select>
+  </div>
+</div>
+
+<!-- MAIN VIEWPORT CONTAINER -->
+<div class="app-viewport">
+
+  <!-- ======================================================== -->
+  <!-- 1. FULL COMMAND CENTER (COMPLETE APP WORKSPACE)          -->
+  <!-- ======================================================== -->
+  <div class="view-full-dashboard" id="viewDashboard">
+
+    <!-- Duo Harmony Ribbon -->
+    <div class="duo-sync-ribbon">
+      <div class="ribbon-left">
+        <div class="partner-avatar-circle">
+          <span>👩‍🎓</span>
+          <span class="live-dot-green"></span>
+        </div>
+        <div class="ribbon-partner-details">
+          <h3>Siddhi (Partner) • <span id="partnerPctLive" style="color: var(--accent-rose);">50% Done</span></h3>
+          <p id="partnerActiveDesc">Active Focus: Organic Chemistry Reaction Mechanisms (Set 3)</p>
+        </div>
+      </div>
+      <div class="ribbon-actions">
+        <button class="btn-quick-nudge" onclick="sendNudgeToSiddhi()">
+          <span>💬 Nudge Siddhi</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Shell with Sidebar -->
+    <div class="dashboard-shell">
+      <!-- Navigation Sidebar -->
+      <div class="dash-sidebar">
+        <div>
+          <div class="sidebar-section-name">Core Tools</div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <button class="dash-nav-btn active" onclick="showTab('tasks', this)">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>📋</span>
+                <span>Dual Task Boards</span>
+              </div>
+              <span class="nav-tag-count" id="countAllTasks">5</span>
+            </button>
+            <button class="dash-nav-btn" onclick="showTab('timer', this)">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>⏱️</span>
+                <span>Focus Stopwatch</span>
+              </div>
+              <span class="nav-tag-count" style="background: rgba(16,185,129,0.2); color: #34d399;">LIVE</span>
+            </button>
+            <button class="dash-nav-btn" onclick="showTab('lounge', this)">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>👥</span>
+                <span>Duo Video Lounge</span>
+              </div>
+              <span class="nav-tag-count">HD</span>
+            </button>
+            <button class="dash-nav-btn" onclick="showTab('doubts', this)">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>💡</span>
+                <span>AI Doubt Solver</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="sidebar-section-name" style="margin-top: 20px;">Configuration</div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <button class="dash-nav-btn" onclick="showTab('settings', this)">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>⚙️</span>
+                <span>All Settings</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 10px; background: rgba(0,0,0,0.25); border-radius: 12px; font-size: 11px; color: var(--text-dim);">
+          🔒 Zero-Loophole Security: Active<br>
+          Room: <strong>our-study-date</strong>
+        </div>
+      </div>
+
+      <!-- Main Tab Content Area -->
+      <div class="dash-content">
+
+        <!-- TAB 1: DUAL TASK BOARDS (DIRECT ADD & UPDATE) -->
+        <div class="tab-view-pane active" id="pane-tasks">
+          <div class="tab-header-row">
+            <div class="tab-title-text">
+              <h2><span>📋</span> Dual Task Management & Accountability</h2>
+              <p>Add & update tasks for yourself or for Siddhi with live reminder alarms</p>
+            </div>
+            <button class="btn-expand-dash" onclick="switchMainMode('widget')">
+              <span>🪟 Minimize to Widget</span>
+            </button>
+          </div>
+
+          <!-- Dual Columns -->
+          <div class="dual-boards-container">
+
+            <!-- COLUMN 1: HEMANT'S TASKS -->
+            <div class="board-column-card">
+              <div class="board-header-mini">
+                <h4><span>🧑‍💻</span> My Tasks (Hemant)</h4>
+                <span class="board-pct-tag" id="myPctTag">2 of 3 Done (67%)</span>
+              </div>
+
+              <!-- Clean Add Trigger for Myself -->
+              <div class="board-add-trigger" onclick="openAddTaskModal('me')">
+                <span>+ Add task for myself...</span>
+                <span>🧑‍💻</span>
+              </div>
+
+              <div class="task-rows-stack" id="stackMyTasks">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- COLUMN 2: SIDDHI'S TASKS -->
+            <div class="board-column-card her-accent">
+              <div class="board-header-mini">
+                <h4 style="color: #fbcfe8;"><span>👩‍🎓</span> Siddhi's Tasks (Her List)</h4>
+                <span class="board-pct-tag" id="herPctTag" style="color: #f472b6;">1 of 2 Done (50%)</span>
+              </div>
+
+              <!-- Clean Add Trigger for Siddhi -->
+              <div class="board-add-trigger her-trigger" onclick="openAddTaskModal('her')">
+                <span style="color: #fda4af;">+ Add new task for Siddhi...</span>
+                <span>👩‍🎓</span>
+              </div>
+
+              <div class="task-rows-stack" id="stackHerTasks">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- TAB 2: POMODORO & FOCUS STOPWATCH -->
+        <div class="tab-view-pane" id="pane-timer">
+          <div class="tab-header-row">
+            <div class="tab-title-text">
+              <h2><span>⏱️</span> Deep Focus Stopwatch & Pomodoro</h2>
+              <p>Continuous task tracking and 25-minute Pomodoro study intervals</p>
+            </div>
+          </div>
+
+          <div class="timer-screen-card">
+            <div style="font-size: 13px; font-family: monospace; color: var(--text-dim); text-transform: uppercase;">Active Task Focus</div>
+            <div style="font-size: 16px; font-weight: 700;" id="heroTimerTaskName">Calculus Problem Set 4 (Integrals)</div>
+            <div class="timer-digits-hero" id="heroTimerDigits">00:28:45</div>
+            <div class="timer-controls-row">
+              <button class="btn-expand-dash" style="padding: 10px 24px; font-size: 13px;" id="btnHeroPlayPause" onclick="toggleHeroTimer()">⏸️ Pause</button>
+              <button class="btn-quick-nudge" style="padding: 10px 18px; font-size: 13px; color: var(--text);" onclick="resetHeroTimer()">🔄 Reset</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button class="pomo-preset-btn active" onclick="setPomoInterval(25, this)">25m Focus</button>
+              <button class="pomo-preset-btn" onclick="setPomoInterval(5, this)">5m Break</button>
+              <button class="pomo-preset-btn" onclick="setPomoInterval(50, this)">50m Deep Work</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: DUO VIDEO LOUNGE -->
+        <div class="tab-view-pane" id="pane-lounge">
+          <div class="tab-header-row">
+            <div class="tab-title-text">
+              <h2><span>👥</span> Duo Study Lounge & Media Hub</h2>
+              <p>Simultaneous microphone audio, 1080p camera feeds, and mixed YouTube Music</p>
+            </div>
+          </div>
+
+          <div class="video-grid-dual">
+            <!-- Local Cam -->
+            <div class="video-feed-box" id="localVideoContainer">
+              <div style="font-size: 48px;">🧑‍💻</div>
+              <div class="video-feed-overlay">
+                <span class="dot-pulse"></span>
+                <span>You (Hemant) • HD Cam</span>
+              </div>
+            </div>
+
+            <!-- Remote Partner Cam -->
+            <div class="video-feed-box" id="remoteVideoContainer">
+              <div style="font-size: 48px;">👩‍🎓</div>
+              <div class="video-feed-overlay">
+                <span class="dot-pulse"></span>
+                <span>Siddhi (Partner) • Connected</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Music Mixer Slider -->
+          <div class="music-mixer-bar">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 22px;">🎵</span>
+              <div>
+                <div style="font-size: 13px; font-weight: 700; color: #c084fc;">YouTube Music / Background Audio</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Simultaneously blends with your mic voice</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" min="0" max="100" value="75" style="accent-color: #c084fc; width: 140px;" oninput="document.getElementById('volDisplay').textContent = this.value + '%'" />
+              <span style="font-family: monospace; font-size: 11px; min-width: 32px;" id="volDisplay">75%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: AI DOUBT SOLVER -->
+        <div class="tab-view-pane" id="pane-doubts">
+          <div class="tab-header-row">
+            <div class="tab-title-text">
+              <h2><span>💡</span> Ephemeral Doubt Hub & AI Tutor</h2>
+              <p>Local Gemma AI answers with automatic 3-hour self-destruction</p>
+            </div>
+          </div>
+
+          <div class="doubt-card-box">
+            <div style="font-size: 13px; font-weight: 700;">Ask AI Tutor a Study Question</div>
+            <input type="text" class="modal-line-input" placeholder="Type a concept (e.g. 'Explain integration by parts step by step')..." />
+            <div style="display: flex; justify-content: flex-end;">
+              <button class="btn-expand-dash" onclick="triggerToast('AI Tutor Thinking...', 'Consulting local Gemma model')">Ask Gemma AI 🧠</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: ALL SETTINGS -->
+        <div class="tab-view-pane" id="pane-settings">
+          <div class="tab-header-row">
+            <div class="tab-title-text">
+              <h2><span>⚙️</span> Application Settings & Ring Configuration</h2>
+              <p>Circle resizer, room security credentials, and radial menu tools</p>
+            </div>
+          </div>
+
+          <div class="settings-group-grid">
+            <div class="setting-item-box">
+              <div style="font-size: 13px; font-weight: 700;">Floating Circle Resizer</div>
+              <input type="range" min="70" max="150" value="100" style="accent-color: #10b981;" oninput="updateOrbScale(this.value)" />
+              <div style="font-size: 11px; color: var(--text-muted);">Adjust the size of the floating companion on your desktop.</div>
+            </div>
+
+            <div class="setting-item-box">
+              <div style="font-size: 13px; font-weight: 700;">Room Security Credentials</div>
+              <div style="font-size: 12px; color: var(--text-muted);">Room Code: <strong>our-study-date</strong></div>
+              <div style="font-size: 12px; color: var(--text-muted);">Passcode: <strong>date2026</strong> (2-Device Lock Active)</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- 2. DESKTOP WIDGET MODE (HOW APP FLOATS ON COMPUTER)      -->
+  <!-- ======================================================== -->
+  <div class="view-desktop-widget" id="viewWidget">
+    <div class="desktop-monitor-frame">
+      <div class="monitor-topbar">
+        <div class="mac-dots">
+          <div class="mac-dot" style="background: #ef4444;"></div>
+          <div class="mac-dot" style="background: #eab308;"></div>
+          <div class="mac-dot" style="background: #22c55e;"></div>
+        </div>
+        <span>Study Workspace (VS Code / Notes)</span>
+        <span>21:10 PM</span>
+      </div>
+
+      <div class="desktop-study-screen">
+        <p>// Chapter 4: Integration Techniques & Applications</p>
+        <p>1. \int x \cdot e^x dx = x \cdot e^x - \int e^x dx = e^x(x - 1) + C</p>
+        <p>2. Partial Fraction Decomposition: P(x)/Q(x) where deg(P) < deg(Q)</p>
+        <br>
+        <p>// Amigo floats in the corner without blocking your material.</p>
+        <p>// Click the companion orb to expand back to your full suite anytime.</p>
+      </div>
+
+      <!-- Floating Companion Widget Anchored Bottom-Right -->
+      <div class="floating-companion-anchor">
+        <!-- 8-Sector Donut Ring -->
+        <div class="radial-ring-box">
+          <svg class="radial-svg" viewBox="0 0 160 160">
+            <!-- 8 Ring Sectors -->
+            <path class="sector-arc" d="M 80 5 A 75 75 0 0 1 133.03 26.97 L 115.35 44.64 A 50 50 0 0 0 80 30 Z" title="Drag" onclick="playBeep('pop')" />
+            <path class="sector-arc" d="M 133.03 26.97 A 75 75 0 0 1 155 80 L 130 80 A 50 50 0 0 0 115.35 44.64 Z" title="Mic" onclick="playBeep('pop')" />
+            <path class="sector-arc" d="M 155 80 A 75 75 0 0 1 133.03 133.03 L 115.35 115.35 A 50 50 0 0 0 130 80 Z" title="Cam" onclick="toggleWebcam()" />
+            <path class="sector-arc" d="M 133.03 133.03 A 75 75 0 0 1 80 155 L 80 130 A 50 50 0 0 0 115.35 115.35 Z" title="Share" onclick="playBeep('pop')" />
+            <path class="sector-arc" d="M 80 155 A 75 75 0 0 1 26.97 133.03 L 44.64 115.35 A 50 50 0 0 0 80 130 Z" title="Emoji" onclick="triggerEmojiRain('🎉')" />
+            <path class="sector-arc" d="M 26.97 133.03 A 75 75 0 0 1 5 80 L 30 80 A 50 50 0 0 0 44.64 115.35 Z" title="Nudge" onclick="sendNudgeToSiddhi()" />
+            <path class="sector-arc" d="M 5 80 A 75 75 0 0 1 26.97 26.97 L 44.64 44.64 A 50 50 0 0 0 30 80 Z" title="Doubt" onclick="showTab('doubts')" />
+            <path class="sector-arc" d="M 26.97 26.97 A 75 75 0 0 1 80 5 L 80 30 A 50 50 0 0 0 44.64 44.64 Z" title="Tasks" onclick="switchMainMode('dashboard')" />
+          </svg>
+
+          <!-- Center Mascot Orb -->
+          <div class="center-companion-orb" id="desktopCompanionOrb" onclick="switchMainMode('dashboard')">
+            <span id="orbMascotEmoji">🥬</span>
+            <video class="orb-video-stream" id="orbLiveVideo" autoplay playsinline muted></video>
+            <div class="orb-badge-pill" id="widgetOrbBadge">67% DONE</div>
+          </div>
+        </div>
+
+        <!-- Floating Info Stack -->
+        <div class="floating-pills-col">
+          <div class="active-task-pill">
+            <span style="color: #10b981; font-weight: 800;">⚡</span>
+            <span id="widgetTaskTitle" style="max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">
+              Calculus Problem Set 4
+            </span>
+            <span style="font-family: monospace; color: #34d399;" id="widgetTimer">00:28:45</span>
+            <button class="btn-track-ticker" id="btnWidgetPlayPause" onclick="toggleActiveMyTimer()">⏸️</button>
+          </div>
+
+          <div class="partner-live-pill">
+            <span class="dot-pulse"></span>
+            <span id="widgetPartnerTitle">👩‍🎓 Siddhi: Organic Chem (22m)</span>
+          </div>
+
+          <button class="btn-expand-dash" onclick="switchMainMode('dashboard')">
+            <span>📋 Open Full Suite</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: ADD TASK (DEDICATED FOR ME OR HER)                -->
+<!-- ======================================================== -->
+<div class="clean-modal-backdrop" id="modalAdd">
+  <div class="clean-modal-dialog">
+    <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+      <h3 style="font-size: 14px; font-weight: 700;" id="modalAddTitle">Add Task</h3>
+      <button style="background: transparent; border: none; font-size: 16px; color: var(--text-dim); cursor: pointer;" onclick="closeModal('modalAdd')">✕</button>
+    </div>
+
+    <form onsubmit="handleSaveNewTask(event)">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Task Name</label>
+        <input type="text" class="modal-line-input" id="inputNewTaskTitle" placeholder="e.g. Solve 10 Thermodynamics MCQs" required />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Assignee</label>
+          <select class="modal-line-input" id="selectNewAssignee">
+            <option value="me">🧑‍💻 Hemant (Me)</option>
+            <option value="her">👩‍🎓 Siddhi (Her)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Category</label>
+          <select class="modal-line-input" id="selectNewCategory">
+            <option value="Quantitative">📐 Quantitative</option>
+            <option value="Coding">💻 Coding</option>
+            <option value="Revision">📖 Revision</option>
+            <option value="Exams">🎯 Exams</option>
+            <option value="Break">☕ Break</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Reminder Alarm</label>
+        <select class="modal-line-input" id="selectNewReminder">
+          <option value="none">No reminder</option>
+          <option value="15m" selected>🔔 In 15 minutes</option>
+          <option value="30m">🔔 In 30 minutes</option>
+          <option value="1h">🔔 In 1 hour</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <button type="button" class="btn-quick-nudge" style="color: var(--text);" onclick="closeModal('modalAdd')">Cancel</button>
+        <button type="submit" class="btn-expand-dash" style="padding: 7px 16px;">Save & Sync 🚀</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: UPDATE / EDIT TASK                                -->
+<!-- ======================================================== -->
+<div class="clean-modal-backdrop" id="modalEdit">
+  <div class="clean-modal-dialog">
+    <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+      <h3 style="font-size: 14px; font-weight: 700;" id="modalEditTitle">Update Task</h3>
+      <button style="background: transparent; border: none; font-size: 16px; color: var(--text-dim); cursor: pointer;" onclick="closeModal('modalEdit')">✕</button>
+    </div>
+
+    <input type="hidden" id="editTaskIdHidden" />
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Task Name</label>
+      <input type="text" class="modal-line-input" id="editTaskTitleField" required />
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Assignee</label>
+        <select class="modal-line-input" id="editTaskAssigneeField">
+          <option value="me">🧑‍💻 Hemant (Me)</option>
+          <option value="her">👩‍🎓 Siddhi (Her)</option>
+        </select>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Category</label>
+        <select class="modal-line-input" id="editTaskCategoryField">
+          <option value="Quantitative">📐 Quantitative</option>
+          <option value="Coding">💻 Coding</option>
+          <option value="Revision">📖 Revision</option>
+          <option value="Exams">🎯 Exams</option>
+          <option value="Break">☕ Break</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
+      <label style="font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Reminder</label>
+      <select class="modal-line-input" id="editTaskReminderField">
+        <option value="none">No reminder</option>
+        <option value="15m">🔔 In 15 minutes</option>
+        <option value="30m">🔔 In 30 minutes</option>
+        <option value="1h">🔔 In 1 hour</option>
+      </select>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
+      <button type="button" class="btn-quick-nudge" style="color: var(--text);" onclick="closeModal('modalEdit')">Cancel</button>
+      <button type="button" class="btn-expand-dash" style="padding: 7px 16px;" onclick="saveEditedTask()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div class="toast-popup" id="launchToast">
+  <span style="font-size: 20px;">🔔</span>
+  <div>
+    <div style="font-size: 12px; font-weight: 800; color: #34d399;" id="toastHeading">Notice</div>
+    <div style="font-size: 11px; color: var(--text-muted);" id="toastMessage">Details</div>
+  </div>
+</div>
+
+<script>
+  // Web Audio Synthesizer
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null;
+
+  function initAudio() {
+    if (!audioCtx) audioCtx = new AudioContext();
+  }
+
+  function playBeep(type) {
+    try {
+      initAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'pop') {
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+      } else if (type === 'chime') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      }
+    } catch (e) {}
+  }
+
+  // Central Launch Data Store
+  let tasks = [
+    { id: 1, title: 'Calculus Problem Set 4 (Integrals)', assigned: 'me', category: 'Quantitative', reminder: '15m', completed: false, timeSpent: 1725, isRunning: true },
+    { id: 2, title: 'Solve 10 Integration by Parts MCQs', assigned: 'me', category: 'Quantitative', reminder: '30m', completed: true, timeSpent: 1200, isRunning: false },
+    { id: 3, title: 'Setup GitHub repository & auto-deploy', assigned: 'me', category: 'Coding', reminder: 'none', completed: true, timeSpent: 2700, isRunning: false },
+    { id: 4, title: 'Organic Chemistry Reactions (Set 3)', assigned: 'her', category: 'Revision', reminder: '15m', completed: false, timeSpent: 1320, isRunning: true },
+    { id: 5, title: '10 Inorganic Chemistry Practice Questions', assigned: 'her', category: 'Quantitative', reminder: '30m', completed: true, timeSpent: 1800, isRunning: false }
+  ];
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function renderLaunchTasks() {
+    const stackMy = document.getElementById('stackMyTasks');
+    const stackHer = document.getElementById('stackHerTasks');
+    if (!stackMy || !stackHer) return;
+
+    stackMy.innerHTML = '';
+    stackHer.innerHTML = '';
+
+    const myTasks = tasks.filter(t => t.assigned === 'me');
+    const herTasks = tasks.filter(t => t.assigned === 'her');
+
+    myTasks.forEach(task => stackMy.appendChild(createTaskCard(task, false)));
+    herTasks.forEach(task => stackHer.appendChild(createTaskCard(task, true)));
+
+    updateLaunchStats();
+  }
+
+  function createTaskCard(task, isHer) {
+    const row = document.createElement('div');
+    row.className = `task-entry-row ${task.isRunning ? (isHer ? 'her-running' : 'running') : ''} ${task.completed ? 'completed' : ''}`;
+
+    row.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+        <div class="task-check-box ${task.completed ? 'checked' : ''}" onclick="toggleTaskCompletion(${task.id})">
+          ${task.completed ? '✓' : ''}
+        </div>
+        <div class="task-info-block">
+          <div class="task-name-text" style="${task.completed ? 'text-decoration: line-through;' : ''}">${task.title}</div>
+          <div class="task-labels-row">
+            <span class="task-label-chip">${task.category}</span>
+            ${task.reminder !== 'none' ? `<span class="task-reminder-chip">🔔 ${task.reminder}</span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="task-actions-cluster">
+        <span style="font-size: 11px; font-family: monospace; color: var(--text-dim); margin-right: 4px;">${formatTime(task.timeSpent)}</span>
+        ${!task.completed ? `
+          <button class="btn-track-ticker ${task.isRunning ? 'paused' : ''}" onclick="toggleTimer(${task.id})">
+            ${task.isRunning ? '⏸️' : '▶️'}
+          </button>
+        ` : ''}
+        <button class="btn-row-action" title="Edit Task" onclick="openEditTaskModal(${task.id})">✏️</button>
+        <button class="btn-row-action" title="Delete Task" onclick="deleteTask(${task.id})">🗑️</button>
+      </div>
+    `;
+
+    return row;
+  }
+
+  function updateLaunchStats() {
+    const myTasks = tasks.filter(t => t.assigned === 'me');
+    const herTasks = tasks.filter(t => t.assigned === 'her');
+
+    // Counts
+    document.getElementById('countAllTasks').textContent = tasks.length;
+
+    // My Stats
+    const myDone = myTasks.filter(t => t.completed).length;
+    const myPct = myTasks.length > 0 ? Math.round((myDone / myTasks.length) * 100) : 0;
+    document.getElementById('myPctTag').textContent = `${myDone} of ${myTasks.length} Done (${myPct}%)`;
+    document.getElementById('widgetOrbBadge').textContent = `${myPct}% DONE`;
+
+    // Her Stats
+    const herDone = herTasks.filter(t => t.completed).length;
+    const herPct = herTasks.length > 0 ? Math.round((herDone / herTasks.length) * 100) : 0;
+    document.getElementById('herPctTag').textContent = `${herDone} of ${herTasks.length} Done (${herPct}%)`;
+    document.getElementById('partnerPctLive').textContent = `${herPct}% Done`;
+
+    const herActive = herTasks.find(t => t.isRunning) || herTasks[0];
+    if (herActive) {
+      document.getElementById('partnerActiveDesc').textContent = `Active Focus: ${herActive.title} (${formatTime(herActive.timeSpent)})`;
+      document.getElementById('widgetPartnerTitle').textContent = `👩‍🎓 Siddhi: ${herActive.title.substring(0, 22)}... (${formatTime(herActive.timeSpent)})`;
+    }
+
+    const myActive = myTasks.find(t => t.isRunning);
+    if (myActive) {
+      document.getElementById('widgetTaskTitle').textContent = myActive.title;
+      document.getElementById('widgetTimer').textContent = formatTime(myActive.timeSpent);
+      document.getElementById('heroTimerTaskName').textContent = myActive.title;
+      document.getElementById('heroTimerDigits').textContent = formatTime(myActive.timeSpent);
+    }
+  }
+
+  function toggleTaskCompletion(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.completed = !t.completed;
+    if (t.completed) t.isRunning = false;
+    playBeep('pop');
+    renderLaunchTasks();
+  }
+
+  function toggleTimer(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (t.isRunning) {
+      t.isRunning = false;
+    } else {
+      tasks.filter(x => x.assigned === t.assigned).forEach(x => x.isRunning = false);
+      t.isRunning = true;
+      playBeep('chime');
+    }
+    renderLaunchTasks();
+  }
+
+  function toggleActiveMyTimer() {
+    const myActive = tasks.find(t => t.assigned === 'me' && t.isRunning);
+    if (myActive) {
+      myActive.isRunning = false;
+    } else {
+      const firstMy = tasks.find(t => t.assigned === 'me' && !t.completed);
+      if (firstMy) firstMy.isRunning = true;
+    }
+    playBeep('pop');
+    renderLaunchTasks();
+  }
+
+  function toggleHeroTimer() {
+    toggleActiveMyTimer();
+  }
+
+  function resetHeroTimer() {
+    const myActive = tasks.find(t => t.assigned === 'me' && t.isRunning);
+    if (myActive) myActive.timeSpent = 0;
+    renderLaunchTasks();
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    playBeep('pop');
+    renderLaunchTasks();
+  }
+
+  // Modals
+  function openAddTaskModal(assigned) {
+    document.getElementById('inputNewTaskTitle').value = '';
+    document.getElementById('selectNewAssignee').value = assigned;
+    document.getElementById('modalAddTitle').textContent = assigned === 'her' ? "➕ Assign Task to Siddhi" : "➕ Add Task for Myself";
+    document.getElementById('modalAdd').style.display = 'flex';
+  }
+
+  function openEditTaskModal(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('editTaskIdHidden').value = t.id;
+    document.getElementById('editTaskTitleField').value = t.title;
+    document.getElementById('editTaskAssigneeField').value = t.assigned;
+    document.getElementById('editTaskCategoryField').value = t.category;
+    document.getElementById('editTaskReminderField').value = t.reminder;
+    document.getElementById('modalEditTitle').textContent = t.assigned === 'her' ? "✏️ Update Siddhi's Task" : "✏️ Update My Task";
+    document.getElementById('modalEdit').style.display = 'flex';
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+
+  function handleSaveNewTask(e) {
+    e.preventDefault();
+    const title = document.getElementById('inputNewTaskTitle').value.trim();
+    if (!title) return;
+
+    const assigned = document.getElementById('selectNewAssignee').value;
+    const cat = document.getElementById('selectNewCategory').value;
+    const rem = document.getElementById('selectNewReminder').value;
+
+    tasks.unshift({
+      id: Date.now(),
+      title: title,
+      assigned: assigned,
+      category: cat,
+      reminder: rem,
+      completed: false,
+      timeSpent: 0,
+      isRunning: false
+    });
+
+    closeModal('modalAdd');
+    playBeep('chime');
+    triggerToast(assigned === 'her' ? "Task Assigned to Siddhi! 👩‍🎓" : "Task Added! 🧑‍💻", title);
+    renderLaunchTasks();
+  }
+
+  function saveEditedTask() {
+    const id = Number(document.getElementById('editTaskIdHidden').value);
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+
+    t.title = document.getElementById('editTaskTitleField').value.trim();
+    t.assigned = document.getElementById('editTaskAssigneeField').value;
+    t.category = document.getElementById('editTaskCategoryField').value;
+    t.reminder = document.getElementById('editTaskReminderField').value;
+
+    closeModal('modalEdit');
+    playBeep('chime');
+    triggerToast("Task Updated! ✏️", t.title);
+    renderLaunchTasks();
+  }
+
+  function sendNudgeToSiddhi() {
+    playBeep('chime');
+    triggerToast("Nudge Sent to Siddhi! 💬", "Hemant sent: 'Hydration & break time! 💧❤️'");
+  }
+
+  function triggerToast(heading, msg) {
+    const toast = document.getElementById('launchToast');
+    document.getElementById('toastHeading').textContent = heading;
+    document.getElementById('toastMessage').textContent = msg;
+    toast.style.display = 'flex';
+    setTimeout(() => { toast.style.display = 'none'; }, 2600);
+  }
+
+  // Switch Tabs inside Full Dashboard
+  function showTab(tabId, btn) {
+    playBeep('pop');
+    document.querySelectorAll('.tab-view-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.dash-nav-btn').forEach(b => b.classList.remove('active'));
+    const target = document.getElementById(`pane-${tabId}`);
+    if (target) target.classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+
+  // Switch Master View: Dashboard vs Desktop Widget
+  function switchMainMode(mode) {
+    playBeep('pop');
+    const viewDash = document.getElementById('viewDashboard');
+    const viewWidget = document.getElementById('viewWidget');
+    const btnDash = document.getElementById('btnNavDash');
+    const btnWidget = document.getElementById('btnNavWidget');
+
+    if (mode === 'dashboard') {
+      viewDash.style.display = 'flex';
+      viewWidget.style.display = 'none';
+      btnDash.classList.add('active');
+      btnWidget.classList.remove('active');
+    } else {
+      viewDash.style.display = 'none';
+      viewWidget.style.display = 'flex';
+      btnDash.classList.remove('active');
+      btnWidget.classList.add('active');
+    }
+  }
+
+  function changeTheme(th) {
+    document.body.className = `theme-${th}`;
+  }
+
+  function updateOrbScale(val) {
+    const orb = document.getElementById('desktopCompanionOrb');
+    const size = Math.round(86 * (val / 100));
+    orb.style.width = `${size}px`;
+    orb.style.height = `${size}px`;
+  }
+
+  // Live Camera Activation in Widget & Lounge
+  let localStream = null;
+  async function toggleWebcam() {
+    const orbVideo = document.getElementById('orbLiveVideo');
+    const mascotEmoji = document.getElementById('orbMascotEmoji');
+
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      localStream = null;
+      orbVideo.style.display = 'none';
+      mascotEmoji.style.display = 'block';
+      triggerToast("Webcam Off", "Switched back to mascot");
+      return;
+    }
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      orbVideo.srcObject = localStream;
+      orbVideo.style.display = 'block';
+      mascotEmoji.style.display = 'none';
+      triggerToast("Webcam Live 📷", "Camera streaming inside companion orb");
+    } catch (err) {
+      triggerToast("Camera Notice", "Mascot active (allow camera permission to show video)");
+    }
+  }
+
+  // Timer loop
+  setInterval(() => {
+    let changed = false;
+    tasks.forEach(t => {
+      if (t.isRunning) {
+        t.timeSpent++;
+        changed = true;
+      }
+    });
+    if (changed) updateLaunchStats();
+  }, 1000);
+
+  // Initialize
+  renderLaunchTasks();
+</script>
+
+</body>
+</html>
