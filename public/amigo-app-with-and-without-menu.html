@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amigo 🥬 With Menu vs Without Menu — Full To-Do, Her Tasks & Reminders</title>
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --card-bg: rgba(20, 27, 45, 0.92);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --sidebar-bg: rgba(11, 16, 27, 0.96);
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-indigo: #6366f1;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-violet: #8b5cf6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    body.theme-white {
+      --bg-dark: #eef2f6;
+      --card-bg: rgba(255, 255, 255, 0.95);
+      --card-border: rgba(15, 23, 42, 0.14);
+      --sidebar-bg: rgba(241, 245, 249, 0.98);
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+    }
+
+    body.theme-blush {
+      --bg-dark: #fff1f2;
+      --card-bg: rgba(255, 241, 242, 0.95);
+      --card-border: rgba(244, 63, 94, 0.22);
+      --sidebar-bg: rgba(255, 228, 230, 0.98);
+      --text-main: #881337;
+      --text-muted: #9f1239;
+      --text-dim: #be123c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 10%, #171e38 0%, #080c14 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 12px 60px;
+      transition: background 0.3s ease, color 0.3s ease;
+      overflow-x: hidden;
+    }
+
+    /* TOP MASTER CONTROL BAR */
+    .master-bar {
+      width: 100%;
+      max-width: 1300px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      margin-bottom: 16px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .master-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .brand-title h1 {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-title p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .view-mode-tabs {
+      display: flex;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 4px;
+      border-radius: 14px;
+      border: 1px solid var(--card-border);
+      gap: 4px;
+    }
+
+    .view-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .view-tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .view-tab-btn.active {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #064e3b;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .master-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-nudge-test {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.25), rgba(139, 92, 246, 0.25));
+      border: 1px solid rgba(244, 63, 94, 0.5);
+      color: #fda4af;
+      padding: 7px 12px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-nudge-test:hover {
+      background: #f43f5e;
+      color: #fff;
+    }
+
+    /* VIEWPORT CONTAINER */
+    .viewport-container {
+      width: 100%;
+      max-width: 1300px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ======================================================== */
+    /* 1. VIEW 1: APP WITHOUT MENU (NORMAL FLOATING COMPANION)  */
+    /* ======================================================== */
+    .view-without-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .desktop-simulator {
+      width: 100%;
+      height: 640px;
+      border-radius: 24px;
+      border: 1px solid var(--card-border);
+      background: radial-gradient(circle at 50% 30%, #1e293b 0%, #0f172a 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .desktop-header-mock {
+      background: rgba(15, 23, 42, 0.8);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .window-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .desktop-study-content {
+      padding: 30px 40px;
+      color: #94a3b8;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      opacity: 0.65;
+      user-select: none;
+    }
+
+    /* FLOATING COMPANION WIDGET ON DESKTOP */
+    .floating-companion-widget {
+      position: absolute;
+      bottom: 40px;
+      right: 50px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      cursor: grab;
+    }
+
+    /* Radial Dial Ring Wrapper */
+    .radial-ring-wrapper {
+      position: relative;
+      width: 170px;
+      height: 170px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radial-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.6));
+    }
+
+    .sector-path {
+      fill: rgba(30, 41, 59, 0.85);
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 1.5;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sector-path:hover {
+      fill: rgba(16, 185, 129, 0.35);
+      stroke: #34d399;
+    }
+
+    /* Center Mascot Orb */
+    .companion-center-hub {
+      position: relative;
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #2d374b 0%, #151d2e 60%, #0d131f 100%);
+      border: 2.5px solid rgba(52, 211, 153, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.4), inset 0 0 15px rgba(0, 0, 0, 0.8);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .companion-center-hub:hover {
+      transform: scale(1.06);
+    }
+
+    .companion-mascot-emoji {
+      font-size: 38px;
+      animation: gentleFloat 3s infinite ease-in-out;
+    }
+
+    @keyframes gentleFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .center-pct-badge {
+      position: absolute;
+      bottom: -4px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #064e3b;
+      font-size: 9px;
+      font-weight: 800;
+      font-family: monospace;
+      padding: 1px 7px;
+      border-radius: 10px;
+      border: 1px solid #fff;
+    }
+
+    /* Floating Info Pills Below Companion */
+    .companion-pills-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Active Task Pill */
+    .floating-task-ticker-pill {
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(52, 211, 153, 0.4);
+      border-radius: 20px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+      font-size: 11px;
+      max-width: 320px;
+    }
+
+    .ticker-icon {
+      font-size: 14px;
+    }
+
+    .ticker-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+      font-weight: 600;
+    }
+
+    .ticker-time {
+      font-family: monospace;
+      font-weight: 800;
+      color: #34d399;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .ticker-btn {
+      background: #10b981;
+      border: none;
+      color: #064e3b;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 3px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    /* Her Live Status Mini-Pill */
+    .floating-partner-pill {
+      background: rgba(30, 27, 75, 0.88);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      border-radius: 16px;
+      padding: 4px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: #c4b5fd;
+      backdrop-filter: blur(8px);
+    }
+
+    .dot-live-green {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    /* Big Expand Menu Button */
+    .btn-expand-full-menu {
+      background: linear-gradient(135deg, #6366f1, #10b981);
+      border: none;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 8px 18px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s;
+    }
+
+    .btn-expand-full-menu:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.6);
+    }
+
+    /* Simulated Reminder Notification Banner on Desktop */
+    .reminder-desktop-toast {
+      position: absolute;
+      top: 30px;
+      right: 40px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1.5px solid #f59e0b;
+      border-radius: 16px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(245, 158, 11, 0.25);
+      backdrop-filter: blur(12px);
+      z-index: 200;
+      animation: slideDown 0.4s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .reminder-toast-left {
+      font-size: 26px;
+    }
+
+    .reminder-toast-body h4 {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fde68a;
+    }
+
+    .reminder-toast-body p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .reminder-toast-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-toast-snooze {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-toast-done {
+      background: #10b981;
+      border: none;
+      color: #064e3b;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 5px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* ======================================================== */
+    /* 2. VIEW 2: APP WITH MENU (COMPLETE COMMAND CENTER SUITE) */
+    /* ======================================================== */
+    .view-with-menu {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      overflow: hidden;
+      min-height: 720px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+    }
+
+    @media (max-width: 960px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* SIDEBAR */
+    .app-sidebar {
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--card-border);
+      padding: 20px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .sidebar-section-title {
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      padding-left: 8px;
+      margin-bottom: 8px;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 12px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+      background: transparent;
+      border: 1px solid transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+    }
+
+    .nav-btn.active {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(16, 185, 129, 0.25));
+      border-color: rgba(99, 102, 241, 0.4);
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pill-counter {
+      font-size: 10px;
+      font-family: monospace;
+      background: rgba(255, 255, 255, 0.12);
+      padding: 2px 7px;
+      border-radius: 8px;
+    }
+
+    /* Partner Sidebar Card */
+    .partner-card {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.8), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .partner-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .partner-card-task {
+      font-size: 11px;
+      color: #c4b5fd;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 6px 8px;
+      border-radius: 8px;
+      line-height: 1.3;
+    }
+
+    /* MAIN VIEWPORT */
+    .app-viewport {
+      padding: 24px;
+      overflow-y: auto;
+      max-height: 750px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+    }
+
+    .panel-title {
+      font-size: 18px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* TASK FILTER TABS (All / Mine / Hers / Shared) */
+    .task-filter-pills {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .filter-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .filter-pill:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+    }
+
+    .filter-pill.active {
+      background: #10b981;
+      color: #064e3b;
+      border-color: #34d399;
+    }
+
+    /* QUICK ADD FORM (WITH 'ASSIGN TO HER' & 'REMINDER' DROPDOWNS) */
+    .task-create-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .task-create-row1 {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .task-create-row1 input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .task-create-row2 {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+
+    .options-cluster {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .select-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text-main);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn-add-submit {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #064e3b;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 8px 18px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-add-submit:hover {
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+      transform: translateY(-1px);
+    }
+
+    /* TASK ITEMS LIST */
+    .task-list-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .task-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      transition: all 0.2s;
+    }
+
+    .task-card:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .task-card.active-running {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+    }
+
+    .task-card.done {
+      opacity: 0.55;
+    }
+
+    .task-card-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .task-checkbox {
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+
+    .task-checkbox.checked {
+      background: #10b981;
+      border-color: #10b981;
+      color: #fff;
+    }
+
+    .task-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .task-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .task-meta-tags {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag-assigned {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tag-assigned.me {
+      background: rgba(56, 189, 248, 0.2);
+      color: #7dd3fc;
+    }
+
+    .tag-assigned.her {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.4);
+    }
+
+    .tag-assigned.duo {
+      background: rgba(168, 85, 247, 0.2);
+      color: #d8b4fe;
+    }
+
+    .tag-category {
+      font-size: 9px;
+      font-family: monospace;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .tag-reminder {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(245, 158, 11, 0.2);
+      color: #fde68a;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .task-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-track {
+      background: #10b981;
+      border: none;
+      color: #064e3b;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-track.paused {
+      background: #f59e0b;
+      color: #78350f;
+    }
+
+    .btn-action-icon {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-muted);
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .btn-action-icon:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+    }
+
+    /* ======================================================== */
+    /* 3. MODALS (EDIT TASK & REMINDERS)                        */
+    /* ======================================================== */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-box {
+      width: 100%;
+      max-width: 500px;
+      background: var(--sidebar-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: modalPop 0.2s ease-out;
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 12px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-field label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .modal-input {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      border-top: 1px solid var(--card-border);
+      padding-top: 14px;
+    }
+
+    /* SPLIT VIEW (SIDE-BY-SIDE) */
+    .view-split {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 1100px) {
+      .view-split {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="theme-dark">
+
+<!-- MASTER TOP CONTROL BAR -->
+<div class="master-bar">
+  <div class="master-left">
+    <div class="brand-icon">🥬</div>
+    <div class="brand-title">
+      <h1>Amigo — With Menu vs Without Menu Prototype</h1>
+      <p>Full To-Do Suite, Her Tasks (Siddhi), Task Editor & Real-time Reminders</p>
+    </div>
+  </div>
+
+  <!-- Switcher for With Menu / Without Menu -->
+  <div class="view-mode-tabs">
+    <button class="view-tab-btn active" id="btnTabWithoutMenu" onclick="switchMainView('without-menu')">
+      <span>🪟 App WITHOUT Menu</span>
+      <span style="font-size: 10px; opacity: 0.8;">(Floating Companion)</span>
+    </button>
+    <button class="view-tab-btn" id="btnTabWithMenu" onclick="switchMainView('with-menu')">
+      <span>📋 App WITH Menu</span>
+      <span style="font-size: 10px; opacity: 0.8;">(Full Command Center)</span>
+    </button>
+    <button class="view-tab-btn" id="btnTabSplit" onclick="switchMainView('split')">
+      <span>⚡ Split Comparison</span>
+    </button>
+  </div>
+
+  <div class="master-controls">
+    <button class="btn-nudge-test" onclick="triggerTestReminder()">
+      <span>🔔 Trigger Test Reminder</span>
+    </button>
+    <select class="select-pill" onchange="setGlobalTheme(this.value)">
+      <option value="dark">🌙 Dark Theme</option>
+      <option value="white">🤍 Ceramic White</option>
+      <option value="blush">🌸 Sakura Blush</option>
+    </select>
+  </div>
+</div>
+
+<!-- MAIN VIEWPORT CONTAINER -->
+<div class="viewport-container">
+
+  <!-- ======================================================== -->
+  <!-- 1. VIEW: APP WITHOUT MENU (NORMAL FLOATING MODE)         -->
+  <!-- ======================================================== -->
+  <div class="view-without-menu" id="viewWithoutMenuContainer">
+    <div class="desktop-simulator">
+      <!-- Simulated Desktop Window Header -->
+      <div class="desktop-header-mock">
+        <div class="window-dots">
+          <div class="window-dot" style="background: #ef4444;"></div>
+          <div class="window-dot" style="background: #eab308;"></div>
+          <div class="window-dot" style="background: #22c55e;"></div>
+        </div>
+        <span>Study Workspace — Calculus III & Organic Chemistry (Simulated Desktop Screen)</span>
+        <span>20:45 PM • Focus Active</span>
+      </div>
+
+      <!-- Simulated Study Notes / Editor in the Background -->
+      <div class="desktop-study-content">
+        <p>// Chapter 4: Integration Techniques & Applications</p>
+        <p>1. \int x \cdot e^x dx = x \cdot e^x - \int e^x dx = e^x(x - 1) + C</p>
+        <p>2. Partial Fraction Decomposition: P(x)/Q(x) where deg(P) < deg(Q)</p>
+        <p>3. Trigonometric Substitution: \sqrt{a^2 - x^2} \implies x = a \sin\theta</p>
+        <p><br>// Partner Shared Goal: Complete Problem Set 4 before 22:00</p>
+        <p>// Notice: Amigo stays pinned on top right without blocking your work!</p>
+      </div>
+
+      <!-- Simulated Reminder Toast on Desktop (Hidden until triggered) -->
+      <div class="reminder-desktop-toast" id="desktopReminderToast" style="display: none;">
+        <div class="reminder-toast-left">🔔</div>
+        <div class="reminder-toast-body">
+          <h4 id="reminderToastTitle">Reminder: Review Calculus Problem Set 4</h4>
+          <p id="reminderToastMeta">Assigned to: Both (Hemant & Siddhi) • Due Now</p>
+        </div>
+        <div class="reminder-toast-actions">
+          <button class="btn-toast-snooze" onclick="snoozeReminder()">Snooze 5m</button>
+          <button class="btn-toast-done" onclick="dismissReminder()">✓ Done</button>
+        </div>
+      </div>
+
+      <!-- THE FLOATING COMPANION (HOW IT LOOKS WITHOUT MENU) -->
+      <div class="floating-companion-widget">
+        <!-- Radial Ring with 8 Sectors -->
+        <div class="radial-ring-wrapper">
+          <svg class="radial-svg" viewBox="0 0 170 170">
+            <!-- 8 Donut Segments (Menu Tools) -->
+            <!-- 1. Drag -->
+            <path class="sector-path" d="M 85 5 A 80 80 0 0 1 141.56 28.43 L 120.35 49.64 A 50 50 0 0 0 85 35 Z" onclick="playSound('pop')" />
+            <!-- 2. Mic -->
+            <path class="sector-path" d="M 141.56 28.43 A 80 80 0 0 1 165 85 L 135 85 A 50 50 0 0 0 120.35 49.64 Z" onclick="playSound('pop')" />
+            <!-- 3. Cam -->
+            <path class="sector-path" d="M 165 85 A 80 80 0 0 1 141.56 141.56 L 120.35 120.35 A 50 50 0 0 0 135 85 Z" onclick="playSound('pop')" />
+            <!-- 4. Share -->
+            <path class="sector-path" d="M 141.56 141.56 A 80 80 0 0 1 85 165 L 85 135 A 50 50 0 0 0 120.35 120.35 Z" onclick="playSound('pop')" />
+            <!-- 5. Emoji -->
+            <path class="sector-path" d="M 85 165 A 80 80 0 0 1 28.43 141.56 L 49.64 120.35 A 50 50 0 0 0 85 135 Z" onclick="playSound('pop')" />
+            <!-- 6. SOS -->
+            <path class="sector-path" d="M 28.43 141.56 A 80 80 0 0 1 5 85 L 35 85 A 50 50 0 0 0 49.64 120.35 Z" onclick="playSound('pop')" />
+            <!-- 7. Doubt -->
+            <path class="sector-path" d="M 5 85 A 80 80 0 0 1 28.43 28.43 L 49.64 49.64 A 50 50 0 0 0 35 85 Z" onclick="playSound('pop')" />
+            <!-- 8. Target/Tasks -->
+            <path class="sector-path" d="M 28.43 28.43 A 80 80 0 0 1 85 5 L 85 35 A 50 50 0 0 0 49.64 49.64 Z" onclick="switchMainView('with-menu')" />
+          </svg>
+
+          <!-- Center Mascot Hub -->
+          <div class="companion-center-hub" onclick="handleCenterOrbClick()">
+            <div class="companion-mascot-emoji">🥬</div>
+            <div class="center-pct-badge" id="orbDoneBadge">60% DONE</div>
+          </div>
+        </div>
+
+        <!-- Floating Info Stack Anchored Beneath Center -->
+        <div class="companion-pills-stack">
+          <!-- Active Task Ticker Pill -->
+          <div class="floating-task-ticker-pill">
+            <span class="ticker-icon">⚡</span>
+            <span class="ticker-text" id="floatingTaskText">Review Calculus Problem Set 4</span>
+            <span class="ticker-time" id="floatingTaskTimer">00:28:45</span>
+            <button class="ticker-btn" id="btnFloatingPlayPause" onclick="toggleActiveTaskTimer()">⏸️</button>
+          </div>
+
+          <!-- Partner Live Status Pill -->
+          <div class="floating-partner-pill">
+            <span class="dot-live-green"></span>
+            <span>👩‍🎓 Siddhi: Organic Chem Reaction Set (22m)</span>
+          </div>
+
+          <!-- 1-Click Expand Full Menu Button -->
+          <button class="btn-expand-full-menu" onclick="switchMainView('with-menu')">
+            <span>📋 Open Full App Menu & Tasks</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- 2. VIEW: APP WITH MENU (FULL COMMAND CENTER & TASKS)     -->
+  <!-- ======================================================== -->
+  <div class="view-with-menu" id="viewWithMenuContainer">
+    <div class="app-shell">
+      <!-- SIDEBAR -->
+      <div class="app-sidebar">
+        <div>
+          <div class="sidebar-section-title">Productivity Core</div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <button class="nav-btn active">
+              <div class="nav-left">
+                <span>📋</span>
+                <span>To-Do & Tasks Suite</span>
+              </div>
+              <span class="pill-counter" id="sidebarTaskCount">5</span>
+            </button>
+            <button class="nav-btn">
+              <div class="nav-left">
+                <span>⏱️</span>
+                <span>Focus Stopwatch</span>
+              </div>
+              <span class="pill-counter" style="background: rgba(16,185,129,0.25); color: #34d399;">LIVE</span>
+            </button>
+            <button class="nav-btn">
+              <div class="nav-left">
+                <span>📊</span>
+                <span>Progress & Velocity</span>
+              </div>
+            </button>
+            <button class="nav-btn">
+              <div class="nav-left">
+                <span>👥</span>
+                <span>Duo Study Lounge</span>
+              </div>
+              <span class="pill-counter">2/2</span>
+            </button>
+            <button class="nav-btn">
+              <div class="nav-left">
+                <span>💡</span>
+                <span>AI Doubt Solver</span>
+              </div>
+            </button>
+            <button class="nav-btn">
+              <div class="nav-left">
+                <span>⚙️</span>
+                <span>All Settings & Themes</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Siddhi Partner Card -->
+        <div class="partner-card">
+          <div class="partner-card-top">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="dot-live-green"></span>
+              <span>Siddhi (Partner)</span>
+            </div>
+            <span style="color: #34d399; font-family: monospace;">75% Done</span>
+          </div>
+          <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Her Active Task:</div>
+          <div class="partner-card-task">
+            📖 Solving Calculus Problem Set 4 (28m spent)
+          </div>
+          <button style="background: rgba(244,63,94,0.2); border: 1px solid rgba(244,63,94,0.4); color: #fda4af; font-size: 10px; font-weight: 700; padding: 5px; border-radius: 8px; cursor: pointer;" onclick="sendNudgeToHer()">
+            💬 Send Quick Nudge to Her
+          </button>
+        </div>
+      </div>
+
+      <!-- MAIN APP WORKSPACE -->
+      <div class="app-viewport">
+        <!-- Header -->
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">
+              <span>📋</span>
+              <span>To-Do Management, Her Tasks & Reminders</span>
+            </div>
+            <div class="panel-subtitle">Create, assign to Her/Me/Both, update tasks, set reminders, and track live stopwatch</div>
+          </div>
+          <button class="btn-expand-full-menu" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; box-shadow: none;" onclick="switchMainView('without-menu')">
+            <span>🪟 Minimize to Floating Orb</span>
+          </button>
+        </div>
+
+        <!-- Task Filter Pills -->
+        <div class="task-filter-pills">
+          <button class="filter-pill active" onclick="setTaskFilter('all', this)">
+            <span>All Tasks</span>
+            <span class="pill-counter" id="filterCountAll">5</span>
+          </button>
+          <button class="filter-pill" onclick="setTaskFilter('me', this)">
+            <span>🧑‍💻 My Tasks (Hemant)</span>
+            <span class="pill-counter" id="filterCountMe">2</span>
+          </button>
+          <button class="filter-pill" onclick="setTaskFilter('her', this)">
+            <span>👩‍🎓 Her Tasks (Siddhi)</span>
+            <span class="pill-counter" id="filterCountHer">2</span>
+          </button>
+          <button class="filter-pill" onclick="setTaskFilter('duo', this)">
+            <span>🤝 Shared Duo Goals</span>
+            <span class="pill-counter" id="filterCountDuo">1</span>
+          </button>
+        </div>
+
+        <!-- CREATE NEW TASK (WITH 'ASSIGN TO' & 'REMINDER') -->
+        <form class="task-create-card" onsubmit="handleCreateTask(event)">
+          <div class="task-create-row1">
+            <span>➕</span>
+            <input type="text" id="inputNewTitle" placeholder="Add a new task (e.g., 'Solve 10 Calculus questions', 'Read Chapter 4 summary')..." required />
+          </div>
+
+          <div class="task-create-row2">
+            <div class="options-cluster">
+              <!-- Assign To Dropdown -->
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Assign:</label>
+                <select class="select-pill" id="inputNewAssigned">
+                  <option value="me">🧑‍💻 Me (Hemant)</option>
+                  <option value="her">👩‍🎓 Her (Siddhi)</option>
+                  <option value="duo">🤝 Both (Duo Goal)</option>
+                </select>
+              </div>
+
+              <!-- Category Dropdown -->
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Category:</label>
+                <select class="select-pill" id="inputNewCategory">
+                  <option value="Quantitative">📐 Quantitative</option>
+                  <option value="Coding">💻 Coding</option>
+                  <option value="Revision">📖 Revision</option>
+                  <option value="Exams">🎯 Exams</option>
+                  <option value="Health">☕ Health & Break</option>
+                </select>
+              </div>
+
+              <!-- Priority Dropdown -->
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Priority:</label>
+                <select class="select-pill" id="inputNewPriority">
+                  <option value="high">🔥 High</option>
+                  <option value="med" selected>⚡ Med</option>
+                  <option value="low">☕ Low</option>
+                </select>
+              </div>
+
+              <!-- Reminder Dropdown -->
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Reminder:</label>
+                <select class="select-pill" id="inputNewReminder">
+                  <option value="none">None</option>
+                  <option value="15m" selected>🔔 In 15 mins</option>
+                  <option value="30m">🔔 In 30 mins</option>
+                  <option value="1h">🔔 In 1 hour</option>
+                  <option value="end">🔔 When timer ends</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-add-submit">
+              <span>+ Add Task</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- TASK LIST GRID -->
+        <div class="task-list-grid" id="taskListContainer">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL: EDIT / UPDATE TASK                                -->
+<!-- ======================================================== -->
+<div class="modal-backdrop" id="modalEditTask">
+  <div class="modal-box">
+    <div class="modal-title-row">
+      <h3 style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+        <span>✏️</span> Update Task Details
+      </h3>
+      <button style="background: transparent; border: none; font-size: 18px; color: var(--text-dim); cursor: pointer;" onclick="closeEditModal()">✕</button>
+    </div>
+
+    <input type="hidden" id="editTaskId" />
+
+    <div class="modal-field">
+      <label>Task Title</label>
+      <input type="text" class="modal-input" id="editTaskTitle" />
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div class="modal-field">
+        <label>Assigned To</label>
+        <select class="select-pill" id="editTaskAssigned" style="padding: 10px;">
+          <option value="me">🧑‍💻 Me (Hemant)</option>
+          <option value="her">👩‍🎓 Her (Siddhi)</option>
+          <option value="duo">🤝 Both (Duo Goal)</option>
+        </select>
+      </div>
+
+      <div class="modal-field">
+        <label>Category</label>
+        <select class="select-pill" id="editTaskCategory" style="padding: 10px;">
+          <option value="Quantitative">📐 Quantitative</option>
+          <option value="Coding">💻 Coding</option>
+          <option value="Revision">📖 Revision</option>
+          <option value="Exams">🎯 Exams</option>
+          <option value="Health">☕ Health & Break</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div class="modal-field">
+        <label>Priority</label>
+        <select class="select-pill" id="editTaskPriority" style="padding: 10px;">
+          <option value="high">🔥 High</option>
+          <option value="med">⚡ Med</option>
+          <option value="low">☕ Low</option>
+        </select>
+      </div>
+
+      <div class="modal-field">
+        <label>Reminder Alarm</label>
+        <select class="select-pill" id="editTaskReminder" style="padding: 10px;">
+          <option value="none">None</option>
+          <option value="15m">🔔 In 15 mins</option>
+          <option value="30m">🔔 In 30 mins</option>
+          <option value="1h">🔔 In 1 hour</option>
+          <option value="end">🔔 When timer ends</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-field">
+      <label>Notes & Hints for Her / Partner</label>
+      <input type="text" class="modal-input" id="editTaskNotes" placeholder="e.g. Focus on Q3 and Q7, solve step-by-step..." />
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-toast-snooze" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-add-submit" onclick="saveEditedTask()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Web Audio Synthesizer (Zero external dependencies)
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null;
+
+  function initAudio() {
+    if (!audioCtx) audioCtx = new AudioContext();
+  }
+
+  function playSound(type) {
+    try {
+      initAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'pop') {
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'chime') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.35);
+      } else if (type === 'celebrate') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); // G5
+        osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.3); // C6
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      }
+    } catch (e) {
+      console.warn('Audio play postponed:', e);
+    }
+  }
+
+  // Tasks State
+  let currentFilter = 'all';
+  let tasks = [
+    {
+      id: 1,
+      title: 'Review Calculus Problem Set 4 formulas & integrals',
+      assigned: 'duo',
+      category: 'Quantitative',
+      priority: 'high',
+      reminder: '15m',
+      notes: 'Make sure to memorize trig substitution rules',
+      completed: false,
+      timeSpent: 1725,
+      isRunning: true
+    },
+    {
+      id: 2,
+      title: 'Solve 10 Advanced Integration by Parts MCQs',
+      assigned: 'me',
+      category: 'Quantitative',
+      priority: 'high',
+      reminder: '30m',
+      notes: 'Focus on time limit: 2 mins per MCQ',
+      completed: false,
+      timeSpent: 900,
+      isRunning: false
+    },
+    {
+      id: 3,
+      title: 'Revise Organic Chemistry Reaction Mechanisms (Set 3)',
+      assigned: 'her',
+      category: 'Revision',
+      priority: 'high',
+      reminder: '1h',
+      notes: 'Siddhi requested flashcard deck review',
+      completed: false,
+      timeSpent: 1320,
+      isRunning: false
+    },
+    {
+      id: 4,
+      title: 'Draft full-length Mock Exam strategy summary',
+      assigned: 'me',
+      category: 'Exams',
+      priority: 'med',
+      reminder: 'none',
+      notes: '',
+      completed: true,
+      timeSpent: 2700,
+      isRunning: false
+    },
+    {
+      id: 5,
+      title: 'Hydration & 5-min stretch break with partner',
+      assigned: 'her',
+      category: 'Health',
+      priority: 'low',
+      reminder: 'none',
+      notes: 'Drink 500ml water',
+      completed: true,
+      timeSpent: 300,
+      isRunning: false
+    }
+  ];
+
+  function formatTime(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  function renderTasks() {
+    const container = document.getElementById('taskListContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const filtered = tasks.filter(t => {
+      if (currentFilter === 'all') return true;
+      return t.assigned === currentFilter;
+    });
+
+    filtered.forEach(task => {
+      const card = document.createElement('div');
+      card.className = `task-card ${task.isRunning ? 'active-running' : ''} ${task.completed ? 'done' : ''}`;
+
+      let assignedBadge = '';
+      if (task.assigned === 'me') {
+        assignedBadge = '<span class="tag-assigned me">🧑‍💻 Me (Hemant)</span>';
+      } else if (task.assigned === 'her') {
+        assignedBadge = '<span class="tag-assigned her">👩‍🎓 Her (Siddhi)</span>';
+      } else {
+        assignedBadge = '<span class="tag-assigned duo">🤝 Shared Duo Goal</span>';
+      }
+
+      let priBadge = task.priority === 'high' 
+        ? '<span style="font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: rgba(244,63,94,0.2); color: #fda4af;">🔥 High</span>'
+        : (task.priority === 'med'
+            ? '<span style="font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: rgba(245,158,11,0.2); color: #fde68a;">⚡ Med</span>'
+            : '<span style="font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: rgba(100,116,139,0.2); color: #cbd5e1;">☕ Low</span>');
+
+      let reminderBadge = task.reminder !== 'none'
+        ? `<span class="tag-reminder">🔔 ${task.reminder}</span>`
+        : '';
+
+      card.innerHTML = `
+        <div class="task-card-left">
+          <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="toggleTaskCompletion(${task.id})">
+            ${task.completed ? '✓' : ''}
+          </div>
+          <div class="task-info">
+            <div class="task-title" style="${task.completed ? 'text-decoration: line-through; opacity: 0.7;' : ''}">${task.title}</div>
+            <div class="task-meta-tags">
+              ${assignedBadge}
+              <span class="tag-category">${task.category}</span>
+              ${priBadge}
+              ${reminderBadge}
+              ${task.notes ? `<span style="font-size: 10px; color: var(--text-dim);">📝 ${task.notes}</span>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="task-card-actions">
+          <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">⏱️ ${formatTime(task.timeSpent)}</span>
+          ${!task.completed ? `
+            <button class="btn-track ${task.isRunning ? 'paused' : ''}" onclick="toggleTaskTimer(${task.id})">
+              ${task.isRunning ? '⏸️ Pause' : '▶️ Track'}
+            </button>
+          ` : ''}
+          <button class="btn-action-icon" title="Edit / Update Task" onclick="openEditModal(${task.id})">✏️</button>
+          <button class="btn-action-icon" title="Send reminder / Nudge" onclick="nudgeTask(${task.id})">🔔</button>
+          <button class="btn-action-icon" title="Delete Task" onclick="deleteTask(${task.id})">🗑️</button>
+        </div>
+      `;
+
+      container.appendChild(card);
+    });
+
+    updateCounters();
+  }
+
+  function updateCounters() {
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.completed).length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    // Badges & Counters
+    const orbBadge = document.getElementById('orbDoneBadge');
+    if (orbBadge) orbBadge.textContent = `${pct}% DONE`;
+
+    const sideCount = document.getElementById('sidebarTaskCount');
+    if (sideCount) sideCount.textContent = total;
+
+    const countAll = document.getElementById('filterCountAll');
+    if (countAll) countAll.textContent = total;
+
+    const countMe = document.getElementById('filterCountMe');
+    if (countMe) countMe.textContent = tasks.filter(t => t.assigned === 'me').length;
+
+    const countHer = document.getElementById('filterCountHer');
+    if (countHer) countHer.textContent = tasks.filter(t => t.assigned === 'her').length;
+
+    const countDuo = document.getElementById('filterCountDuo');
+    if (countDuo) countDuo.textContent = tasks.filter(t => t.assigned === 'duo').length;
+
+    // Sync active task to floating companion widget
+    const running = tasks.find(t => t.isRunning);
+    const floatTxt = document.getElementById('floatingTaskText');
+    const floatTimer = document.getElementById('floatingTaskTimer');
+    const floatBtn = document.getElementById('btnFloatingPlayPause');
+
+    if (running) {
+      if (floatTxt) floatTxt.textContent = running.title;
+      if (floatTimer) floatTimer.textContent = formatTime(running.timeSpent);
+      if (floatBtn) floatBtn.textContent = '⏸️';
+    } else {
+      if (floatTxt) floatTxt.textContent = 'No task active (Click Track to begin)';
+      if (floatBtn) floatBtn.textContent = '▶️';
+    }
+  }
+
+  function toggleTaskCompletion(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    t.completed = !t.completed;
+    if (t.completed) {
+      t.isRunning = false;
+      playSound('celebrate');
+    } else {
+      playSound('pop');
+    }
+    renderTasks();
+  }
+
+  function toggleTaskTimer(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (t.isRunning) {
+      t.isRunning = false;
+      playSound('pop');
+    } else {
+      tasks.forEach(x => x.isRunning = false);
+      t.isRunning = true;
+      playSound('chime');
+    }
+    renderTasks();
+  }
+
+  function toggleActiveTaskTimer() {
+    const running = tasks.find(t => t.isRunning);
+    if (running) {
+      running.isRunning = false;
+      playSound('pop');
+    } else {
+      const firstActive = tasks.find(t => !t.completed);
+      if (firstActive) {
+        firstActive.isRunning = true;
+        playSound('chime');
+      }
+    }
+    renderTasks();
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    playSound('pop');
+    renderTasks();
+  }
+
+  function handleCreateTask(e) {
+    e.preventDefault();
+    const title = document.getElementById('inputNewTitle').value.trim();
+    if (!title) return;
+
+    const assigned = document.getElementById('inputNewAssigned').value;
+    const cat = document.getElementById('inputNewCategory').value;
+    const pri = document.getElementById('inputNewPriority').value;
+    const rem = document.getElementById('inputNewReminder').value;
+
+    tasks.unshift({
+      id: Date.now(),
+      title: title,
+      assigned: assigned,
+      category: cat,
+      priority: pri,
+      reminder: rem,
+      notes: '',
+      completed: false,
+      timeSpent: 0,
+      isRunning: false
+    });
+
+    document.getElementById('inputNewTitle').value = '';
+    playSound('chime');
+    renderTasks();
+  }
+
+  function setTaskFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    renderTasks();
+  }
+
+  // Task Edit Modal Logic
+  function openEditModal(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+
+    document.getElementById('editTaskId').value = t.id;
+    document.getElementById('editTaskTitle').value = t.title;
+    document.getElementById('editTaskAssigned').value = t.assigned;
+    document.getElementById('editTaskCategory').value = t.category;
+    document.getElementById('editTaskPriority').value = t.priority;
+    document.getElementById('editTaskReminder').value = t.reminder;
+    document.getElementById('editTaskNotes').value = t.notes || '';
+
+    document.getElementById('modalEditTask').style.display = 'flex';
+  }
+
+  function closeEditModal() {
+    document.getElementById('modalEditTask').style.display = 'none';
+  }
+
+  function saveEditedTask() {
+    const id = Number(document.getElementById('editTaskId').value);
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+
+    t.title = document.getElementById('editTaskTitle').value.trim();
+    t.assigned = document.getElementById('editTaskAssigned').value;
+    t.category = document.getElementById('editTaskCategory').value;
+    t.priority = document.getElementById('editTaskPriority').value;
+    t.reminder = document.getElementById('editTaskReminder').value;
+    t.notes = document.getElementById('editTaskNotes').value.trim();
+
+    closeEditModal();
+    playSound('chime');
+    renderTasks();
+  }
+
+  function nudgeTask(id) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    playSound('chime');
+    showDesktopReminderToast(`Reminder: ${t.title}`, `Assigned to: ${t.assigned === 'her' ? 'Siddhi' : (t.assigned === 'me' ? 'Hemant' : 'Both')} • Alerted Now`);
+  }
+
+  function sendNudgeToHer() {
+    playSound('chime');
+    showDesktopReminderToast(`💬 Nudge Sent to Siddhi!`, `Hemant sent: "Time for a 5-min hydration break! 💧"`);
+  }
+
+  function triggerTestReminder() {
+    playSound('chime');
+    showDesktopReminderToast(`🔔 REMINDER: Review Calculus Formula Sheet`, `Assigned to: Both (Hemant & Siddhi) • Scheduled Alarm`);
+  }
+
+  function showDesktopReminderToast(title, meta) {
+    const toast = document.getElementById('desktopReminderToast');
+    document.getElementById('reminderToastTitle').textContent = title;
+    document.getElementById('reminderToastMeta').textContent = meta;
+    toast.style.display = 'flex';
+  }
+
+  function snoozeReminder() {
+    playSound('pop');
+    document.getElementById('desktopReminderToast').style.display = 'none';
+  }
+
+  function dismissReminder() {
+    playSound('celebrate');
+    document.getElementById('desktopReminderToast').style.display = 'none';
+  }
+
+  // Switch Master View (Without Menu vs With Menu vs Split)
+  function switchMainView(mode) {
+    playSound('pop');
+    const withoutMenu = document.getElementById('viewWithoutMenuContainer');
+    const withMenu = document.getElementById('viewWithMenuContainer');
+
+    document.querySelectorAll('.view-tab-btn').forEach(b => b.classList.remove('active'));
+
+    if (mode === 'without-menu') {
+      withoutMenu.style.display = 'flex';
+      withMenu.style.display = 'none';
+      document.getElementById('btnTabWithoutMenu').classList.add('active');
+    } else if (mode === 'with-menu') {
+      withoutMenu.style.display = 'none';
+      withMenu.style.display = 'flex';
+      document.getElementById('btnTabWithMenu').classList.add('active');
+    } else if (mode === 'split') {
+      withoutMenu.style.display = 'flex';
+      withMenu.style.display = 'flex';
+      document.getElementById('btnTabSplit').classList.add('active');
+    }
+  }
+
+  function handleCenterOrbClick() {
+    playSound('celebrate');
+    // Clicking center orb can toggle full menu
+    switchMainView('with-menu');
+  }
+
+  function setGlobalTheme(theme) {
+    document.body.className = `theme-${theme}`;
+  }
+
+  // 1-Second Timer Loop
+  setInterval(() => {
+    const running = tasks.find(t => t.isRunning);
+    if (running) {
+      running.timeSpent++;
+      updateCounters();
+    }
+  }, 1000);
+
+  // Initialize
+  renderTasks();
+</script>
+
+</body>
+</html>
