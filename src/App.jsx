@@ -27,10 +27,14 @@ const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '�
 export default function App() {
   // Read room and server from URL query params (or localStorage / default)
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const rawServer = urlParams?.get('server') || localStorage.getItem('study_server_url') || 'https://amigo.degreedost.com';
+  const storedServer = typeof window !== 'undefined' ? localStorage.getItem('study_server_url') : null;
+  const validStoredServer = storedServer && !storedServer.includes('degreedost.com') ? storedServer : null;
+  const rawServer = urlParams?.get('server') || validStoredServer || 'https://amigo-companion.onrender.com';
   const parsedServerLink = parseInviteOrServerLink(rawServer);
 
-  const initialServer = parsedServerLink?.serverUrl || 'https://amigo.degreedost.com';
+  const initialServer = (parsedServerLink?.serverUrl && !parsedServerLink.serverUrl.includes('degreedost.com'))
+    ? parsedServerLink.serverUrl
+    : 'https://amigo-companion.onrender.com';
   const initialRoom = urlParams?.get('room') || parsedServerLink?.roomId || localStorage.getItem('study_room_id') || 'our-study-date';
   const initialSecret = urlParams?.get('secret') || parsedServerLink?.roomSecret || localStorage.getItem('study_room_secret') || 'date2026';
 
@@ -362,15 +366,27 @@ export default function App() {
       reconnection: true,
       reconnectionAttempts: Infinity, // Keep retrying automatically on computer reboot / network reconnect
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 3000,
+      reconnectionDelayMax: 4000,
       randomizationFactor: 0.1,
-      timeout: 8000,
+      timeout: 20000,
       transports: ['websocket', 'polling'],
       extraHeaders: {
         'Bypass-Tunnel-Reminder': 'true',
       },
     });
     socketRef.current = socket;
+
+    // Active Application-Level Heartbeat to prevent socket timeouts & idle drops
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('heartbeat', { deviceId, name: nickname });
+      }
+    }, 20000);
+
+    // Keep Render Free-Tier Container Awake (Ping health endpoint every 4 minutes)
+    const renderKeepAlive = setInterval(() => {
+      fetch(`${serverUrl}/api/health`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } }).catch(() => {});
+    }, 4 * 60 * 1000);
 
     // Initialize WebRTC PeerCallManager
     peerCallManagerRef.current = new PeerCallManager({
@@ -639,6 +655,8 @@ export default function App() {
     });
 
     return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(renderKeepAlive);
       peerCallManagerRef.current?.destroy();
       socket.disconnect();
     };

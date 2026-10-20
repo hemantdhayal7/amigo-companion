@@ -29,9 +29,9 @@ const io = new Server(httpServer, {
   },
   // 25MB buffer to allow crisp, high-resolution screenshot uploads
   maxHttpBufferSize: 25 * 1024 * 1024,
-  // Fast ping/pong to detect rebooted / closed computers in 7 seconds
-  pingTimeout: 7000,
-  pingInterval: 4000,
+  // Robust ping/pong tolerant to background tab throttling, network lag spikes, and sleeping computers
+  pingTimeout: 30000,
+  pingInterval: 10000,
   allowEIO3: true
 });
 
@@ -271,11 +271,14 @@ io.on('connection', (socket) => {
     // Zero 3rd party eavesdroppers allowed!
     const roomMembers = room.members;
 
-    // Check if user is reconnecting after computer restart or network drop
+    // Check if user is reconnecting by socket ID, deviceId, OR matching partner name
     const clientDeviceId = user?.deviceId || null;
     let existingSocketToReplace = null;
     for (const [sId, existingMember] of roomMembers.entries()) {
-      if (sId === socket.id || (clientDeviceId && existingMember.deviceId === clientDeviceId)) {
+      const isSameSocket = sId === socket.id;
+      const isSameDevice = clientDeviceId && existingMember.deviceId === clientDeviceId;
+      const isSameName = rawName && existingMember.name && existingMember.name.trim().toLowerCase() === rawName.trim().toLowerCase();
+      if (isSameSocket || isSameDevice || isSameName) {
         existingSocketToReplace = sId;
         break;
       }
@@ -283,6 +286,10 @@ io.on('connection', (socket) => {
 
     if (existingSocketToReplace) {
       console.log(`[Reconnect] 🔄 Auto-reconnected: Replacing previous session for "${rawName}" (${existingSocketToReplace} -> ${socket.id})`);
+      const oldSocket = io.sockets.sockets.get(existingSocketToReplace);
+      if (oldSocket && oldSocket.id !== socket.id) {
+        try { oldSocket.disconnect(true); } catch {}
+      }
       roomMembers.delete(existingSocketToReplace);
     } else if (roomMembers.size >= 2) {
       // Room is strictly capped at 2 study partners
@@ -595,6 +602,19 @@ io.on('connection', (socket) => {
     } catch (err) {
       socket.emit('quick-ai-result', { requestId, prompt, error: err.message, success: false });
     }
+  });
+
+  // Application-level Heartbeat to keep connection alive and update room activity
+  socket.on('heartbeat', () => {
+    if (currentRoom && rooms.has(currentRoom)) {
+      const room = rooms.get(currentRoom);
+      room.lastActive = Date.now();
+      const member = room.members.get(socket.id);
+      if (member) {
+        member.lastPing = Date.now();
+      }
+    }
+    socket.emit('heartbeat-ack', { timestamp: Date.now() });
   });
 
   // Leaving / Stopping session
