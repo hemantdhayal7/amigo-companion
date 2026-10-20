@@ -33,7 +33,7 @@ function preferHardwareCodecsInSdp(sdp) {
       if (vp8Match) vp8Pts.push(vp8Match[1]);
     }
 
-    const priorityPts = [...h264Pts, ...vp8Pts];
+    const priorityPts = [...vp8Pts, ...h264Pts];
     if (priorityPts.length > 0) {
       const parts = lines[mVideoIdx].split(' ');
       const header = parts.slice(0, 3);
@@ -190,16 +190,16 @@ export class PeerCallManager {
       if (typeof RTCRtpReceiver !== 'undefined' && RTCRtpReceiver.getCapabilities) {
         const caps = RTCRtpReceiver.getCapabilities('video');
         if (caps && caps.codecs) {
-          // Prioritize hardware-accelerated H264 (NVENC, QuickSync, Apple VideoToolbox), then VP8, then others
-          const h264Codecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() === 'video/h264');
+          // Prioritize universal VP8 (works 100% across all Windows/Mac/Linux/Android devices without hardware decode failures), then H264
           const vp8Codecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() === 'video/vp8');
+          const h264Codecs = caps.codecs.filter((c) => c.mimeType && c.mimeType.toLowerCase() === 'video/h264');
           const otherCodecs = caps.codecs.filter(
-            (c) => c.mimeType && c.mimeType.toLowerCase() !== 'video/h264' && c.mimeType.toLowerCase() !== 'video/vp8'
+            (c) => c.mimeType && c.mimeType.toLowerCase() !== 'video/vp8' && c.mimeType.toLowerCase() !== 'video/h264'
           );
-          const preferred = [...h264Codecs, ...vp8Codecs, ...otherCodecs];
+          const preferred = [...vp8Codecs, ...h264Codecs, ...otherCodecs];
           if (preferred.length > 0) {
             transceiver.setCodecPreferences(preferred);
-            console.log('[WebRTC] Set video codec preferences: H.264 (Hardware) -> VP8 -> Others');
+            console.log('[WebRTC] Set video codec preferences: VP8 (Universal) -> H.264 -> Others');
           }
         }
       }
@@ -279,10 +279,25 @@ export class PeerCallManager {
         isPeerMusicOn: this.isPeerMusicOn,
       });
       // Refresh remote stream immediately and again after keyframe arrival
-      this.refreshRemoteStream();
+      this.refreshRemoteStream(true);
       if (this.isPeerVideoOn || this.isPeerMicOn || this.isPeerMusicOn) {
-        setTimeout(() => this.refreshRemoteStream(), 250);
-        setTimeout(() => this.refreshRemoteStream(), 700);
+        setTimeout(() => this.refreshRemoteStream(true), 250);
+        setTimeout(() => this.refreshRemoteStream(true), 700);
+      }
+
+      // If partner says their video is ON, but we don't have active video track or peer connection is not connected,
+      // proactively initiate or renegotiate the call so we don't get stuck waiting!
+      if (this.isPeerVideoOn) {
+        const hasLiveVideoTrack = this.remoteStream.getVideoTracks().some((t) => t.readyState === 'live');
+        const pc = this.peerConnection;
+        if (!hasLiveVideoTrack || !pc || pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          console.log('[WebRTC] Partner video is ON but no active video track received yet. Proactively triggering negotiation...');
+          setTimeout(() => {
+            if (this.isPeerVideoOn && !this.remoteStream.getVideoTracks().some((t) => t.readyState === 'live')) {
+              this.negotiate(userId || this.targetPeerId).catch(console.warn);
+            }
+          }, 800);
+        }
       }
     });
 
@@ -300,7 +315,7 @@ export class PeerCallManager {
     });
   }
 
-  refreshRemoteStream() {
+  refreshRemoteStream(forceNew = false) {
     // Sync directly with RTCPeerConnection receivers so no active track is ever missed
     if (this.peerConnection && this.peerConnection.getReceivers) {
       this.peerConnection.getReceivers().forEach((receiver) => {
@@ -321,6 +336,9 @@ export class PeerCallManager {
 
     const liveTracks = this.remoteStream.getTracks().filter((t) => t.readyState === 'live');
     const freshStream = new MediaStream(liveTracks.length > 0 ? liveTracks : this.remoteStream.getTracks());
+    if (forceNew) {
+      freshStream._forceTimestamp = Date.now();
+    }
     this.onRemoteStreamUpdate(freshStream);
   }
 
@@ -510,7 +528,7 @@ export class PeerCallManager {
           this.isPeerMicOn = true;
           this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
         }
-        this.refreshRemoteStream();
+        this.refreshRemoteStream(true);
       };
 
       this.refreshRemoteStream();
@@ -742,11 +760,7 @@ export class PeerCallManager {
       this.targetPeerId = targetUserId;
     }
 
-    const destId = targetUserId || this.targetPeerId;
-    if (!destId) {
-      console.log('[WebRTC] Skipping negotiate: No target peer specified');
-      return;
-    }
+    const destId = targetUserId || this.targetPeerId || null;
 
     if (this.isMakingOffer || pc.signalingState !== 'stable') {
       console.log('[WebRTC] Queuing pending negotiation (isMakingOffer:', this.isMakingOffer, 'state:', pc.signalingState, ')');
@@ -771,7 +785,6 @@ export class PeerCallManager {
 
       if (this.socket) {
         const payload = { offer: mungedOffer };
-        const destId = targetUserId || this.targetPeerId;
         if (destId) {
           payload.targetUserId = destId;
         }
@@ -781,6 +794,10 @@ export class PeerCallManager {
       console.error('[WebRTC] Error creating offer:', err);
     } finally {
       this.isMakingOffer = false;
+      if (this.pendingNegotiation && this.peerConnection?.signalingState === 'stable') {
+        this.pendingNegotiation = false;
+        setTimeout(() => this.negotiate(this.targetPeerId), 50);
+      }
     }
   }
 
@@ -1241,9 +1258,7 @@ export class PeerCallManager {
         }
 
         this.broadcastMediaStatus();
-        if (this.targetPeerId) {
-          await this.negotiate(this.targetPeerId);
-        }
+        await this.negotiate(this.targetPeerId);
         return { isVideoOn: true, stream: this.localStream };
       } catch (err) {
         this.handleMediaError(err, 'camera');

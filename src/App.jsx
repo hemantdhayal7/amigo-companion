@@ -398,15 +398,13 @@ export default function App() {
 
         // Separate Video-Only stream for <video> elements so GStreamer/WebKitGTK/Chromium never stalls waiting for muted audio sync
         setRemoteCamStream((prevStream) => {
-          if (!prevStream && videoTracks.length === 0) return null;
-          if (!prevStream) {
-            const fresh = new MediaStream(videoTracks);
-            setPeerStream(fresh);
-            return fresh;
+          if (videoTracks.length === 0) {
+            setPeerStream(null);
+            return null;
           }
-          const prevTrackIds = prevStream.getVideoTracks().map((t) => t.id).sort().join(',');
+          const prevTrackIds = prevStream?.getVideoTracks().map((t) => t.id).sort().join(',') || '';
           const newTrackIds = videoTracks.map((t) => t.id).sort().join(',');
-          if (prevTrackIds === newTrackIds) {
+          if (prevStream && prevTrackIds === newTrackIds && !stream._forceTimestamp) {
             return prevStream;
           }
           const fresh = new MediaStream(videoTracks);
@@ -539,6 +537,12 @@ export default function App() {
         console.log('[App] Partner joined room, setting target peer and broadcasting status:', newUser.id);
         peerCallManagerRef.current.setTargetPeerId(newUser.id);
         peerCallManagerRef.current.broadcastMediaStatus();
+        setIsPeerVideoOn(Boolean(newUser.isVideoOn));
+        setIsPeerMicOn(Boolean(newUser.isMicOn));
+        if (isVideoOn || isMicOn || newUser.isVideoOn || newUser.isMicOn) {
+          console.log('[App] Media is active on join, initiating call to partner:', newUser.id);
+          peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
+        }
       }
     });
 

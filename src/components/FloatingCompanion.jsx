@@ -147,6 +147,7 @@ export default function FloatingCompanion({
   const [isSwappedVideo, setIsSwappedVideo] = useState(false);
 
   const hasRemoteVideo = Boolean(
+    isPeerVideoOn &&
     remoteCamStream &&
     remoteCamStream.getVideoTracks &&
     remoteCamStream.getVideoTracks().some((t) => t.readyState === 'live')
@@ -156,10 +157,7 @@ export default function FloatingCompanion({
 
   const showRemote = Boolean(
     !isPartnerPresenting &&
-    (isPeerVideoOn || hasRemoteVideo) &&
-    remoteCamStream &&
-    remoteCamStream.getVideoTracks &&
-    remoteCamStream.getVideoTracks().length > 0
+    (isPeerVideoOn || hasRemoteVideo)
   );
 
   // Synchronize dual face-to-face video elements
@@ -2120,22 +2118,43 @@ export default function FloatingCompanion({
                 {/* 1. Partner's Card */}
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-950 border border-white/15 flex items-center justify-center shadow-inner">
                   {showRemote ? (
-                    <video
-                      ref={dualRemoteVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      onLoadedMetadata={(e) => {
-                        e.target.muted = true;
-                        if (e.target.paused) e.target.play().catch(() => {});
-                      }}
-                      className="w-full h-full object-cover"
-                    />
+                    hasRemoteVideo ? (
+                      <video
+                        ref={(el) => {
+                          dualRemoteVideoRef.current = el;
+                          if (el && remoteCamStream && el.srcObject !== remoteCamStream) {
+                            el.muted = true;
+                            el.playsInline = true;
+                            el.srcObject = remoteCamStream;
+                            if (el.paused) el.play().catch(() => {});
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        muted
+                        onLoadedMetadata={(e) => {
+                          e.target.muted = true;
+                          if (e.target.paused) e.target.play().catch(() => {});
+                        }}
+                        onCanPlay={(e) => {
+                          e.target.muted = true;
+                          if (e.target.paused) e.target.play().catch(() => {});
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
+                        <CabbageLogo size={28} animated />
+                        <span className="text-[8px] font-mono mt-1 opacity-75 text-cyan-300 font-bold animate-pulse">
+                          Connecting Cam...
+                        </span>
+                      </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400">
                       <CabbageLogo size={28} animated />
                       <span className="text-[8px] font-mono mt-1 opacity-75 text-cyan-300 font-bold">
-                        {isPartnerPresenting ? 'Screen on Big Display' : isPeerVideoOn ? 'Connecting...' : 'Camera Off'}
+                        {isPartnerPresenting ? 'Screen on Big Display' : 'Camera Off'}
                       </span>
                     </div>
                   )}
