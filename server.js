@@ -457,6 +457,24 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Instantaneous Keyframe Request (PLI / FIR) for unfreezing partner video
+  socket.on('request-keyframe', ({ targetUserId } = {}) => {
+    if (!isAuthorized()) return;
+    const room = rooms.get(currentRoom);
+    if (!room) return;
+
+    let target = targetUserId;
+    if (!target || !room.members.has(target)) {
+      target = Array.from(room.members.keys()).find((id) => id !== socket.id);
+    }
+    console.log(`[Signal] 🔑 Keyframe requested from ${socket.id} (${currentUser?.name}) -> target: ${target}`);
+    if (target && room.members.has(target)) {
+      io.to(target).emit('request-keyframe', { senderId: socket.id });
+    } else {
+      socket.to(currentRoom).emit('request-keyframe', { senderId: socket.id });
+    }
+  });
+
   // Client WebRTC Diagnostics logger
   socket.on('webrtc-diag', (diag) => {
     console.log(`[WebRTC-Diag] 📊 [${currentUser?.name || socket.id}]:`, JSON.stringify(diag));

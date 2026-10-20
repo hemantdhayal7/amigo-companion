@@ -539,10 +539,8 @@ export default function App() {
         peerCallManagerRef.current.broadcastMediaStatus();
         setIsPeerVideoOn(Boolean(newUser.isVideoOn));
         setIsPeerMicOn(Boolean(newUser.isMicOn));
-        if (isVideoOn || isMicOn || newUser.isVideoOn || newUser.isMicOn) {
-          console.log('[App] Media is active on join, initiating call to partner:', newUser.id);
-          peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
-        }
+        console.log('[App] Proactively establishing peer call with joined partner:', newUser.id);
+        peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
       }
     });
 
