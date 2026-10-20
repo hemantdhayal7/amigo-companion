@@ -147,7 +147,6 @@ export default function FloatingCompanion({
   const [isSwappedVideo, setIsSwappedVideo] = useState(false);
 
   const hasRemoteVideo = Boolean(
-    isPeerVideoOn &&
     remoteCamStream &&
     remoteCamStream.getVideoTracks &&
     remoteCamStream.getVideoTracks().some((t) => t.readyState === 'live')
