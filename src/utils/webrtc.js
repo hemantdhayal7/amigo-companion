@@ -72,7 +72,7 @@ function optimizeOpusInSdp(sdp) {
 
 function optimizeSdp(sdp) {
   if (!sdp || typeof sdp !== 'string') return sdp;
-  return optimizeOpusInSdp(preferHardwareCodecsInSdp(sdp));
+  return optimizeOpusInSdp(sdp);
 }
 
 export class PeerCallManager {
@@ -470,13 +470,6 @@ export class PeerCallManager {
       console.log('[WebRTC] Remote track received:', event.track?.kind, event.track?.id);
       const incomingTrack = event.track;
       if (!incomingTrack) return;
-
-      // Minimize receiver jitter buffer delay for real-time video and audio (50ms hint)
-      if (event.receiver && 'playoutDelayHint' in event.receiver) {
-        try {
-          event.receiver.playoutDelayHint = 0.05;
-        } catch {}
-      }
 
       // Clean out any stale or ended tracks of the same kind to prevent video freeze
       this.remoteStream.getTracks().forEach((existingTrack) => {
@@ -1146,14 +1139,14 @@ export class PeerCallManager {
           console.warn('[WebRTC] enumerateDevices notice:', e);
         }
 
-        // 2. Primary attempt: 30fps target framerate with ideal 640x480 resolution
+        // 2. Primary attempt: 24-25fps target framerate with ideal 640x480 resolution
         // Note: Virtual cameras (OBS, CamStudio, ManyCam) often reject 'facingMode' constraints!
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
-              width: { ideal: 640, max: 1280 },
-              height: { ideal: 480, max: 720 },
-              frameRate: { ideal: 30, min: 24, max: 30 },
+              width: { ideal: 640, max: 800 },
+              height: { ideal: 480, max: 600 },
+              frameRate: { ideal: 24, max: 30 },
             },
           });
         } catch (e1) {
@@ -1161,7 +1154,11 @@ export class PeerCallManager {
           lastError = e1;
           try {
             stream = await navigator.mediaDevices.getUserMedia({
-              video: { frameRate: { ideal: 30, min: 20 } },
+              video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                frameRate: { ideal: 24 },
+              },
             });
           } catch (e2) {
             console.warn('[WebRTC] Secondary getUserMedia failed:', e2);
@@ -1239,18 +1236,18 @@ export class PeerCallManager {
           newVideoTrack.contentHint = 'motion';
         }
 
-        // Configure ultra-smooth 30fps maintain-framerate profile (750 kbps sweet spot eliminates Wi-Fi bufferbloat and frame drops)
+        // Configure ultra-smooth low-latency balanced profile (550 kbps sweet spot eliminates Wi-Fi bufferbloat and frame drops)
         if (this.videoSender?.getParameters && this.videoSender?.setParameters) {
           try {
             const params = this.videoSender.getParameters();
             if (params && params.encodings && params.encodings.length > 0) {
-              params.encodings[0].maxBitrate = 750000; // 750 kbps
-              params.encodings[0].maxFramerate = 30;
+              params.encodings[0].maxBitrate = 550000; // 550 kbps
+              params.encodings[0].maxFramerate = 25;
               params.encodings[0].networkPriority = 'high';
               params.encodings[0].priority = 'high';
-              params.degradationPreference = 'maintain-framerate';
+              params.degradationPreference = 'balanced';
               await this.videoSender.setParameters(params);
-              console.log('[WebRTC] Enforced maintain-framerate, 30fps cap & 750kbps bitrate for smooth video');
+              console.log('[WebRTC] Enforced balanced degradation, 25fps cap & 550kbps bitrate for smooth low-latency video');
             }
           } catch (paramErr) {
             console.warn('[WebRTC] Note on camera parameters:', paramErr);
@@ -1295,7 +1292,7 @@ export class PeerCallManager {
 
     try {
       if ('contentHint' in screenTrack) {
-        screenTrack.contentHint = 'motion';
+        screenTrack.contentHint = 'detail';
       }
     } catch {}
 
@@ -1323,12 +1320,13 @@ export class PeerCallManager {
       try {
         const params = this.videoSender.getParameters();
         if (params && params.encodings && params.encodings.length > 0) {
-          params.encodings[0].maxBitrate = 3500000;
+          params.encodings[0].maxBitrate = 1500000; // 1.5 Mbps optimal for crystal-clear 1080p desktop with zero Wi-Fi bufferbloat
+          params.encodings[0].maxFramerate = 24; // 24 fps is cinema-smooth for desktop
           params.encodings[0].networkPriority = 'high';
           params.encodings[0].priority = 'high';
-          params.degradationPreference = 'maintain-framerate';
+          params.degradationPreference = 'maintain-resolution';
           await this.videoSender.setParameters(params);
-          console.log('[WebRTC] Applied low-latency 3.5Mbps maintain-framerate profile to screen share');
+          console.log('[WebRTC] Applied low-latency 1.5Mbps maintain-resolution profile to screen share');
         }
       } catch (paramErr) {
         console.warn('[WebRTC] Note on screen share setParameters:', paramErr);
