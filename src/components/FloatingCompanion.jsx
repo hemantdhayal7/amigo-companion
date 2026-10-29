@@ -126,6 +126,8 @@ export default function FloatingCompanion({
   onStopMusic = () => {},
   onChangeMusicVolume = () => {},
   onDismissMusicShareError = () => {},
+  onRequestKeyframe = () => {},
+  onRestartIce = () => {},
   onMouseEnter = () => {},
   onMouseLeave = () => {},
 }) {
@@ -254,10 +256,15 @@ export default function FloatingCompanion({
       } else if (v.readyState >= 2) {
         if (v.currentTime === lastRemoteTime && v.currentTime > 0) {
           staleCount++;
-          if (staleCount >= 2) {
-            console.log('[Anti-Freeze] Video stalled on frame, re-triggering playback');
+          if (staleCount === 2) {
+            console.log('[Anti-Freeze] Video stalled on frame for 4s, requesting keyframe...');
             v.play().catch(() => {});
+            onRequestKeyframe();
+          } else if (staleCount >= 4) {
+            console.log('[Anti-Freeze] Video stalled on frame for 8s, restarting ICE relay...');
             staleCount = 0;
+            v.play().catch(() => {});
+            onRestartIce();
           }
         } else {
           staleCount = 0;
@@ -267,7 +274,7 @@ export default function FloatingCompanion({
     }, 2000);
 
     return () => clearInterval(watchdog);
-  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo]);
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, onRequestKeyframe, onRestartIce]);
 
   // Selected date partner: find the real connected peer in the room (no mock Alex and accurately filter local user)
   const selfId = selfUser?.id;

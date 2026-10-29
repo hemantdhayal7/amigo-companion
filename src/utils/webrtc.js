@@ -123,31 +123,177 @@ export class PeerCallManager {
     this.lastIceRestart = 0;
     this.rtcConfig = { ...RTC_CONFIG };
 
+    this.wakeLock = null;
+    this.keepAliveOscillator = null;
+    this.keepAliveGain = null;
+    this.keyframeTimer = null;
+    this.healthMonitorTimer = null;
+
     this.setupSocketListeners();
     this.fetchFallbackTurnCredentials();
+    this.setupVisibilityListener();
+  }
+
+  async fetchFreshIceServers() {
+    try {
+      const res = await fetch('/api/webrtc/ice-servers', {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.iceServers && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+          return data.iceServers;
+        }
+      }
+    } catch {}
+    return null;
   }
 
   async fetchFallbackTurnCredentials() {
     try {
-      const res = await fetch('https://speed.cloudflare.com/turn-creds', {
-        headers: { Referer: 'https://speed.cloudflare.com/' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.urls && data.username && data.credential) {
-          this.updateIceServers([
-            { urls: 'stun:stun.cloudflare.com:3478' },
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            {
-              urls: data.urls,
-              username: data.username,
-              credential: data.credential,
-            },
-          ]);
-        }
+      if (this.socket) {
+        this.socket.emit('get-ice-servers', (resp) => {
+          if (resp?.iceServers) {
+            this.updateIceServers(resp.iceServers);
+          }
+        });
+      }
+      const servers = await this.fetchFreshIceServers();
+      if (servers) {
+        this.updateIceServers(servers);
       }
     } catch {}
+  }
+
+  setupVisibilityListener() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && (this.isVideoOn || this.isPeerVideoOn)) {
+          this.enableBackgroundImmunity();
+          this.requestKeyFrame();
+          this.refreshRemoteStream(true);
+        }
+      });
+    }
+  }
+
+  // Acquire Screen Wake Lock and keep Web Audio pipeline alive so browsers (Chrome/Edge on Windows & Linux)
+  // NEVER throttle or suspend background WebRTC processing after 5 minutes!
+  async enableBackgroundImmunity() {
+    // 1. Screen WakeLock API
+    try {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && !this.wakeLock) {
+        this.wakeLock = await navigator.wakeLock.request('screen');
+        this.wakeLock.addEventListener('release', () => {
+          this.wakeLock = null;
+        });
+        console.log('[WebRTC] 🛡️ Screen WakeLock acquired (prevents 5-minute OS & browser sleep)');
+      }
+    } catch {}
+
+    // 2. Continuous Inaudible Audio Keep-Alive (Exempts tab from Chrome's 5-minute Intensive Wake Up Throttling)
+    try {
+      const ctx = this.getAudioContext();
+      if (ctx && !this.keepAliveOscillator) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(20, ctx.currentTime);
+        gain.gain.setValueAtTime(0.00001, ctx.currentTime); // Inaudible to humans
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        this.keepAliveOscillator = osc;
+        this.keepAliveGain = gain;
+        console.log('[WebRTC] 🛡️ Audio Keep-Alive active (prevents Chrome 5-min background freeze)');
+      }
+    } catch {}
+  }
+
+  disableBackgroundImmunity() {
+    if (this.wakeLock) {
+      try { this.wakeLock.release(); } catch {}
+      this.wakeLock = null;
+    }
+    if (this.keepAliveOscillator) {
+      try { this.keepAliveOscillator.stop(); } catch {}
+      this.keepAliveOscillator = null;
+    }
+  }
+
+  // Periodic IDR keyframe sender: guarantees that even if a packet drops over Wi-Fi, video auto-unfreezes
+  startPeriodicKeyframeSender() {
+    if (this.keyframeTimer) return;
+    this.keyframeTimer = setInterval(async () => {
+      if ((this.isVideoOn || this.screenStream) && this.peerConnection && this.peerConnection.connectionState === 'connected') {
+        const sender = this.findVideoSender();
+        if (sender && typeof sender.generateKeyFrame === 'function') {
+          try {
+            await sender.generateKeyFrame();
+          } catch {}
+        }
+      }
+    }, 15000);
+  }
+
+  stopPeriodicKeyframeSender() {
+    if (this.keyframeTimer) {
+      clearInterval(this.keyframeTimer);
+      this.keyframeTimer = null;
+    }
+  }
+
+  // Active Stream Health Monitor: detects if inbound RTP video bytes stalled (e.g. expired TURN relay)
+  // and automatically repairs by requesting keyframe or restarting ICE with fresh TURN credentials!
+  startStreamHealthMonitor() {
+    if (this.healthMonitorTimer) return;
+    let lastBytes = -1;
+    let staleCount = 0;
+
+    this.healthMonitorTimer = setInterval(async () => {
+      if (!this.peerConnection || !this.isPeerVideoOn) {
+        staleCount = 0;
+        lastBytes = -1;
+        return;
+      }
+      if (this.peerConnection.connectionState !== 'connected' && this.peerConnection.iceConnectionState !== 'connected') {
+        return;
+      }
+
+      try {
+        const stats = await this.peerConnection.getStats();
+        let currentBytes = 0;
+        stats.forEach((report) => {
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            currentBytes += (report.bytesReceived || 0);
+          }
+        });
+
+        if (currentBytes > 0) {
+          if (currentBytes === lastBytes) {
+            staleCount++;
+            if (staleCount === 2) {
+              console.warn('[WebRTC Health] Inbound video bytes stalled for 6s. Requesting fresh keyframe...');
+              this.requestKeyFrame();
+            } else if (staleCount >= 4) {
+              console.warn('[WebRTC Health] Inbound video bytes stalled for 12s (relay expired). Auto-restarting ICE with fresh credentials...');
+              staleCount = 0;
+              this.restartIce();
+            }
+          } else {
+            staleCount = 0;
+          }
+          lastBytes = currentBytes;
+        }
+      } catch {}
+    }, 3000);
+  }
+
+  stopStreamHealthMonitor() {
+    if (this.healthMonitorTimer) {
+      clearInterval(this.healthMonitorTimer);
+      this.healthMonitorTimer = null;
+    }
   }
 
   updateIceServers(servers) {
@@ -665,7 +811,11 @@ export class PeerCallManager {
     }
     this.lastIceRestart = now;
     try {
-      console.log('[WebRTC] 🔄 Restarting ICE with full TURN relay credentials...');
+      console.log('[WebRTC] 🔄 Restarting ICE with fresh TURN relay credentials...');
+      const freshServers = await this.fetchFreshIceServers();
+      if (freshServers && freshServers.length > 0) {
+        this.updateIceServers(freshServers);
+      }
       if (this.peerConnection.restartIce) {
         this.peerConnection.restartIce();
       }
@@ -1306,6 +1456,11 @@ export class PeerCallManager {
           } catch {}
         }
 
+        // Enable 5-minute background throttle immunity, periodic keyframe generator & health check
+        this.enableBackgroundImmunity();
+        this.startPeriodicKeyframeSender();
+        this.startStreamHealthMonitor();
+
         this.broadcastMediaStatus();
         await this.negotiate(this.targetPeerId);
         return { isVideoOn: true, stream: this.localStream };
@@ -1331,6 +1486,12 @@ export class PeerCallManager {
       }
 
       this.isVideoOn = false;
+      if (!this.screenStream) {
+        this.stopPeriodicKeyframeSender();
+      }
+      if (!this.screenStream && !this.isMicOn && !this.isMusicSharing) {
+        this.disableBackgroundImmunity();
+      }
       this.broadcastMediaStatus();
       return { isVideoOn: false, stream: this.localStream };
     }
@@ -1384,6 +1545,10 @@ export class PeerCallManager {
         console.warn('[WebRTC] Note on screen share setParameters:', paramErr);
       }
     }
+
+    this.enableBackgroundImmunity();
+    this.startPeriodicKeyframeSender();
+    this.startStreamHealthMonitor();
 
     // If the display stream contains an audio track (e.g. user selected Chrome Tab with "Share tab audio")
     const displayAudioTrack = displayStream.getAudioTracks()[0];
@@ -1459,6 +1624,13 @@ export class PeerCallManager {
     if (this.socket) {
       this.socket.emit('screen-share-status', { isSharing: false });
     }
+
+    if (!this.isVideoOn) {
+      this.stopPeriodicKeyframeSender();
+      if (!this.isMicOn && !this.isMusicSharing) {
+        this.disableBackgroundImmunity();
+      }
+    }
   }
 
   broadcastMediaStatus() {
@@ -1503,6 +1675,9 @@ export class PeerCallManager {
   }
 
   destroy() {
+    this.stopPeriodicKeyframeSender();
+    this.stopStreamHealthMonitor();
+    this.disableBackgroundImmunity();
     if (this.musicStream) {
       this.musicStream.getTracks().forEach((t) => t.stop());
       this.musicStream = null;

@@ -77,10 +77,12 @@ let cachedIceServers = [
 ];
 let lastTurnFetch = 0;
 
-async function getFreshIceServers() {
+// Fetch fresh TURN credentials (Cloudflare credentials expire every 5-10 minutes, so we rotate every 2 minutes)
+async function getFreshIceServers(force = false) {
   const now = Date.now();
   if (
-    now - lastTurnFetch < 15 * 60 * 1000 &&
+    !force &&
+    now - lastTurnFetch < 2 * 60 * 1000 &&
     cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'))
   ) {
     return cachedIceServers;
@@ -89,7 +91,7 @@ async function getFreshIceServers() {
   try {
     const res = await fetch('https://speed.cloudflare.com/turn-creds', {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://speed.cloudflare.com/',
       },
       signal: AbortSignal.timeout(6000),
@@ -120,6 +122,20 @@ async function getFreshIceServers() {
 }
 
 getFreshIceServers().catch(() => {});
+
+// Proactive 2.5-minute TURN Rotation Sweep:
+// Broadcasts fresh TURN credentials to all connected clients so active WebRTC streams NEVER expire or pause!
+setInterval(async () => {
+  try {
+    const servers = await getFreshIceServers(true);
+    if (servers && servers.length > 0) {
+      io.emit('ice-servers', { iceServers: servers });
+      console.log(`[WebRTC-TURN] 🔄 Proactively rotated and broadcasted fresh TURN credentials to all study partners`);
+    }
+  } catch (err) {
+    console.warn('[WebRTC-TURN] Periodic rotation notice:', err.message);
+  }
+}, 2.5 * 60 * 1000);
 
 // Rooms storage:
 // roomId -> {

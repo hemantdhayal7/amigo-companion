@@ -1427,6 +1427,8 @@ export default function App() {
           onToggleMusic={handleToggleMusic}
           onStopMusic={handleStopMusicShare}
           onChangeMusicVolume={handleSetMusicVolume}
+          onRequestKeyframe={() => peerCallManagerRef.current?.requestKeyFrame()}
+          onRestartIce={() => peerCallManagerRef.current?.restartIce()}
         />
 
         {/* Ephemeral Doubt Hub Modal (3-Hour Self-Destruct & Local Gemma AI) */}
