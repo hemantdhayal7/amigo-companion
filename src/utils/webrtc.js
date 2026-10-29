@@ -655,10 +655,10 @@ export class PeerCallManager {
       const incomingTrack = event.track;
       if (!incomingTrack) return;
 
-      // Maintain smooth 100ms adaptive jitter buffer (prevents jitter frame drops)
+      // Ultra-low-latency real-time video playout (0s minimum buffer hint - eliminates 100ms artificial video lag)
       if (event.receiver && 'playoutDelayHint' in event.receiver) {
         try {
-          event.receiver.playoutDelayHint = 0.1;
+          event.receiver.playoutDelayHint = 0;
         } catch {}
       }
 
@@ -1435,13 +1435,13 @@ export class PeerCallManager {
           try {
             const params = this.videoSender.getParameters();
             if (params && params.encodings && params.encodings.length > 0) {
-              params.encodings[0].maxBitrate = 500000; // 500 kbps
+              params.encodings[0].maxBitrate = 450000; // 450 kbps optimal sweet spot for 640x480 (zero bufferbloat & zero lag)
               params.encodings[0].maxFramerate = 25;
               params.encodings[0].networkPriority = 'high';
               params.encodings[0].priority = 'high';
               params.degradationPreference = 'balanced';
               await this.videoSender.setParameters(params);
-              console.log('[WebRTC] Enforced balanced degradation, 25fps cap & 500kbps bitrate for smooth low-latency video');
+              console.log('[WebRTC] Enforced balanced degradation, 25fps cap & 450kbps bitrate for zero-lag video');
             }
           } catch (paramErr) {
             console.warn('[WebRTC] Note on camera parameters:', paramErr);

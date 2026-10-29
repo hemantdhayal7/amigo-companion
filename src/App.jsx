@@ -238,23 +238,37 @@ export default function App() {
 
     const startX = e.clientX;
     const startY = e.clientY;
+    let animFrame = null;
+    let pendingX = currentX;
+    let pendingY = currentY;
 
     const onMouseMove = (moveEvent) => {
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
-      setBrowserPos({
-        x: Math.max(10, Math.min(window.innerWidth - 320, currentX + dx)),
-        y: Math.max(10, Math.min(window.innerHeight - 180, currentY + dy)),
-      });
+      pendingX = Math.max(10, Math.min(window.innerWidth - 320, currentX + dx));
+      pendingY = Math.max(10, Math.min(window.innerHeight - 180, currentY + dy));
+
+      if (!animFrame) {
+        animFrame = requestAnimationFrame(() => {
+          setBrowserPos({ x: pendingX, y: pendingY });
+          animFrame = null;
+        });
+      }
     };
 
     const onMouseUp = () => {
+      if (animFrame) {
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+      }
+      setBrowserPos({ x: pendingX, y: pendingY });
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      setTimeout(updateInteractiveRegions, 50);
     };
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('mouseup', onMouseUp, { passive: true });
   };
 
   const handleToggleDock = () => {
@@ -339,7 +353,6 @@ export default function App() {
     authError,
     mediaPermissionError,
     dockPosition,
-    browserPos,
     doubts.length,
     members.length,
   ]);
