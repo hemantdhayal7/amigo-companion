@@ -128,6 +128,8 @@ export default function FloatingCompanion({
   onDismissMusicShareError = () => {},
   onRequestKeyframe = () => {},
   onRestartIce = () => {},
+  isAudioAutoplayBlocked = false,
+  onUnlockAudio = () => {},
   onMouseEnter = () => {},
   onMouseLeave = () => {},
 }) {
@@ -941,6 +943,28 @@ export default function FloatingCompanion({
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Audio Autoplay Blocked Banner (Essential for Linux Chrome/Edge autoplay policy) */}
+      {isAudioAutoplayBlocked && (isPeerMicOn || isPeerMusicOn) && (
+        <div
+          data-amigo-interactive="true"
+          onClick={onUnlockAudio}
+          className="mb-2 p-3 bg-violet-600/95 hover:bg-violet-500 border border-violet-300/40 rounded-3xl shadow-2xl text-white backdrop-blur-xl flex items-center justify-between gap-2 text-xs cursor-pointer animate-bounce max-w-sm w-full transition"
+        >
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4 shrink-0 text-white animate-pulse" />
+            <div>
+              <strong className="block text-[11px]">Partner is speaking / sharing music</strong>
+              <span className="text-[10px] text-violet-100 leading-tight block mt-0.5">
+                Click anywhere to unmute audio output
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-white text-violet-700 text-[10px] font-bold rounded-xl shadow shrink-0">
+            Unmute 🔊
+          </span>
         </div>
       )}
 

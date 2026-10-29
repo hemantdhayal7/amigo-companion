@@ -120,6 +120,7 @@ export default function App() {
   const peerCallManagerRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const hasAutoStartedVideoRef = useRef(false);
+  const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] = useState(false);
 
   // Screen Docking state: 'right' (docked right next to screen) | 'left' | 'free' (floating)
   const [dockPosition, setDockPosition] = useState('right');
@@ -357,18 +358,42 @@ export default function App() {
     members.length,
   ]);
 
-  // Unlock browser audio autoplay policy on any user interaction gesture
+  // Unlock browser audio autoplay policy on any user interaction gesture (Linux Chrome / Windows Edge)
   useEffect(() => {
     const unlockAudio = () => {
-      if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
-        remoteAudioRef.current.play().catch(() => {});
+      const audioEl = remoteAudioRef.current;
+      if (audioEl) {
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        if (audioEl.srcObject && audioEl.paused) {
+          audioEl.play().then(() => {
+            console.log('[App] 🔊 Remote audio playback successfully resumed');
+            setIsAudioAutoplayBlocked(false);
+          }).catch((err) => {
+            console.debug('[App] unlockAudio play deferred:', err);
+          });
+        }
+      }
+      if (peerCallManagerRef.current) {
+        const ctx = peerCallManagerRef.current.getAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
       }
     };
+
     window.addEventListener('click', unlockAudio, { passive: true });
     window.addEventListener('keydown', unlockAudio, { passive: true });
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    window.addEventListener('mousedown', unlockAudio, { passive: true });
+
     return () => {
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('mousedown', unlockAudio);
     };
   }, []);
 
@@ -425,15 +450,39 @@ export default function App() {
           return fresh;
         });
 
-        // Separate Audio-Only stream for <audio> element so remote voice plays immediately even when camera is off
+        // Dedicated Audio-Only stream for <audio> element so remote partner's voice plays immediately
         if (remoteAudioRef.current) {
           if (audioTracks.length > 0) {
             const currentAudioStream = remoteAudioRef.current.srcObject;
             const currentTrackId = currentAudioStream?.getAudioTracks()[0]?.id;
-            if (currentTrackId !== audioTracks[0].id) {
+            if (currentTrackId !== audioTracks[0].id || !currentAudioStream) {
               remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
-              remoteAudioRef.current.play().catch(() => {});
             }
+            remoteAudioRef.current.muted = false;
+            remoteAudioRef.current.volume = 1.0;
+            if (remoteAudioRef.current.paused) {
+              remoteAudioRef.current.play().then(() => {
+                setIsAudioAutoplayBlocked(false);
+              }).catch((err) => {
+                if (err.name === 'NotAllowedError') {
+                  setIsAudioAutoplayBlocked(true);
+                }
+              });
+            }
+
+            // Ensure live playout when voice packets begin
+            audioTracks.forEach((track) => {
+              track.onunmute = () => {
+                console.log('[App] Remote audio track unmuted! Triggering immediate playout...');
+                if (remoteAudioRef.current && remoteAudioRef.current.paused) {
+                  remoteAudioRef.current.muted = false;
+                  remoteAudioRef.current.volume = 1.0;
+                  remoteAudioRef.current.play().then(() => {
+                    setIsAudioAutoplayBlocked(false);
+                  }).catch(() => {});
+                }
+              };
+            });
           } else {
             remoteAudioRef.current.srcObject = null;
           }
@@ -443,6 +492,20 @@ export default function App() {
         setIsPeerMicOn(pMic);
         setIsPeerVideoOn(pVid);
         setIsPeerMusicOn(Boolean(pMus));
+
+        if ((pMic || pMus) && remoteAudioRef.current) {
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.volume = 1.0;
+          if (remoteAudioRef.current.paused) {
+            remoteAudioRef.current.play().then(() => {
+              setIsAudioAutoplayBlocked(false);
+            }).catch((err) => {
+              if (err.name === 'NotAllowedError') {
+                setIsAudioAutoplayBlocked(true);
+              }
+            });
+          }
+        }
       },
       onError: (errMsg) => {
         setMediaPermissionError(errMsg);
@@ -676,6 +739,33 @@ export default function App() {
       socket.disconnect();
     };
   }, [serverUrl, roomId, roomSecret, nickname, avatar]);
+
+  // Active Audio Playout Watchdog: If partner is speaking or sharing music, ensure remote audio is actively unmuted and playing
+  useEffect(() => {
+    if (!isPeerMicOn && !isPeerMusicOn) {
+      setIsAudioAutoplayBlocked(false);
+      return;
+    }
+
+    const checkPlayout = () => {
+      const audioEl = remoteAudioRef.current;
+      if (audioEl && audioEl.srcObject && audioEl.paused) {
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        audioEl.play().then(() => {
+          setIsAudioAutoplayBlocked(false);
+        }).catch((err) => {
+          if (err.name === 'NotAllowedError') {
+            setIsAudioAutoplayBlocked(true);
+          }
+        });
+      }
+    };
+
+    checkPlayout();
+    const interval = setInterval(checkPlayout, 1500);
+    return () => clearInterval(interval);
+  }, [isPeerMicOn, isPeerMusicOn]);
 
   // Broadcast goal & progress update to room
   const broadcastGoal = (newTarget, newTasks, newProg) => {
@@ -1442,6 +1532,19 @@ export default function App() {
           onChangeMusicVolume={handleSetMusicVolume}
           onRequestKeyframe={() => peerCallManagerRef.current?.requestKeyFrame()}
           onRestartIce={() => peerCallManagerRef.current?.restartIce()}
+          isAudioAutoplayBlocked={isAudioAutoplayBlocked}
+          onUnlockAudio={() => {
+            const audioEl = remoteAudioRef.current;
+            if (audioEl) {
+              audioEl.muted = false;
+              audioEl.volume = 1.0;
+              if (audioEl.srcObject) {
+                audioEl.play().then(() => {
+                  setIsAudioAutoplayBlocked(false);
+                }).catch(() => {});
+              }
+            }
+          }}
         />
 
         {/* Ephemeral Doubt Hub Modal (3-Hour Self-Destruct & Local Gemma AI) */}

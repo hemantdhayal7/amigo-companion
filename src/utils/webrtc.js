@@ -47,16 +47,26 @@ function preferHardwareCodecsInSdp(sdp) {
   return sdp;
 }
 
-// Enable 128kbps stereo Opus audio for high-fidelity music streaming (YouTube Music)
+// Enable high-fidelity voice + music streaming with robust forward error correction
 function optimizeOpusInSdp(sdp) {
   if (!sdp || typeof sdp !== 'string') return sdp;
   try {
     return sdp.replace(/a=fmtp:(\d+)\s+([^\r\n]+)/g, (match, pt, params) => {
       if (sdp.includes(`a=rtpmap:${pt} opus/48000/2`)) {
         let newParams = params;
-        if (!newParams.includes('stereo=')) {
-          newParams += ';stereo=1;sprop-stereo=1';
+        // In-band Forward Error Correction (FEC) - protects voice against Wi-Fi packet loss
+        if (!newParams.includes('useinbandfec=')) {
+          newParams += ';useinbandfec=1';
         }
+        // Continuous transmission - prevents Linux PulseAudio / PipeWire audio sinks from sleeping
+        if (!newParams.includes('usedtx=')) {
+          newParams += ';usedtx=0';
+        }
+        // Allow stereo reception for music while preserving clean mono voice for laptop mics
+        if (!newParams.includes('stereo=')) {
+          newParams += ';stereo=1';
+        }
+        // High quality audio bitrate (up to 128kbps)
         if (!newParams.includes('maxaveragebitrate=')) {
           newParams += ';maxaveragebitrate=128000';
         }
@@ -580,12 +590,27 @@ export class PeerCallManager {
     return this.audioSender;
   }
 
+  getActiveAudioTrack() {
+    const hasLiveMic = Boolean(this.isMicOn && this.micTrack && this.micTrack.readyState === 'live');
+    const hasLiveMusic = Boolean(this.isMusicSharing && this.systemAudioTrack && this.systemAudioTrack.readyState === 'live');
+
+    if (hasLiveMic && hasLiveMusic) {
+      return this.mixedTrack || this.micTrack;
+    }
+    if (hasLiveMic) {
+      return this.micTrack;
+    }
+    if (hasLiveMusic) {
+      return this.systemAudioTrack;
+    }
+    return null;
+  }
+
   syncLocalTracksToTransceivers() {
     if (!this.peerConnection) return;
 
     const audioTransceiver = this.findAudioTransceiver();
-    const hasLiveMedia = this.isMicOn || this.isMusicSharing;
-    const activeAudioTrack = hasLiveMedia ? (this.mixedTrack || this.micTrack || this.localStream.getAudioTracks().find((t) => t.readyState === 'live')) : null;
+    const activeAudioTrack = this.getActiveAudioTrack();
     if (audioTransceiver) {
       audioTransceiver.direction = 'sendrecv';
       this.audioSender = audioTransceiver.sender;
@@ -627,7 +652,10 @@ export class PeerCallManager {
       try {
         const hasAudio = pc.getTransceivers().some((t) => t.receiver?.track?.kind === 'audio');
         if (!hasAudio) {
-          const at = pc.addTransceiver('audio', { direction: 'sendrecv', streams: [this.localStream] });
+          const activeTrack = this.getActiveAudioTrack();
+          const at = activeTrack
+            ? pc.addTransceiver(activeTrack, { direction: 'sendrecv', streams: [this.localStream] })
+            : pc.addTransceiver('audio', { direction: 'sendrecv', streams: [this.localStream] });
           this.audioSender = at.sender;
         }
       } catch (e) {
@@ -679,11 +707,12 @@ export class PeerCallManager {
 
       if (incomingTrack.kind === 'video') {
         this.isPeerVideoOn = true;
-        this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: true });
-      } else if (incomingTrack.kind === 'audio') {
-        this.isPeerMicOn = true;
-        this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
       }
+      this.onPeerMediaStatus({
+        isPeerMicOn: this.isPeerMicOn,
+        isPeerVideoOn: this.isPeerVideoOn,
+        isPeerMusicOn: this.isPeerMusicOn,
+      });
 
       incomingTrack.onended = () => {
         console.log('[WebRTC] Remote track ended:', incomingTrack.id);
@@ -692,9 +721,18 @@ export class PeerCallManager {
           const hasLiveVideo = this.remoteStream.getVideoTracks().some((t) => t.readyState === 'live');
           if (!hasLiveVideo) {
             this.isPeerVideoOn = false;
-            this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: false });
+          }
+        } else if (incomingTrack.kind === 'audio') {
+          const hasLiveAudio = this.remoteStream.getAudioTracks().some((t) => t.readyState === 'live');
+          if (!hasLiveAudio) {
+            this.isPeerMicOn = false;
           }
         }
+        this.onPeerMediaStatus({
+          isPeerMicOn: this.isPeerMicOn,
+          isPeerVideoOn: this.isPeerVideoOn,
+          isPeerMusicOn: this.isPeerMusicOn,
+        });
         this.refreshRemoteStream();
       };
 
@@ -707,11 +745,14 @@ export class PeerCallManager {
         console.log('[WebRTC] Remote track unmuted (live media packets arriving):', incomingTrack.kind, incomingTrack.id);
         if (incomingTrack.kind === 'video') {
           this.isPeerVideoOn = true;
-          this.onPeerMediaStatus({ isPeerMicOn: this.isPeerMicOn, isPeerVideoOn: true });
         } else if (incomingTrack.kind === 'audio') {
           this.isPeerMicOn = true;
-          this.onPeerMediaStatus({ isPeerMicOn: true, isPeerVideoOn: this.isPeerVideoOn });
         }
+        this.onPeerMediaStatus({
+          isPeerMicOn: this.isPeerMicOn,
+          isPeerVideoOn: this.isPeerVideoOn,
+          isPeerMusicOn: this.isPeerMusicOn,
+        });
         this.refreshRemoteStream(true);
       };
 
@@ -1034,21 +1075,25 @@ export class PeerCallManager {
   // Live Web Audio pipeline mixing voice + music dynamically
   async updateAudioPipeline() {
     const pc = this.getOrCreatePeerConnection();
-    const ctx = this.getAudioContext();
 
     const hasLiveMic = Boolean(this.isMicOn && this.micTrack && this.micTrack.readyState === 'live');
     const hasLiveMusic = Boolean(this.isMusicSharing && this.systemAudioTrack && this.systemAudioTrack.readyState === 'live');
 
     let activeTrackToSend = null;
 
-    if (ctx && (hasLiveMic || hasLiveMusic)) {
-      if (!this.audioDestination) {
-        this.audioDestination = ctx.createMediaStreamDestination();
-        this.mixedTrack = this.audioDestination.stream.getAudioTracks()[0];
-      }
+    if (hasLiveMic && hasLiveMusic) {
+      // Both Voice and Music active: route both through Web Audio mixer
+      const ctx = this.getAudioContext();
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume(); } catch {}
+        }
+        if (!this.audioDestination) {
+          this.audioDestination = ctx.createMediaStreamDestination();
+          this.mixedTrack = this.audioDestination.stream.getAudioTracks()[0];
+        }
 
-      // Microphone source in audio graph
-      if (hasLiveMic) {
+        // Microphone source in audio graph
         if (!this.micSourceNode || this.currentMicTrackId !== this.micTrack.id) {
           if (this.micSourceNode) {
             try { this.micSourceNode.disconnect(); } catch {}
@@ -1062,14 +1107,8 @@ export class PeerCallManager {
         } else if (this.micGainNode) {
           this.micGainNode.gain.setValueAtTime(this.micVolume ?? 1.0, ctx.currentTime);
         }
-      } else {
-        if (this.micGainNode) {
-          this.micGainNode.gain.setValueAtTime(0, ctx.currentTime);
-        }
-      }
 
-      // Music / System Audio source in audio graph
-      if (hasLiveMusic) {
+        // Music / System Audio source in audio graph
         if (!this.musicSourceNode || this.currentMusicTrackId !== this.systemAudioTrack.id) {
           if (this.musicSourceNode) {
             try { this.musicSourceNode.disconnect(); } catch {}
@@ -1083,32 +1122,48 @@ export class PeerCallManager {
         } else if (this.musicGainNode) {
           this.musicGainNode.gain.setValueAtTime(this.musicVolume ?? 0.85, ctx.currentTime);
         }
-      } else {
-        if (this.musicGainNode) {
-          this.musicGainNode.gain.setValueAtTime(0, ctx.currentTime);
+
+        if (this.mixedTrack) {
+          this.mixedTrack.enabled = true;
+          activeTrackToSend = this.mixedTrack;
         }
       }
-
-      if (this.mixedTrack) {
-        this.mixedTrack.enabled = true;
-        activeTrackToSend = this.mixedTrack;
+    } else if (hasLiveMic) {
+      // ONLY Microphone active: bypass Web Audio API completely!
+      // Send raw micTrack directly so browser gives full hardware AEC, noise suppression, AGC, and zero distortion!
+      activeTrackToSend = this.micTrack;
+      if (this.musicSourceNode) {
+        try { this.musicSourceNode.disconnect(); } catch {}
+        this.musicSourceNode = null;
       }
+      this.currentMusicTrackId = null;
+    } else if (hasLiveMusic) {
+      // ONLY Music active: send pristine systemAudioTrack directly
+      activeTrackToSend = this.systemAudioTrack;
+      if (this.micSourceNode) {
+        try { this.micSourceNode.disconnect(); } catch {}
+        this.micSourceNode = null;
+      }
+      this.currentMicTrackId = null;
     } else {
-      // AudioContext unavailable or both streams off
-      if (hasLiveMic) {
-        activeTrackToSend = this.micTrack;
-      } else if (hasLiveMusic) {
-        activeTrackToSend = this.systemAudioTrack;
-      } else {
-        activeTrackToSend = null;
+      activeTrackToSend = null;
+      if (this.micSourceNode) {
+        try { this.micSourceNode.disconnect(); } catch {}
+        this.micSourceNode = null;
       }
+      if (this.musicSourceNode) {
+        try { this.musicSourceNode.disconnect(); } catch {}
+        this.musicSourceNode = null;
+      }
+      this.currentMicTrackId = null;
+      this.currentMusicTrackId = null;
     }
 
     const audioTransceiver = this.findAudioTransceiver();
     if (audioTransceiver) {
       audioTransceiver.direction = 'sendrecv';
       if (audioTransceiver.sender.track !== activeTrackToSend) {
-        console.log('[WebRTC] Updating audio sender track:', activeTrackToSend ? (hasLiveMusic ? '🎵 Mixed (Mic + Music)' : '🎙️ Mic Only') : '🔇 Muted');
+        console.log('[WebRTC] Updating audio sender track:', activeTrackToSend ? (hasLiveMusic && hasLiveMic ? '🎵 Mixed (Mic + Music)' : (hasLiveMusic ? '🎶 Music Only' : '🎙️ Mic Only')) : '🔇 Muted');
         await audioTransceiver.sender.replaceTrack(activeTrackToSend);
       }
       this.audioSender = audioTransceiver.sender;
@@ -1213,6 +1268,11 @@ export class PeerCallManager {
     }
     this.systemAudioTrack = null;
     this.isMusicSharing = false;
+    if (this.musicSourceNode) {
+      try { this.musicSourceNode.disconnect(); } catch {}
+      this.musicSourceNode = null;
+    }
+    this.currentMusicTrackId = null;
 
     this.updateAudioPipeline();
     this.broadcastMediaStatus();
@@ -1261,6 +1321,7 @@ export class PeerCallManager {
 
         const newAudioTrack = stream.getAudioTracks()[0];
         if (!newAudioTrack) throw new Error('No audio track returned');
+        newAudioTrack.enabled = true;
 
         // Remove old audio track if any
         this.localStream.getAudioTracks().forEach((t) => {
@@ -1298,6 +1359,11 @@ export class PeerCallManager {
         this.micTrack.stop();
         this.micTrack = null;
       }
+      if (this.micSourceNode) {
+        try { this.micSourceNode.disconnect(); } catch {}
+        this.micSourceNode = null;
+      }
+      this.currentMicTrackId = null;
 
       this.isMicOn = false;
       await this.updateAudioPipeline();
@@ -1647,14 +1713,21 @@ export class PeerCallManager {
     console.error(`[WebRTC] Error accessing ${deviceName}:`, err);
     let msg = `Unable to access ${deviceName}.`;
 
+    const isMic = deviceName === 'microphone';
     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      msg = `🔒 Permission Denied: Please allow Camera access in Windows Settings > Privacy & Security > Camera (turn ON "Let desktop apps access your camera") or click 'Allow' in your browser.`;
+      msg = isMic
+        ? `🔒 Microphone Access Denied: Please allow Microphone access in your Windows/Linux Settings > Privacy > Microphone (turn ON "Let apps / browser access your microphone") or click the padlock / tune icon in your browser address bar to Allow.`
+        : `🔒 Camera Access Denied: Please allow Camera access in Windows/Linux Settings > Privacy > Camera or click the padlock icon in your browser address bar to Allow.`;
     } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      msg = `⚠️ No camera detected by your OS. If using CamStudio: CamStudio's driver is 32-bit legacy and cannot be seen by 64-bit apps. We recommend OBS Studio ('Start Virtual Camera'). Also ensure Google Meet/Zoom isn't locking it!`;
+      msg = isMic
+        ? `⚠️ No microphone detected. Please connect a microphone or headset and retry.`
+        : `⚠️ No camera detected by your OS. If using CamStudio: CamStudio's driver is 32-bit legacy and cannot be seen by 64-bit apps. We recommend OBS Studio ('Start Virtual Camera'). Also ensure Google Meet/Zoom isn't locking it!`;
     } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-      msg = `⚠️ Your camera or virtual camera is currently busy or locked by another app (Google Meet, Zoom, Discord). Please close other video apps and retry.`;
+      msg = isMic
+        ? `⚠️ Your microphone is currently busy or locked by another app (Google Meet, Zoom, Discord, Teams). Please close other audio apps and retry.`
+        : `⚠️ Your camera or virtual camera is currently busy or locked by another app (Google Meet, Zoom, Discord). Please close other video apps and retry.`;
     } else if (err.name === 'OverconstrainedError') {
-      msg = `⚠️ Your camera does not support the requested resolution or settings. Try with standard resolution.`;
+      msg = `⚠️ Your ${deviceName} does not support the requested resolution or settings.`;
     }
 
     this.onError(msg);
