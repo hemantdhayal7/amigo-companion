@@ -307,13 +307,8 @@ ipcMain.on('move-window', (event, { deltaX, deltaY }) => {
 
 ipcMain.on('resize-window-for-screenshare', (event, mode) => {
   if (!mainWindow) return;
-  if (mode === 'fullscreen') {
+  if (mode === 'fullscreen' || mode === 'theater') {
     mainWindow.maximize();
-  } else if (mode === 'theater') {
-    mainWindow.unmaximize();
-    mainWindow.setFullScreen(false);
-    mainWindow.setSize(1060, 720);
-    mainWindow.center();
   } else if (mode === 'compact') {
     mainWindow.unmaximize();
     mainWindow.setFullScreen(false);

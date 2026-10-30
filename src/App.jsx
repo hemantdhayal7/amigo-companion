@@ -153,6 +153,14 @@ export default function App() {
     { id: 'self', name: nickname || 'You', avatar: avatar || '🧠', status: 'studying', isSharing: false, target, tasks, progress },
   ]);
 
+  // Peer Live Focus Stopwatch state (Two-way sync)
+  const [peerFocusTimer, setPeerFocusTimer] = useState({
+    seconds: 24 * 60 + 18,
+    isRunning: true,
+    activeTask: 'Drafting Chapter 4 Summary Notes',
+    name: 'Siddhi',
+  });
+
   const [activeModal, setActiveModal] = useState('none'); // 'none' | 'screen' | 'sos' | 'session' | 'target' | 'customizer' | 'connect'
   const [floatingEmojis, setFloatingEmojis] = useState([]);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
@@ -673,6 +681,34 @@ export default function App() {
       });
     });
 
+    // Two-way focus timer sync
+    socket.on('peer-timer-synced', ({ userId, name, seconds: pSec, isRunning: pRun, activeTask: pTask }) => {
+      setPeerFocusTimer({
+        userId,
+        name: name || 'Siddhi',
+        seconds: pSec,
+        isRunning: pRun,
+        activeTask: pTask,
+        updatedAt: Date.now(),
+      });
+    });
+
+    // Peer assigned a task to me
+    socket.on('peer-task-assigned', ({ fromName, targetUserId, task }) => {
+      setTasks((prev) => {
+        const updated = [...prev, { ...task, id: task.id || Date.now().toString() }];
+        const newProg = Math.round((updated.filter((t) => t.completed).length / updated.length) * 100);
+        broadcastGoal(target, updated, newProg);
+        return updated;
+      });
+      sounds.playCelebration();
+      triggerAutoPopout({
+        title: `${fromName || 'Study buddy'} added a task for you! 💌`,
+        detail: task.text,
+        icon: '📝',
+      });
+    });
+
     socket.on('emoji-received', ({ id, emoji, sender, isFountain, direction }) => {
       // Avoid duplicate local spawn if sent by self
       if (sender === nickname || sender === 'You') return;
@@ -836,6 +872,56 @@ export default function App() {
     const newProg = updated.length > 0 ? Math.round((updated.filter((t) => t.completed).length / updated.length) * 100) : 0;
     setTasks(updated);
     broadcastGoal(target, updated, newProg);
+  };
+
+  const handleEditTask = (taskId, newText) => {
+    const updated = tasks.map((t) => (t.id === taskId ? { ...t, text: newText } : t));
+    setTasks(updated);
+    broadcastGoal(target, updated, progress);
+  };
+
+  const handleSyncFocusTimer = (sec, running, currentActiveTask) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('sync-focus-timer', {
+        seconds: sec,
+        isRunning: running,
+        activeTask: currentActiveTask || target,
+      });
+    }
+  };
+
+  const handleAssignTaskToPeer = (taskText, estTime = '20m') => {
+    const newTask = {
+      id: Date.now().toString(),
+      text: taskText,
+      completed: false,
+      estTime,
+      assignedBy: nickname || 'You',
+    };
+    const peer = members.find((m) => m.id !== 'self');
+    if (peer && socketRef.current) {
+      socketRef.current.emit('assign-task-to-peer', {
+        targetUserId: peer.id,
+        task: newTask,
+      });
+    }
+    // Optimistically update peer's tasks in local members state
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id !== 'self'
+          ? {
+              ...m,
+              tasks: [...(m.tasks || []), newTask],
+            }
+          : m
+      )
+    );
+    sounds.playPop();
+    triggerAutoPopout({
+      title: `Task sent to ${peer?.name || 'Siddhi'}! 💌`,
+      detail: taskText,
+      icon: '🚀',
+    });
   };
 
   // Microphone toggle with real-time WebRTC audio streaming
@@ -1293,23 +1379,44 @@ export default function App() {
         </div>
       )}
 
+      {/* 1. Fullscreen Study Screen Share Overlay (True Edge-to-Edge Full Screen) */}
+      {activeModal === 'screen' && (
+        <ScreenShareModal
+          isSharing={isSharingScreen}
+          localStream={localStream}
+          peerStream={peerStream}
+          remoteCamStream={remoteCamStream}
+          peerSharingUser={peerSharingUser}
+          onStartShare={handleStartScreenShare}
+          onStopShare={handleStopScreenShare}
+          onClose={() => {
+            setActiveModal('none');
+            resizeWindowForScreenshare('compact');
+          }}
+          viewMode={screenViewMode}
+          onChangeViewMode={(mode) => setScreenViewMode(mode)}
+          isSharingMusic={isSharingMusic}
+          peerSharingMusic={isPeerMusicOn}
+          musicVolume={musicVolume}
+          micVolume={micVolume}
+          musicShareError={musicShareError}
+          onStartMusicShare={handleStartMusicShare}
+          onStopMusicShare={handleStopMusicShare}
+          onChangeMusicVolume={handleSetMusicVolume}
+          onChangeMicVolume={handleSetMicVolume}
+          onDismissMusicError={() => setMusicShareError(null)}
+        />
+      )}
+
       {/* Floating / Side-Docked Companion Widget */}
       <div
         id="amigo-floating-container"
-        className={`w-full mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center ${
-          activeModal === 'screen' && (screenViewMode === 'theater' || screenViewMode === 'fullscreen')
-            ? 'max-w-6xl px-4'
-            : 'max-w-[360px]'
-        } ${
+        className={`w-full mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center max-w-[360px] ${
           !isPopoutVisible && !isKeepOnScreen && !isCallActive
             ? 'opacity-0 pointer-events-none scale-95 select-none'
             : 'opacity-100 scale-100'
         }`}
-        style={
-          activeModal === 'screen' && (screenViewMode === 'theater' || screenViewMode === 'fullscreen')
-            ? { position: 'relative' }
-            : getContainerStyle()
-        }
+        style={{ ...getContainerStyle(), zIndex: 95000 }}
       >
         {/* Peer Screen Sharing Notification Banner (1-Click to view) */}
         {peerSharingUser && activeModal !== 'screen' && (
@@ -1442,39 +1549,15 @@ export default function App() {
               tasks={tasks}
               onToggleTask={handleToggleTask}
               onAddTask={handleAddTask}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
+              onUpdateTarget={handleUpdateTarget}
+              onAssignTaskToPeer={handleAssignTaskToPeer}
               members={members}
+              peerFocusTimer={peerFocusTimer}
+              onSyncFocusTimer={handleSyncFocusTimer}
               deadline="11:30 PM"
               onSwitchToClassic={() => setActiveModal('target')}
-            />
-          </div>
-        )}
-
-        {activeModal === 'screen' && (
-          <div data-amigo-interactive="true" className="w-full mb-2">
-            <ScreenShareModal
-              isSharing={isSharingScreen}
-              localStream={localStream}
-              peerStream={peerStream}
-              remoteCamStream={remoteCamStream}
-              peerSharingUser={peerSharingUser}
-              onStartShare={handleStartScreenShare}
-              onStopShare={handleStopScreenShare}
-              onClose={() => {
-                setActiveModal('none');
-                resizeWindowForScreenshare('compact');
-              }}
-              viewMode={screenViewMode}
-              onChangeViewMode={(mode) => setScreenViewMode(mode)}
-              isSharingMusic={isSharingMusic}
-              peerSharingMusic={isPeerMusicOn}
-              musicVolume={musicVolume}
-              micVolume={micVolume}
-              musicShareError={musicShareError}
-              onStartMusicShare={handleStartMusicShare}
-              onStopMusicShare={handleStopMusicShare}
-              onChangeMusicVolume={handleSetMusicVolume}
-              onChangeMicVolume={handleSetMicVolume}
-              onDismissMusicError={() => setMusicShareError(null)}
             />
           </div>
         )}

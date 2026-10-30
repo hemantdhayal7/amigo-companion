@@ -1,29 +1,111 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Check, Plus, X, Hourglass, Sparkles, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Check,
+  Plus,
+  X,
+  Hourglass,
+  Sparkles,
+  ChevronRight,
+  Edit2,
+  Trash2,
+  User,
+  Users,
+  Clock,
+  CheckCircle2,
+  Circle,
+  ArrowRight,
+  Send,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function VisionOSFocusCockpit({
   isOpen,
   onClose,
-  target = 'Solve 15 LeetCode DP Problems',
+  target = 'Complete exam prep milestone & problem set',
   tasks = [],
   onToggleTask,
   onAddTask,
+  onEditTask,
+  onDeleteTask,
+  onUpdateTarget,
+  onAssignTaskToPeer,
   members = [],
+  peerFocusTimer = null,
+  onSyncFocusTimer = () => {},
   deadline = '11:30 PM',
   onSwitchToClassic,
 }) {
+  // Navigation Tabs: 'my-tasks' | 'peer-tasks' | 'dual-orbit'
+  const [activeTab, setActiveTab] = useState('my-tasks');
+
   // Local Stopwatch for active session
-  const [seconds, setSeconds] = useState(38 * 60 + 45); // default matches 38:45
+  const [seconds, setSeconds] = useState(39 * 60 + 5); // default matches 39:05 from screenshot
   const [isRunning, setIsRunning] = useState(true);
   const [sessionCount, setSessionCount] = useState(2);
-  const [newSubtaskText, setNewSubtaskText] = useState('');
+
+  // Peer Stopwatch state (Siddhi's timer)
+  const peer = members.find((m) => m.id !== 'self') || null;
+  const peerName = peer?.name || peerFocusTimer?.name || 'Siddhi';
+  const isPeerLive = Boolean(peer);
+  const peerTasks = peer?.tasks || [];
+  const peerTarget = peer?.target || peerFocusTimer?.activeTask || 'Drafting Chapter 4 Summary Notes';
+  const [peerSeconds, setPeerSeconds] = useState(() => peerFocusTimer?.seconds || 24 * 60 + 18);
+  const [isPeerRunning, setIsPeerRunning] = useState(() => peerFocusTimer?.isRunning ?? true);
+
+  // Sync incoming peer timer
+  useEffect(() => {
+    if (peerFocusTimer) {
+      if (typeof peerFocusTimer.seconds === 'number') setPeerSeconds(peerFocusTimer.seconds);
+      if (typeof peerFocusTimer.isRunning === 'boolean') setIsPeerRunning(peerFocusTimer.isRunning);
+    }
+  }, [peerFocusTimer]);
+
+  // Peer timer ticking simulation if peer is running
+  useEffect(() => {
+    let peerInterval = null;
+    if (isPeerRunning && isPeerLive) {
+      peerInterval = setInterval(() => {
+        setPeerSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(peerInterval);
+  }, [isPeerRunning, isPeerLive]);
+
+  // Editing Active Objective State
+  const [isEditingObjective, setIsEditingObjective] = useState(false);
+  const [editObjectiveText, setEditObjectiveText] = useState(target);
+
+  // Editing Subtask State
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editTaskText, setEditTaskText] = useState('');
+
+  // Add Subtask State
   const [showAddInput, setShowAddInput] = useState(false);
+  const [newSubtaskText, setNewSubtaskText] = useState('');
+  const [assignee, setAssignee] = useState('self'); // 'self' | 'peer'
 
   // Dragging state for spatial floating window
-  const [position, setPosition] = useState({ x: 80, y: 80 });
+  const [position, setPosition] = useState({ x: 60, y: 60 });
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, initialX: 80, initialY: 80 });
+  const dragRef = useRef({ startX: 0, startY: 0, initialX: 60, initialY: 60 });
+
+  // Broadcast timer changes to peer whenever state changes or every 3 seconds
+  useEffect(() => {
+    onSyncFocusTimer(seconds, isRunning, target);
+  }, [isRunning, target]);
+
+  useEffect(() => {
+    let syncInterval = null;
+    if (isRunning) {
+      syncInterval = setInterval(() => {
+        onSyncFocusTimer(seconds, isRunning, target);
+      }, 3000);
+    }
+    return () => clearInterval(syncInterval);
+  }, [isRunning, seconds, target]);
 
   // Ticking stopwatch
   useEffect(() => {
@@ -48,26 +130,24 @@ export default function VisionOSFocusCockpit({
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  // Find peer (Siddhi)
-  const peer = members.find((m) => m.id !== 'self') || null;
-  const peerName = peer?.name || 'Siddhi';
-  const isPeerLive = Boolean(peer);
-  const peerTask = peer?.target || 'Drafting Chapter 4 Summary Notes';
-
   // Subtask counts
   const completedCount = tasks.filter((t) => t.completed).length;
   const totalCount = Math.max(tasks.length, 1);
   const progressPct = Math.round((completedCount / totalCount) * 100);
 
-  // SVG Ring Progress Calculations
-  // Radius = 56, Circumference = 2 * PI * 56 ≈ 351.86
+  // Peer Subtask counts
+  const peerCompletedCount = peerTasks.filter((t) => t.completed).length;
+  const peerTotalCount = Math.max(peerTasks.length, 1);
+  const peerProgressPct = Math.round((peerCompletedCount / peerTotalCount) * 100);
+
+  // SVG Ring Calculations
   const strokeRadius = 56;
   const circumference = 2 * Math.PI * strokeRadius;
   const strokeOffset = circumference - (circumference * progressPct) / 100;
 
   // Drag handlers
   const handleMouseDown = (e) => {
-    if (e.target.closest('button') || e.target.closest('input')) return;
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('form')) return;
     setIsDragging(true);
     dragRef.current = {
       startX: e.clientX,
@@ -84,7 +164,7 @@ export default function VisionOSFocusCockpit({
       const dy = e.clientY - dragRef.current.startY;
       setPosition({
         x: Math.max(10, Math.min(window.innerWidth - 720, dragRef.current.initialX + dx)),
-        y: Math.max(10, Math.min(window.innerHeight - 500, dragRef.current.initialY + dy)),
+        y: Math.max(10, Math.min(window.innerHeight - 520, dragRef.current.initialY + dy)),
       });
     };
 
@@ -102,18 +182,41 @@ export default function VisionOSFocusCockpit({
     };
   }, [isDragging]);
 
+  // Handle Objective Save
+  const handleSaveObjective = (e) => {
+    e.preventDefault();
+    if (editObjectiveText.trim() && onUpdateTarget) {
+      onUpdateTarget(editObjectiveText.trim());
+      setIsEditingObjective(false);
+    }
+  };
+
+  // Handle Subtask Add
   const handleAddSubmit = (e) => {
     e.preventDefault();
     if (!newSubtaskText.trim()) return;
-    if (onAddTask) {
+
+    if (assignee === 'peer' && onAssignTaskToPeer) {
+      onAssignTaskToPeer(newSubtaskText.trim(), '20m');
+    } else if (onAddTask) {
       onAddTask(newSubtaskText.trim(), '25m');
     }
+
     setNewSubtaskText('');
     setShowAddInput(false);
   };
 
+  // Handle Subtask Edit Save
+  const handleSaveTaskEdit = (taskId) => {
+    if (!editTaskText.trim()) return;
+    if (onEditTask) {
+      onEditTask(taskId, editTaskText.trim());
+    }
+    setEditingTaskId(null);
+    setEditTaskText('');
+  };
+
   const handleCompleteAndNext = () => {
-    // Subtle Apple-style confetti
     try {
       confetti({
         particleCount: 50,
@@ -125,7 +228,6 @@ export default function VisionOSFocusCockpit({
       // fallback
     }
 
-    // Toggle the first pending task if available
     const firstPending = tasks.find((t) => !t.completed);
     if (firstPending && onToggleTask) {
       onToggleTask(firstPending.id);
@@ -140,72 +242,105 @@ export default function VisionOSFocusCockpit({
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
-        width: '680px',
-        maxWidth: '95vw',
+        width: '740px',
+        maxWidth: '96vw',
       }}
     >
-      {/* Top Tagline Indicator */}
-      <div className="text-center mb-2 pointer-events-none">
-        <span className="text-[11px] font-semibold tracking-wider uppercase text-sky-400/80 bg-sky-950/40 px-3 py-1 rounded-full border border-sky-400/20 backdrop-blur-md shadow-lg">
-           Direction 2: VisionOS Floating Glass Studio
-        </span>
-      </div>
-
       {/* Main Glass Studio Container */}
       <div
         onMouseDown={handleMouseDown}
-        className="relative rounded-[32px] p-6 shadow-2xl transition-all cursor-grab active:cursor-grabbing"
+        className="relative rounded-[32px] p-6 shadow-2xl transition-all cursor-grab active:cursor-grabbing border border-white/15"
         style={{
-          background: 'rgba(16, 18, 27, 0.78)',
+          background: 'rgba(16, 18, 27, 0.82)',
           backdropFilter: 'blur(45px) saturate(190%)',
           WebkitBackdropFilter: 'blur(45px) saturate(190%)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 30px 80px -10px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 30px 80px -10px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.2)',
         }}
       >
-        {/* Top Actions: Switch to Classic & Close Button */}
-        <div className="absolute top-5 right-5 flex items-center gap-2">
-          {onSwitchToClassic && (
+        {/* Top Header Bar with Clean Spacing (Zero Overlap) */}
+        <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/10 gap-3">
+          {/* Left: Branding & Peer Live Tag */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black tracking-widest uppercase text-sky-400">
+              FOCUS COCKPIT
+            </span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10.5px] font-semibold text-emerald-400 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+              <span>{peerName} Live</span>
+            </div>
+          </div>
+
+          {/* Center Tabs: My Tasks vs Peer Tasks vs Dual Orbit */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
             <button
-              onClick={onSwitchToClassic}
-              className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-[10.5px] font-medium text-white/60 hover:text-white transition"
-              title="Switch to Classic Modal"
+              onClick={() => setActiveTab('my-tasks')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'my-tasks'
+                  ? 'bg-sky-500 text-white shadow-sm'
+                  : 'text-white/60 hover:text-white'
+              }`}
             >
-              Classic View
+              My Tasks
             </button>
-          )}
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition"
-            title="Close Focus Studio"
-          >
-            <X size={15} />
-          </button>
+            <button
+              onClick={() => setActiveTab('peer-tasks')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                activeTab === 'peer-tasks'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <span>{peerName}'s Tasks</span>
+              {peerTasks.length > 0 && (
+                <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full">
+                  {peerTasks.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('dual-orbit')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'dual-orbit'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Dual Timers
+            </button>
+          </div>
+
+          {/* Right: Classic View & Close (Properly Spaced) */}
+          <div className="flex items-center gap-2">
+            {onSwitchToClassic && (
+              <button
+                onClick={onSwitchToClassic}
+                className="px-3 py-1 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-semibold text-white/70 hover:text-white transition"
+                title="Switch back to standard modal"
+              >
+                Classic View
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition"
+              title="Close Focus Studio"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
-        {/* Studio Grid: Left Cockpit & Right Task Deck */}
-        <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-6 items-stretch">
+        {/* Studio Grid: Left Focus Chrono & Right Task Deck */}
+        <div className="grid grid-cols-1 md:grid-cols-[230px_1fr] gap-6 items-stretch">
           
           {/* =========================================================
-              LEFT COLUMN: FOCUS COCKPIT
+              LEFT COLUMN: FOCUS CHRONO & DEADLINE
           ========================================================== */}
           <div className="flex flex-col justify-between items-center text-center">
             
-            {/* Top Cockpit Header & Peer Presence */}
-            <div className="w-full flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold tracking-widest uppercase text-sky-400">
-                FOCUS COCKPIT
-              </span>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10.5px] font-semibold text-emerald-400 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-                <span>{peerName} Live</span>
-              </div>
-            </div>
-
             {/* Circular Stopwatch Dial */}
-            <div className="relative my-4 flex items-center justify-center">
-              <svg className="w-36 h-36 -rotate-90 transform" viewBox="0 0 140 140">
-                {/* Background Ring */}
+            <div className="relative my-2 flex items-center justify-center">
+              <svg className="w-40 h-40 -rotate-90 transform" viewBox="0 0 140 140">
                 <circle
                   cx="70"
                   cy="70"
@@ -213,20 +348,19 @@ export default function VisionOSFocusCockpit({
                   className="stroke-white/10 fill-none"
                   strokeWidth="8"
                 />
-                {/* Progress Glowing Fill */}
                 <circle
                   cx="70"
                   cy="70"
                   r={strokeRadius}
                   className="fill-none transition-all duration-700 ease-out"
-                  stroke="url(#vision-dial-gradient)"
+                  stroke="url(#vision-dial-gradient-v2)"
                   strokeWidth="8"
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeOffset}
                   strokeLinecap="round"
                 />
                 <defs>
-                  <linearGradient id="vision-dial-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <linearGradient id="vision-dial-gradient-v2" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#38bdf8" />
                     <stop offset="50%" stopColor="#818cf8" />
                     <stop offset="100%" stopColor="#c084fc" />
@@ -234,27 +368,31 @@ export default function VisionOSFocusCockpit({
                 </defs>
               </svg>
 
-              {/* Inside Dial Typography */}
+              {/* Inside Dial: Live Digits & Session */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">
-                  TIME SPENT
+                  {activeTab === 'peer-tasks' ? `${peerName}'s Time` : 'TIME SPENT'}
                 </span>
-                <span className="text-2xl font-extrabold tracking-tight text-white font-mono my-0.5">
-                  {formatTime(seconds)}
+                <span className="text-3xl font-black tracking-tight text-white font-mono my-0.5">
+                  {activeTab === 'peer-tasks' ? formatTime(peerSeconds) : formatTime(seconds)}
                 </span>
-                <span className="text-[11px] font-medium text-sky-400">
+                <span className="text-xs font-semibold text-sky-400">
                   Session #{sessionCount}
                 </span>
               </div>
             </div>
 
-            {/* Mini Stopwatch Controls */}
+            {/* Stopwatch Control Buttons */}
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => setIsRunning(!isRunning)}
-                className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-[11px] font-medium flex items-center gap-1.5 transition"
+                className={`px-3.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition shadow-sm ${
+                  isRunning
+                    ? 'bg-amber-500/20 border-amber-400/30 text-amber-300 hover:bg-amber-500/30'
+                    : 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300 hover:bg-emerald-500/30'
+                }`}
               >
-                {isRunning ? <Pause size={12} /> : <Play size={12} />}
+                {isRunning ? <Pause size={13} /> : <Play size={13} />}
                 <span>{isRunning ? 'Pause' : 'Resume'}</span>
               </button>
               <button
@@ -265,16 +403,28 @@ export default function VisionOSFocusCockpit({
                 className="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-white/60 hover:text-white transition"
                 title="Reset Session Timer"
               >
-                <RotateCcw size={12} />
+                <RotateCcw size={13} />
               </button>
+            </div>
+
+            {/* Mutual Peer Live Telemetry Pill */}
+            <div
+              className="w-full rounded-2xl p-2.5 border border-purple-500/20 text-left mb-3"
+              style={{ background: 'rgba(192, 132, 252, 0.06)' }}
+            >
+              <div className="flex items-center justify-between text-[10px] font-semibold text-purple-300 mb-1">
+                <span>🌸 {peerName}'s Focus Timer</span>
+                <span className="font-mono">{formatTime(peerSeconds)}</span>
+              </div>
+              <div className="text-[11px] text-white/80 truncate">
+                {isPeerRunning ? '▶ Focusing:' : '⏸ Paused:'} {peerTarget}
+              </div>
             </div>
 
             {/* Bottom: Today's Deadline Box */}
             <div
               className="w-full rounded-2xl p-3 border border-white/10 text-center"
-              style={{
-                background: 'rgba(255, 255, 255, 0.035)',
-              }}
+              style={{ background: 'rgba(255, 255, 255, 0.035)' }}
             >
               <div className="text-[9.5px] uppercase font-bold tracking-wider text-white/40">
                 TODAY'S DEADLINE
@@ -291,7 +441,7 @@ export default function VisionOSFocusCockpit({
           </div>
 
           {/* =========================================================
-              RIGHT COLUMN: OBJECTIVE & SUBTASK DECK
+              RIGHT COLUMN: TASK DECK & EDITABLE GOALS
           ========================================================== */}
           <div className="flex flex-col justify-between pl-0 md:pl-3 md:border-l md:border-white/10">
             
@@ -299,49 +449,127 @@ export default function VisionOSFocusCockpit({
             <div>
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-white tracking-tight">Active Objective</span>
+                  <span className="text-sm font-bold text-white tracking-tight">
+                    {activeTab === 'peer-tasks' ? `${peerName}'s Core Target` : 'Active Objective'}
+                  </span>
                   <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/30">
                     High Priority
                   </span>
                 </div>
-                <span className="text-xs font-semibold text-white/50 font-mono">
-                  {completedCount}/{totalCount} Done
+                <span className="text-xs font-semibold text-white/60 font-mono">
+                  {activeTab === 'peer-tasks'
+                    ? `${peerCompletedCount}/${peerTotalCount} Done`
+                    : `${completedCount}/${totalCount} Done`}
                 </span>
               </div>
 
-              {/* Highlighted Active Goal Card */}
+              {/* Editable Active Objective Card */}
               <div
-                className="rounded-2xl p-3.5 border border-white/10 mb-4 transition"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.045)',
-                }}
+                className="rounded-2xl p-3.5 border border-white/10 mb-4 transition relative group"
+                style={{ background: 'rgba(255, 255, 255, 0.045)' }}
               >
-                <div className="text-[14.5px] font-bold text-white tracking-tight">
-                  {target}
-                </div>
-                <div className="text-xs text-white/50 mt-1 flex items-center gap-2 font-mono">
-                  <span>⏱ {formatTime(seconds)} recorded</span>
-                  <span>•</span>
-                  <span>Est: 1h 15m</span>
-                </div>
+                {isEditingObjective ? (
+                  <form onSubmit={handleSaveObjective} className="flex flex-col gap-2">
+                    <input
+                      type="text"
+                      value={editObjectiveText}
+                      onChange={(e) => setEditObjectiveText(e.target.value)}
+                      placeholder="Enter active objective title..."
+                      autoFocus
+                      className="w-full px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs text-white placeholder-white/40 focus:outline-none focus:border-sky-400"
+                    />
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingObjective(false)}
+                        className="px-2.5 py-1 rounded-lg text-xs text-white/60 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-3 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold flex items-center gap-1"
+                      >
+                        <Check size={12} />
+                        <span>Save Goal</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-[14.5px] font-bold text-white tracking-tight">
+                        {activeTab === 'peer-tasks' ? peerTarget : target}
+                      </div>
+                      {activeTab === 'my-tasks' && (
+                        <button
+                          onClick={() => {
+                            setEditObjectiveText(target);
+                            setIsEditingObjective(true);
+                          }}
+                          className="opacity-70 group-hover:opacity-100 p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-white/60 hover:text-white transition"
+                          title="Edit Active Objective"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-xs text-white/50 mt-1 flex items-center gap-2 font-mono">
+                      <span>⏱ {formatTime(activeTab === 'peer-tasks' ? peerSeconds : seconds)} recorded</span>
+                      <span>•</span>
+                      <span>Est: 1h 15m</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Subtasks Section Header */}
-              <div className="text-[10.5px] uppercase font-bold tracking-wider text-white/40 mb-2">
-                SUBTASKS & UP NEXT
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10.5px] uppercase font-bold tracking-wider text-white/40">
+                  {activeTab === 'peer-tasks' ? `${peerName}'s Checklist` : 'SUBTASKS & UP NEXT'}
+                </span>
+                <span className="text-[11px] text-sky-400 font-medium">
+                  {activeTab === 'peer-tasks' ? 'Synced with Siddhi' : 'Click to toggle'}
+                </span>
               </div>
 
-              {/* Subtask List */}
+              {/* Subtask List (With Edit and Delete support) */}
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {tasks.map((task, idx) => {
+                {(activeTab === 'peer-tasks' ? peerTasks : tasks).map((task, idx) => {
                   const isDone = task.completed;
-                  const isCurrent = !isDone && idx === tasks.findIndex((t) => !t.completed);
+                  const currentList = activeTab === 'peer-tasks' ? peerTasks : tasks;
+                  const isCurrent = !isDone && idx === currentList.findIndex((t) => !t.completed);
+
+                  if (editingTaskId === task.id) {
+                    return (
+                      <div key={task.id} className="p-2 rounded-xl bg-white/10 border border-sky-400/40 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editTaskText}
+                          onChange={(e) => setEditTaskText(e.target.value)}
+                          className="flex-1 px-2.5 py-1 rounded-lg bg-black/40 text-xs text-white border border-white/20 focus:outline-none focus:border-sky-400"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleSaveTaskEdit(task.id)}
+                          className="p-1 rounded-lg bg-sky-500 text-white hover:bg-sky-400"
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          onClick={() => setEditingTaskId(null)}
+                          className="p-1 rounded-lg text-white/50 hover:text-white"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
                       key={task.id || idx}
-                      onClick={() => onToggleTask && onToggleTask(task.id)}
-                      className={`group flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer ${
+                      className={`group flex items-center justify-between p-2.5 rounded-xl border transition ${
                         isDone
                           ? 'bg-white/[0.02] border-white/5 text-white/40'
                           : isCurrent
@@ -349,7 +577,10 @@ export default function VisionOSFocusCockpit({
                           : 'bg-white/[0.04] border-white/10 text-white/80 hover:bg-white/[0.07]'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div
+                        onClick={() => onToggleTask && onToggleTask(task.id)}
+                        className="flex items-center gap-2.5 overflow-hidden flex-1 cursor-pointer"
+                      >
                         <div
                           className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition ${
                             isDone
@@ -370,59 +601,117 @@ export default function VisionOSFocusCockpit({
                         </span>
                       </div>
 
-                      {/* Status Tag */}
-                      <span
-                        className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0 font-mono ${
-                          isDone
-                            ? 'text-emerald-400/80 bg-emerald-500/10'
-                            : isCurrent
-                            ? 'text-sky-300 bg-sky-500/20 border border-sky-400/30'
-                            : 'text-white/40'
-                        }`}
-                      >
-                        {isDone ? 'Done (20m)' : isCurrent ? 'In Progress' : 'Pending'}
-                      </span>
+                      {/* Right Tags & Edit/Delete Actions */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                        {/* Hover Action Buttons */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTaskId(task.id);
+                            setEditTaskText(task.text);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-white/15 text-white/50 hover:text-white transition"
+                          title="Edit Task"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onDeleteTask) onDeleteTask(task.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-500/20 text-white/50 hover:text-rose-400 transition"
+                          title="Delete Task"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+
+                        {/* Status Tag */}
+                        <span
+                          className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-md font-mono ${
+                            isDone
+                              ? 'text-emerald-400/80 bg-emerald-500/10'
+                              : isCurrent
+                              ? 'text-sky-300 bg-sky-500/20 border border-sky-400/30'
+                              : 'text-white/40'
+                          }`}
+                        >
+                          {isDone ? 'Done (20m)' : isCurrent ? 'In Progress' : 'Pending'}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Inline Add Subtask Input Form */}
+              {/* Inline Add Subtask Input Form with Assignee Selector */}
               {showAddInput ? (
-                <form onSubmit={handleAddSubmit} className="mt-2 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newSubtaskText}
-                    onChange={(e) => setNewSubtaskText(e.target.value)}
-                    placeholder="Enter next subtask..."
-                    autoFocus
-                    className="flex-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs text-white placeholder-white/40 focus:outline-none focus:border-sky-400"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddInput(false)}
-                    className="p-1.5 rounded-xl text-white/40 hover:text-white"
-                  >
-                    <X size={14} />
-                  </button>
+                <form onSubmit={handleAddSubmit} className="mt-3 p-2.5 rounded-xl bg-white/5 border border-white/15 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-[11px] text-white/60">
+                    <span>Create Task For:</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setAssignee('self')}
+                        className={`px-2 py-0.5 rounded-md text-[10.5px] font-medium transition ${
+                          assignee === 'self' ? 'bg-sky-500 text-white' : 'bg-white/10 text-white/60'
+                        }`}
+                      >
+                        👤 Me
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssignee('peer')}
+                        className={`px-2 py-0.5 rounded-md text-[10.5px] font-medium transition ${
+                          assignee === 'peer' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'
+                        }`}
+                      >
+                        🌸 {peerName}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newSubtaskText}
+                      onChange={(e) => setNewSubtaskText(e.target.value)}
+                      placeholder={assignee === 'peer' ? `Add a task for ${peerName}...` : "Enter next subtask..."}
+                      autoFocus
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs text-white placeholder-white/40 focus:outline-none focus:border-sky-400"
+                    />
+                    <button
+                      type="submit"
+                      className={`px-3 py-1.5 rounded-xl text-white text-xs font-semibold flex items-center gap-1 ${
+                        assignee === 'peer' ? 'bg-purple-600 hover:bg-purple-500' : 'bg-sky-500 hover:bg-sky-400'
+                      }`}
+                    >
+                      {assignee === 'peer' ? <Send size={12} /> : <Plus size={12} />}
+                      <span>Add</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddInput(false)}
+                      className="p-1.5 rounded-xl text-white/40 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </form>
               ) : null}
             </div>
 
-            {/* Action Bar */}
+            {/* Bottom Action Bar */}
             <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/10">
               <button
-                onClick={() => setShowAddInput(true)}
+                onClick={() => {
+                  setAssignee(activeTab === 'peer-tasks' ? 'peer' : 'self');
+                  setShowAddInput(true);
+                }}
                 className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-medium text-white flex items-center gap-1.5 transition"
               >
                 <Plus size={13} />
-                <span>Add Subtask</span>
+                <span>{activeTab === 'peer-tasks' ? `Add Task for ${peerName}` : 'Add Subtask'}</span>
               </button>
 
               <button

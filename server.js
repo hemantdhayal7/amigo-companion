@@ -567,6 +567,33 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Two-Way Live Focus Timer synchronization
+  socket.on('sync-focus-timer', ({ seconds, isRunning, activeTask }) => {
+    if (!isAuthorized()) return;
+    currentUser.timerSeconds = seconds;
+    currentUser.isTimerRunning = isRunning;
+    currentUser.activeTask = activeTask;
+
+    socket.to(currentRoom).emit('peer-timer-synced', {
+      userId: socket.id,
+      name: currentUser.name,
+      seconds,
+      isRunning,
+      activeTask
+    });
+  });
+
+  // Assign task to peer
+  socket.on('assign-task-to-peer', ({ targetUserId, task }) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('peer-task-assigned', {
+      fromUserId: socket.id,
+      fromName: currentUser.name,
+      targetUserId,
+      task
+    });
+  });
+
   // Crisis SOS alert
   socket.on('trigger-sos', ({ note }) => {
     if (!isAuthorized()) return;

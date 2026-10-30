@@ -73,23 +73,25 @@ export default function ScreenShareModal({
     }
   };
 
+  const hasPeerScreen = Boolean(peerStream && (peerStream.getVideoTracks ? peerStream.getVideoTracks().length > 0 : true));
   const isLocalPresenting = Boolean(isSharing && localStream);
-  const isRemotePresenting = Boolean(peerSharingUser);
+  const isRemotePresenting = Boolean(peerSharingUser && (hasPeerScreen || peerStream));
 
   // Determine which stream to display:
   // If remote partner is sharing, show remote screen. If local user is sharing, show local screen preview.
   let activeStream = null;
   let isDisplayingPeer = false;
 
-  if (isRemotePresenting) {
-    activeStream = peerStream || remoteCamStream;
+  if (isRemotePresenting && peerStream) {
+    activeStream = peerStream;
     isDisplayingPeer = true;
-  } else if (isLocalPresenting) {
+  } else if (isLocalPresenting && localStream) {
     activeStream = localStream;
     isDisplayingPeer = false;
   } else {
-    activeStream = peerStream || remoteCamStream || localStream;
-    isDisplayingPeer = Boolean(peerSharingUser);
+    // Only display stream when screen share is explicitly active (never substitute camera here)
+    activeStream = null;
+    isDisplayingPeer = false;
   }
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -209,12 +211,10 @@ export default function ScreenShareModal({
   return (
     <div
       ref={containerRef}
-      className={`bg-slate-950/95 border border-indigo-500/40 rounded-2xl shadow-2xl backdrop-blur-2xl text-slate-100 flex flex-col transition-all duration-300 ${
-        currentMode === 'fullscreen'
-          ? 'fixed inset-2 z-[99999] w-[calc(100vw-16px)] h-[calc(100vh-16px)] p-4'
-          : currentMode === 'theater'
-          ? 'w-full max-w-5xl h-[80vh] p-4 mx-auto'
-          : 'w-full max-w-sm p-3.5 mx-auto'
+      className={`bg-slate-950/98 border border-indigo-500/40 shadow-2xl backdrop-blur-2xl text-slate-100 flex flex-col transition-all duration-300 ${
+        currentMode === 'fullscreen' || currentMode === 'theater'
+          ? 'fixed inset-0 z-[99999] w-screen h-screen p-3 sm:p-5 rounded-none'
+          : 'w-full max-w-sm p-3.5 mx-auto rounded-2xl'
       }`}
     >
       {/* Header Bar with Window Size Controls */}
