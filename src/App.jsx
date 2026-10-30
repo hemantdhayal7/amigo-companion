@@ -2,14 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import FloatingCompanion from './components/FloatingCompanion';
 import ScreenShareModal from './components/ScreenShareModal';
-import SosCrisisModal from './components/SosCrisisModal';
 import SessionControls from './components/SessionControls';
 import DailyTargetModal from './components/DailyTargetModal';
 import VisionOSFocusCockpit from './components/VisionOSFocusCockpit';
 import GoalReminderToast from './components/GoalReminderToast';
 import EmojiCustomizerModal, { RingCustomizerModal, DEFAULT_MENU_TOOLS } from './components/RingCustomizerModal';
 import ConnectModal from './components/ConnectModal';
-import DoubtModal from './components/DoubtModal';
 import CabbageLogo from './components/CabbageLogo';
 import { sounds } from './utils/audio';
 import { PeerCallManager } from './utils/webrtc';
@@ -23,7 +21,7 @@ const INITIAL_TASKS = [
   { id: '3', text: 'Draft certification summary sheet', completed: false },
 ];
 
-const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '🎉'];
+const DEFAULT_EMOJIS = ['🥰', '💖', '🚀', '✨', '🫂', '💌', '☕', '🎉'];
 
 export default function App() {
   // Read room and server from URL query params (or localStorage / default)
@@ -56,9 +54,6 @@ export default function App() {
   const [socketId, setSocketId] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isSecured, setIsSecured] = useState(false);
-
-  // Active Ephemeral Doubts (3-hour auto-purge)
-  const [doubts, setDoubts] = useState([]);
 
   // 3 Themes: 'dark' | 'white' | 'blush'
   const [theme, setTheme] = useState(() => {
@@ -169,7 +164,6 @@ export default function App() {
   const [peerSharingUser, setPeerSharingUser] = useState(null);
   const [screenViewMode, setScreenViewMode] = useState('theater'); // 'compact' | 'theater' | 'fullscreen' | 'minimized'
   const [currentStatus, setCurrentStatus] = useState('studying');
-  const [sosAlert, setSosAlert] = useState(null);
 
   // Display Mode: Always kept on screen! No auto-hiding after 5 seconds.
   const [displayMode, setDisplayMode] = useState('pinned');
@@ -748,48 +742,6 @@ export default function App() {
       }
     });
 
-    socket.on('sos-alert-received', (data) => {
-      sounds.playGentleAlert();
-      setSosAlert(data);
-      triggerAutoPopout({
-        title: `SOS from ${data.senderName || 'Peer'}! 🚨`,
-        detail: data.note || 'Urgent lifeline check-in',
-        icon: '🚨',
-      });
-    });
-
-    // Ephemeral Doubts Sync
-    socket.on('doubt-created', (newDoubt) => {
-      setDoubts((prev) => [newDoubt, ...prev.filter((d) => d.id !== newDoubt.id)]);
-      sounds.playPop();
-      triggerAutoPopout({
-        title: 'New Doubt Asked 💡',
-        detail: newDoubt.question,
-        icon: '💡',
-      });
-    });
-
-    socket.on('doubt-deleted', ({ doubtId }) => {
-      setDoubts((prev) => prev.filter((d) => d.id !== doubtId));
-    });
-
-    socket.on('doubt-expired', ({ doubtId }) => {
-      setDoubts((prev) => prev.filter((d) => d.id !== doubtId));
-    });
-
-    socket.on('doubt-ai-status', ({ doubtId, status, error }) => {
-      setDoubts((prev) =>
-        prev.map((d) => (d.id === doubtId ? { ...d, aiStatus: status, aiError: error } : d))
-      );
-    });
-
-    socket.on('doubt-ai-answered', ({ doubtId, answer, status }) => {
-      setDoubts((prev) =>
-        prev.map((d) => (d.id === doubtId ? { ...d, aiAnswer: answer, aiStatus: status } : d))
-      );
-      sounds.playCelebration();
-    });
-
     return () => {
       clearInterval(heartbeatInterval);
       clearInterval(renderKeepAlive);
@@ -1205,17 +1157,6 @@ export default function App() {
   };
 
   // Handle Crisis SOS
-  const handleTriggerSos = (note) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('trigger-sos', { note });
-    } else {
-      setSosAlert({
-        senderName: 'You',
-        note,
-      });
-    }
-  };
-
   // Handle Status change
   const handleStatusChange = (status) => {
     setCurrentStatus(status);
@@ -1242,25 +1183,6 @@ export default function App() {
     }
     alert('You have left the study session. Keep up the great work and take care!');
     setActiveModal('none');
-  };
-
-  // Ephemeral Doubt & Local AI Handlers (3-Hour Self-Destruct)
-  const handleCreateDoubt = ({ image, question }) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('create-doubt', { image, question });
-    }
-  };
-
-  const handleDeleteDoubt = (doubtId) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('delete-doubt', { doubtId });
-    }
-  };
-
-  const handleAskDoubtAi = (doubtId, prompt) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit('ask-doubt-ai', { doubtId, prompt });
-    }
   };
 
   const handleAskQuickAi = (prompt) => {
@@ -1573,15 +1495,6 @@ export default function App() {
           </div>
         )}
 
-        {activeModal === 'sos' && (
-          <div data-amigo-interactive="true" className="mb-2">
-            <SosCrisisModal
-              onTriggerSos={handleTriggerSos}
-              onClose={() => setActiveModal('none')}
-            />
-          </div>
-        )}
-
         {/* The Floating / Side-Docked Companion Widget */}
         <FloatingCompanion
           roomId={roomId}
@@ -1596,8 +1509,6 @@ export default function App() {
           progress={progress}
           onOpenTargetModal={() => setActiveModal(activeModal === 'target' ? 'none' : 'target')}
           onOpenConnectModal={() => setActiveModal('connect')}
-          onOpenDoubtModal={() => setActiveModal(activeModal === 'doubt' ? 'none' : 'doubt')}
-          doubtsCount={doubts.length}
           onSendEmoji={handleSendEmoji}
           floatingEmojis={floatingEmojis}
           quickEmojis={quickEmojis}
@@ -1623,8 +1534,6 @@ export default function App() {
           onWatchScreen={handleWatchScreen}
           onOpenSession={() => setActiveModal(activeModal === 'session' ? 'none' : 'session')}
           onLeaveSession={handleLeaveSession}
-          sosAlert={sosAlert}
-          onDismissSosAlert={() => setSosAlert(null)}
           onBrowserDragStart={handleBrowserDragStart}
           dockPosition={dockPosition}
           onToggleDock={handleToggleDock}
@@ -1668,23 +1577,6 @@ export default function App() {
               }
             }
           }}
-        />
-
-        {/* Ephemeral Doubt Hub Modal (3-Hour Self-Destruct & Local Gemma AI) */}
-        <DoubtModal
-          isOpen={activeModal === 'doubt'}
-          onClose={() => setActiveModal('none')}
-          theme={theme}
-          doubts={doubts}
-          onCreateDoubt={handleCreateDoubt}
-          onDeleteDoubt={handleDeleteDoubt}
-          onAskDoubtAi={handleAskDoubtAi}
-          onAskQuickAi={handleAskQuickAi}
-          selfName={nickname}
-          partnerName={
-            members.find((m) => m.id !== 'self' && m.id !== socketRef.current?.id)?.name ||
-            'Study Partner'
-          }
         />
 
         {/* Off-screen audio element to play remote partner's voice without being suspended by WebKit display:none */}

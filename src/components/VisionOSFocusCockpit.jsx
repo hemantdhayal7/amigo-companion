@@ -413,7 +413,7 @@ export default function VisionOSFocusCockpit({
               style={{ background: 'rgba(192, 132, 252, 0.06)' }}
             >
               <div className="flex items-center justify-between text-[10px] font-semibold text-purple-300 mb-1">
-                <span>🌸 {peerName}'s Focus Timer</span>
+                <span>⏱️ {peerName}'s Focus Timer</span>
                 <span className="font-mono">{formatTime(peerSeconds)}</span>
               </div>
               <div className="text-[11px] text-white/80 truncate">
@@ -666,7 +666,7 @@ export default function VisionOSFocusCockpit({
                           assignee === 'peer' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'
                         }`}
                       >
-                        🌸 {peerName}
+                        {peerName}
                       </button>
                     </div>
                   </div>

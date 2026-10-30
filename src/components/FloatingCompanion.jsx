@@ -578,37 +578,7 @@ export default function FloatingCompanion({
           onClick: () => onChangeRingMode('emoji'),
           active: ringMode === 'emoji',
         };
-      case 'sos':
-        return {
-          id: 'sos',
-          label: 'SOS',
-          icon: <HeartHandshake className="w-3.5 h-3.5 text-rose-400" />,
-          angle,
-          start,
-          end,
-          tooltip: 'Caring SOS Check-in & Lifelines',
-          onClick: onOpenSos,
-          active: Boolean(sosAlert),
-          activeColor: 'rose',
-        };
-      case 'doubt':
-        return {
-          id: 'doubt',
-          label: 'DOUBT',
-          icon: <HelpCircle className={`w-3.5 h-3.5 ${doubtsCount > 0 ? 'text-amber-400' : ''}`} />,
-          angle,
-          start,
-          end,
-          tooltip: 'Ephemeral Doubt Hub & Local AI (3h Auto-Purge)',
-          onClick: onOpenDoubtModal,
-          active: doubtsCount > 0,
-          activeColor: 'amber',
-          extraBadge: doubtsCount > 0 && (
-            <span className="min-w-[13px] h-[13px] px-0.5 rounded-full bg-amber-500 border border-white text-white font-mono text-[7px] font-bold flex items-center justify-center shadow-md animate-pulse absolute -top-1 -right-1">
-              {doubtsCount}
-            </span>
-          ),
-        };
+
       case 'target':
         return {
           id: 'target',
@@ -851,37 +821,6 @@ export default function FloatingCompanion({
 
   return (
     <div className="select-none transition-all duration-300 w-full flex flex-col justify-end items-center">
-      {/* Active SOS Urgent Banner */}
-      {sosAlert && (
-        <div data-amigo-interactive="true" className="mb-2 p-3 bg-rose-600/95 border border-rose-300/40 rounded-3xl shadow-2xl text-white backdrop-blur-xl animate-bounce-short flex items-center justify-between gap-3 max-w-sm w-full">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-xs font-bold flex items-center gap-1.5">
-                <span>Check on {sosAlert.senderName}</span>
-                <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-normal">Just now</span>
-              </div>
-              <p className="text-[11px] text-rose-100">{sosAlert.note}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={onOpenSos}
-              className="px-2.5 py-1 bg-white text-rose-700 hover:bg-rose-50 text-xs font-bold rounded-xl shadow transition"
-            >
-              Open Help
-            </button>
-            <button
-              onClick={onDismissSosAlert}
-              className="text-white/80 hover:text-white text-xs px-1.5 py-1"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Security Auth Error Alert Banner */}
       {authError && (

@@ -25,9 +25,9 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '🎉'];
+export const DEFAULT_EMOJIS = ['🥰', '💖', '🚀', '✨', '🫂', '💌', '☕', '🎉'];
 
-export const DEFAULT_MENU_TOOLS = ['drag', 'mic', 'cam', 'share', 'emoji', 'sos', 'doubt', 'target'];
+export const DEFAULT_MENU_TOOLS = ['drag', 'mic', 'cam', 'share', 'emoji', 'target'];
 
 export const EMOJI_CATEGORIES = {
   favorites: {
@@ -126,22 +126,6 @@ export const AVAILABLE_MENU_TOOLS = {
     icon: Smile,
     color: 'text-amber-400',
     desc: 'Switch to the outer Emoji reaction dial',
-  },
-  sos: {
-    id: 'sos',
-    label: 'SOS',
-    name: 'Caring SOS Lifeline',
-    icon: HeartHandshake,
-    color: 'text-rose-400',
-    desc: 'Send gentle check-in or crisis alert',
-  },
-  doubt: {
-    id: 'doubt',
-    label: 'DOUBT',
-    name: 'Ask Doubt & AI Tutor',
-    icon: HelpCircle,
-    color: 'text-amber-400',
-    desc: 'Ephemeral Doubt Hub & Local AI answers',
   },
   target: {
     id: 'target',
