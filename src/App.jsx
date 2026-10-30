@@ -615,8 +615,17 @@ export default function App() {
         peerCallManagerRef.current.broadcastMediaStatus();
         setIsPeerVideoOn(Boolean(newUser.isVideoOn));
         setIsPeerMicOn(Boolean(newUser.isMicOn));
-        console.log('[App] Proactively establishing peer call with joined partner:', newUser.id);
-        peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
+
+        // The newly joined partner initiates call via room-synced.
+        // Fallback initiate after 2s only if connection has not started yet.
+        setTimeout(() => {
+          const pc = peerCallManagerRef.current?.peerConnection;
+          const isConnected = pc && (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected');
+          if (!isConnected && peerCallManagerRef.current?.targetPeerId === newUser.id) {
+            console.log('[App] Fallback: Initiating call to joined partner:', newUser.id);
+            peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
+          }
+        }, 2000);
       }
     });
 

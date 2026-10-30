@@ -282,16 +282,24 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // 3. SECURITY CHECK 2: Strict 2-Partner Limit & Reconnect Handling
-    // Zero 3rd party eavesdroppers allowed!
+    // 3. SECURITY & RECONNECT HANDLING: Clean stale sessions & eliminate false lockouts
     const roomMembers = room.members;
+
+    // Purge any dead or disconnected sockets immediately
+    for (const [sId, existingMember] of Array.from(roomMembers.entries())) {
+      const liveSock = io.sockets.sockets.get(sId);
+      if (!liveSock || !liveSock.connected) {
+        console.log(`[Clean] 🧹 Purged dead socket ${sId} (${existingMember.name}) from "${rawRoom}"`);
+        roomMembers.delete(sId);
+      }
+    }
 
     // Check if user is reconnecting by socket ID, deviceId, OR matching partner name
     const clientDeviceId = user?.deviceId || null;
     let existingSocketToReplace = null;
     for (const [sId, existingMember] of roomMembers.entries()) {
       const isSameSocket = sId === socket.id;
-      const isSameDevice = clientDeviceId && existingMember.deviceId === clientDeviceId;
+      const isSameDevice = clientDeviceId && existingMember.deviceId && existingMember.deviceId === clientDeviceId;
       const isSameName = rawName && existingMember.name && existingMember.name.trim().toLowerCase() === rawName.trim().toLowerCase();
       if (isSameSocket || isSameDevice || isSameName) {
         existingSocketToReplace = sId;
@@ -299,24 +307,44 @@ io.on('connection', (socket) => {
       }
     }
 
+    // If room has 2 members but caller has verified the correct secret passcode:
+    if (!existingSocketToReplace && roomMembers.size >= 2) {
+      const now = Date.now();
+      // Check for any socket with no heartbeat ping in > 25 seconds
+      for (const [sId, m] of roomMembers.entries()) {
+        const isStale = (m.lastPing && now - m.lastPing > 25000) || (!m.lastPing && now - m.joinedAt > 35000);
+        if (isStale) {
+          console.log(`[Reconnect] 🔄 Replacing inactive/stale session for "${m.name}" (${sId}) with incoming verified partner`);
+          existingSocketToReplace = sId;
+          break;
+        }
+      }
+
+      // If still not found, replace the oldest socket in the room so verified partners with the passcode are never locked out
+      if (!existingSocketToReplace) {
+        let oldestId = null;
+        let oldestTime = Infinity;
+        for (const [sId, m] of roomMembers.entries()) {
+          const t = m.joinedAt || 0;
+          if (t < oldestTime) {
+            oldestTime = t;
+            oldestId = sId;
+          }
+        }
+        if (oldestId) {
+          console.log(`[Reconnect] 🔄 Replacing oldest session (${oldestId}) to let incoming verified partner connect`);
+          existingSocketToReplace = oldestId;
+        }
+      }
+    }
+
     if (existingSocketToReplace) {
-      console.log(`[Reconnect] 🔄 Auto-reconnected: Replacing previous session for "${rawName}" (${existingSocketToReplace} -> ${socket.id})`);
+      console.log(`[Reconnect] 🔄 Auto-reconnected: Replacing previous session (${existingSocketToReplace} -> ${socket.id}) for "${rawName}"`);
       const oldSocket = io.sockets.sockets.get(existingSocketToReplace);
       if (oldSocket && oldSocket.id !== socket.id) {
         try { oldSocket.disconnect(true); } catch {}
       }
       roomMembers.delete(existingSocketToReplace);
-    } else if (roomMembers.size >= 2) {
-      // Room is strictly capped at 2 study partners
-      console.warn(`[SECURITY ALERT] 🛑 Blocked 3rd connection to private room "${rawRoom}" from ${clientIp} (${rawName}) - Room is full (2/2).`);
-      socket.emit('auth-error', {
-        code: 'ROOM_LOCKED_FULL',
-        message: '🔒 Room Locked: This study date is already full with 2 verified partners. No third party allowed.'
-      });
-      setTimeout(() => {
-        try { socket.disconnect(true); } catch {}
-      }, 150);
-      return;
     }
 
     // Mark socket as authorized
@@ -698,6 +726,20 @@ setInterval(() => {
     }
   }
 }, 30 * 1000);
+
+// Periodic Ghost Socket Sweeper: cleans out disconnected or ungracefully terminated sockets every 10 seconds
+setInterval(() => {
+  for (const [roomId, room] of rooms.entries()) {
+    if (!room.members) continue;
+    for (const [sId, member] of Array.from(room.members.entries())) {
+      const sock = io.sockets.sockets.get(sId);
+      if (!sock || !sock.connected) {
+        room.members.delete(sId);
+        console.log(`[GhostSweep] 🧹 Removed dead socket ${sId} (${member.name}) from "${roomId}"`);
+      }
+    }
+  }
+}, 10 * 1000);
 
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) return next();
