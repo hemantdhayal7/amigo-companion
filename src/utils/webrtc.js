@@ -253,8 +253,8 @@ export class PeerCallManager {
     }
   }
 
-  // Active Stream Health Monitor: detects if inbound RTP video bytes stalled (e.g. expired TURN relay)
-  // and automatically repairs by requesting keyframe or restarting ICE with fresh TURN credentials!
+  // Active Stream Health Monitor: detects if inbound RTP video bytes stalled
+  // and gently prompts an IDR keyframe to unfreeze rendering without restarting ICE or disrupting media!
   startStreamHealthMonitor() {
     if (this.healthMonitorTimer) return;
     let lastBytes = -1;
@@ -282,13 +282,10 @@ export class PeerCallManager {
         if (currentBytes > 0) {
           if (currentBytes === lastBytes) {
             staleCount++;
-            if (staleCount === 2) {
-              console.warn('[WebRTC Health] Inbound video bytes stalled for 6s. Requesting fresh keyframe...');
+            if (staleCount === 3) {
+              console.warn('[WebRTC Health] Inbound video bytes quiet for 9s. Prompting fresh keyframe from peer...');
               this.requestKeyFrame();
-            } else if (staleCount >= 4) {
-              console.warn('[WebRTC Health] Inbound video bytes stalled for 12s (relay expired). Auto-restarting ICE with fresh credentials...');
               staleCount = 0;
-              this.restartIce();
             }
           } else {
             staleCount = 0;
@@ -312,9 +309,20 @@ export class PeerCallManager {
     console.log(`[WebRTC] 🔄 Updating ICE servers (Total: ${servers.length}, TURN Relay Enabled: ${hasTurn})`);
     this.rtcConfig = { ...RTC_CONFIG, iceServers: servers };
     if (this.peerConnection && this.peerConnection.setConfiguration) {
+      // CRITICAL: Do NOT call setConfiguration if the peer connection is actively connected!
+      // In Chromium / WebRTC, invoking setConfiguration with new TURN credentials on a healthy connection
+      // initiates candidate re-allocation and re-checking, causing an artificial 5-6 second freeze/hiccup!
+      const isActivelyConnected =
+        this.peerConnection.connectionState === 'connected' ||
+        this.peerConnection.iceConnectionState === 'connected' ||
+        this.peerConnection.iceConnectionState === 'completed';
+      if (isActivelyConnected) {
+        console.log('[WebRTC] Active stream is healthy and connected. Storing fresh ICE servers for next reconnection without interrupting live stream.');
+        return;
+      }
       try {
         this.peerConnection.setConfiguration(this.rtcConfig);
-        console.log('[WebRTC] Applied updated ICE servers to active peer connection');
+        console.log('[WebRTC] Applied updated ICE servers to peer connection');
       } catch (err) {
         console.warn('[WebRTC] setConfiguration warning:', err);
       }
@@ -341,6 +349,11 @@ export class PeerCallManager {
   }
 
   requestKeyFrame() {
+    const now = Date.now();
+    if (this.lastKeyframeRequest && now - this.lastKeyframeRequest < 3000) {
+      return; // Debounce rapid keyframe requests within 3 seconds
+    }
+    this.lastKeyframeRequest = now;
     if (this.socket) {
       console.log('[WebRTC] 🔑 Emitting request-keyframe to peer:', this.targetPeerId);
       this.socket.emit('request-keyframe', { targetUserId: this.targetPeerId });
@@ -790,12 +803,14 @@ export class PeerCallManager {
       } else if (pc.iceConnectionState === 'disconnected') {
         console.warn('[WebRTC] ICE connection temporarily disconnected, monitoring for recovery...');
         if (!this.disconnectTimer) {
+          // Allow up to 12s for natural Wi-Fi recovery before triggering ICE restart.
+          // (2.5s was way too aggressive and caused constant 5-6 second stream freezes during minor Wi-Fi jitter)
           this.disconnectTimer = setTimeout(() => {
             if (this.peerConnection?.iceConnectionState === 'disconnected') {
-              console.warn('[WebRTC] ICE still disconnected after 2.5s, triggering ICE restart to unfreeze stream...');
+              console.warn('[WebRTC] ICE still disconnected after 12s, triggering ICE restart to unfreeze stream...');
               this.restartIce();
             }
-          }, 2500);
+          }, 12000);
         }
       } else if (pc.iceConnectionState === 'failed') {
         if (this.disconnectTimer) {

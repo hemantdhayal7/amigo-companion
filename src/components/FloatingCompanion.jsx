@@ -240,7 +240,8 @@ export default function FloatingCompanion({
     }
   }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, showRemote, isSwappedVideo]);
 
-  // Anti-Freeze Video Watchdog: detects if remote video playback paused or froze on a frame, and automatically wakes it up
+  // Anti-Freeze Video Watchdog: detects if active remote video playback paused or froze on a frame,
+  // and smoothly wakes it up with an IDR keyframe without restarting ICE or causing a 5-6s freeze!
   useEffect(() => {
     if (!remoteCamStream || (!isPeerVideoOn && !hasRemoteVideo)) return;
 
@@ -248,7 +249,8 @@ export default function FloatingCompanion({
     let staleCount = 0;
 
     const watchdog = setInterval(() => {
-      const v = remoteVideoRef.current;
+      // Find whichever remote video element is currently rendered in the DOM
+      const v = dualRemoteVideoRef.current || remoteVideoRef.current || pipVideoRef.current;
       if (!v) return;
       if (v.srcObject !== remoteCamStream) {
         v.srcObject = remoteCamStream;
@@ -258,15 +260,11 @@ export default function FloatingCompanion({
       } else if (v.readyState >= 2) {
         if (v.currentTime === lastRemoteTime && v.currentTime > 0) {
           staleCount++;
-          if (staleCount === 2) {
-            console.log('[Anti-Freeze] Video stalled on frame for 4s, requesting keyframe...');
+          if (staleCount >= 3) {
+            console.log('[Anti-Freeze] Active remote video stalled on frame for 6s, prompting fresh keyframe...');
             v.play().catch(() => {});
             onRequestKeyframe();
-          } else if (staleCount >= 4) {
-            console.log('[Anti-Freeze] Video stalled on frame for 8s, restarting ICE relay...');
             staleCount = 0;
-            v.play().catch(() => {});
-            onRestartIce();
           }
         } else {
           staleCount = 0;
@@ -276,7 +274,7 @@ export default function FloatingCompanion({
     }, 2000);
 
     return () => clearInterval(watchdog);
-  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, onRequestKeyframe, onRestartIce]);
+  }, [remoteCamStream, isPeerVideoOn, hasRemoteVideo, onRequestKeyframe]);
 
   // Selected date partner: find the real connected peer in the room (no mock Alex and accurately filter local user)
   const selfId = selfUser?.id;

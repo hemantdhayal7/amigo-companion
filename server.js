@@ -123,19 +123,18 @@ async function getFreshIceServers(force = false) {
 
 getFreshIceServers().catch(() => {});
 
-// Proactive 2.5-minute TURN Rotation Sweep:
-// Broadcasts fresh TURN credentials to all connected clients so active WebRTC streams NEVER expire or pause!
+// Background TURN cache refresh:
+// Keeps cachedIceServers fresh for newly connecting peers and reconnect requests.
+// NOTE: We do NOT broadcast io.emit('ice-servers') to actively connected clients,
+// because modifying active peer connection credentials triggers ICE candidate re-allocation and causes a 5-6s freeze!
 setInterval(async () => {
   try {
-    const servers = await getFreshIceServers(true);
-    if (servers && servers.length > 0) {
-      io.emit('ice-servers', { iceServers: servers });
-      console.log(`[WebRTC-TURN] 🔄 Proactively rotated and broadcasted fresh TURN credentials to all study partners`);
-    }
+    await getFreshIceServers(true);
+    console.log(`[WebRTC-TURN] 🔄 Cached fresh TURN credentials for incoming connections`);
   } catch (err) {
-    console.warn('[WebRTC-TURN] Periodic rotation notice:', err.message);
+    console.warn('[WebRTC-TURN] Background TURN cache update notice:', err.message);
   }
-}, 2.5 * 60 * 1000);
+}, 10 * 60 * 1000);
 
 // Rooms storage:
 // roomId -> {
