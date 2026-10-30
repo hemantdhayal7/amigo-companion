@@ -5,6 +5,7 @@ import ScreenShareModal from './components/ScreenShareModal';
 import SosCrisisModal from './components/SosCrisisModal';
 import SessionControls from './components/SessionControls';
 import DailyTargetModal from './components/DailyTargetModal';
+import VisionOSFocusCockpit from './components/VisionOSFocusCockpit';
 import GoalReminderToast from './components/GoalReminderToast';
 import EmojiCustomizerModal, { RingCustomizerModal, DEFAULT_MENU_TOOLS } from './components/RingCustomizerModal';
 import ConnectModal from './components/ConnectModal';
@@ -395,6 +396,18 @@ export default function App() {
       window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('mousedown', unlockAudio);
     };
+  }, []);
+
+  // Shortcut: Option+V / Alt+V to toggle VisionOS Glass Studio
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.altKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        setActiveModal((prev) => (prev === 'vision_studio' ? 'none' : 'vision_studio'));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Connect to signaling server with aggressive auto-reconnect
@@ -1414,6 +1427,24 @@ export default function App() {
               onSetReminderInterval={setReminderInterval}
               secondsToNextNudge={secondsToNextNudge}
               onClose={() => setActiveModal('none')}
+              onSwitchToVisionStudio={() => setActiveModal('vision_studio')}
+            />
+          </div>
+        )}
+
+        {/* Direction 2: VisionOS Floating Glass Studio (Isolated Beta Mode) */}
+        {activeModal === 'vision_studio' && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <VisionOSFocusCockpit
+              isOpen={true}
+              onClose={() => setActiveModal('none')}
+              target={target}
+              tasks={tasks}
+              onToggleTask={handleToggleTask}
+              onAddTask={handleAddTask}
+              members={members}
+              deadline="11:30 PM"
+              onSwitchToClassic={() => setActiveModal('target')}
             />
           </div>
         )}

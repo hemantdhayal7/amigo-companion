@@ -16,6 +16,7 @@ export default function DailyTargetModal({
   onSetReminderInterval,
   secondsToNextNudge,
   onClose,
+  onSwitchToVisionStudio,
 }) {
   const [activeTab, setActiveTab] = useState('my-target'); // 'my-target' | 'peers'
   const [newTargetInput, setNewTargetInput] = useState(target);
@@ -62,12 +63,23 @@ export default function DailyTargetModal({
             <p className="text-[10px] text-slate-400">Live accountability with study mates</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white text-xs p-1.5 rounded-lg hover:bg-white/10 transition"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          {onSwitchToVisionStudio && (
+            <button
+              onClick={onSwitchToVisionStudio}
+              className="text-[10px] font-semibold text-sky-400 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/30 px-2.5 py-1 rounded-full transition flex items-center gap-1 shadow-sm"
+              title="Switch to VisionOS Glass Studio"
+            >
+              <span> Vision Studio</span>
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white text-xs p-1.5 rounded-lg hover:bg-white/10 transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
