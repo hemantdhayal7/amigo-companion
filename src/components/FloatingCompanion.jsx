@@ -85,18 +85,12 @@ export default function FloatingCompanion({
   onOpenCustomizer,
   onOpenScreenShare,
   onWatchScreen,
-  onOpenSos,
   onOpenSession,
   onLeaveSession,
-  sosAlert,
-  onDismissSosAlert,
   onBrowserDragStart,
   dockPosition,
   onToggleDock,
   onOpenConnectModal,
-  // Doubt Hub & Local AI props
-  onOpenDoubtModal = () => {},
-  doubtsCount = 0,
   // Theme props
   theme = 'dark',
   onSetTheme,
@@ -986,12 +980,7 @@ export default function FloatingCompanion({
               />
             </span>
 
-            {/* Active Doubts Indicator on Mini Orb */}
-            {doubtsCount > 0 && (
-              <span className="absolute -top-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 border-2 border-white dark:border-slate-900 text-white font-mono text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse">
-                {doubtsCount}
-              </span>
-            )}
+
           </div>
         </div>
       ) : (

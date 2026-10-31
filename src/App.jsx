@@ -353,11 +353,9 @@ export default function App() {
   }, [
     activeModal,
     showNudgeToast,
-    sosAlert,
     authError,
     mediaPermissionError,
     dockPosition,
-    doubts.length,
     members.length,
   ]);
 
@@ -611,9 +609,6 @@ export default function App() {
           setIsPeerVideoOn(Boolean(partner.isVideoOn));
           setIsPeerMicOn(Boolean(partner.isMicOn));
         }
-      }
-      if (data.doubts) {
-        setDoubts(data.doubts);
       }
     });
 
