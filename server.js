@@ -277,7 +277,11 @@ io.on('connection', (socket) => {
       const partner = members.find((m) => m.id !== sId);
       const sock = io.sockets.sockets.get(sId);
       if (sock) {
-        sock.emit('room-users', partner ? formatPartnerForMobile(partner) : null);
+        const partnerData = partner ? formatPartnerForMobile(partner) : null;
+        sock.emit('room-users', partnerData);
+        if (partnerData) {
+          sock.emit('task-update', partnerData);
+        }
       }
     }
   };
@@ -330,14 +334,13 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Check if user is reconnecting by socket ID, deviceId, OR matching partner name
+    // Check if user is reconnecting by socket ID or persistent deviceId
     const clientDeviceId = user?.deviceId || null;
     let existingSocketToReplace = null;
     for (const [sId, existingMember] of roomMembers.entries()) {
       const isSameSocket = sId === socket.id;
       const isSameDevice = clientDeviceId && existingMember.deviceId && existingMember.deviceId === clientDeviceId;
-      const isSameName = rawName && existingMember.name && existingMember.name.trim().toLowerCase() === rawName.trim().toLowerCase();
-      if (isSameSocket || isSameDevice || isSameName) {
+      if (isSameSocket || isSameDevice) {
         existingSocketToReplace = sId;
         break;
       }
