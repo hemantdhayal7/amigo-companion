@@ -246,8 +246,44 @@ io.on('connection', (socket) => {
     );
   };
 
-  // Join or Reconnect to a study room
-  socket.on('join-room', async ({ roomId, secret, user }) => {
+  // Format partner member state for Android Native App (SocketManager.kt parsePartnerState)
+  const formatPartnerForMobile = (member) => {
+    if (!member) return null;
+    const completedCount = Array.isArray(member.tasks)
+      ? member.tasks.filter((t) => t.completed).length
+      : (member.tasksCompleted || 0);
+    const activeTaskText = member.activeTask || member.target || (Array.isArray(member.tasks) && member.tasks[0]?.text) || 'Focusing';
+
+    return {
+      nickname: member.name || 'Partner',
+      avatar: member.avatar || '🌸',
+      currentTask: activeTaskText,
+      elapsedSeconds: member.timerSeconds || member.seconds || 0,
+      tasksCompleted: completedCount,
+      isOnline: true,
+      isCameraOn: Boolean(member.isVideoOn),
+      isMicOn: Boolean(member.isMicOn),
+    };
+  };
+
+  // Broadcast partner status to mobile devices in this room
+  const notifyMobilePartners = (roomId) => {
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const members = Array.from(room.members.values());
+
+    for (const [sId, member] of room.members.entries()) {
+      const partner = members.find((m) => m.id !== sId);
+      const sock = io.sockets.sockets.get(sId);
+      if (sock) {
+        sock.emit('room-users', partner ? formatPartnerForMobile(partner) : null);
+      }
+    }
+  };
+
+  // Join or Reconnect to a study room (Core logic shared by Web & Mobile)
+  const handleJoinRoom = async ({ roomId, secret, user }) => {
     const rawRoom = (roomId || 'our-study-date').trim();
     const rawSecret = (secret || '').trim();
     const rawName = (user?.name || `Learner ${socket.id.slice(0, 4)}`).trim();
@@ -389,8 +425,36 @@ io.on('connection', (socket) => {
       iceServers
     });
 
+    // Notify mobile Android app clients with partner state
+    notifyMobilePartners(currentRoom);
+
     console.log(`[Room] ✅ ${currentUser.name} joined "${currentRoom}" (Active verified partners: ${roomMembers.size}/2, ICE servers: ${iceServers.length})`);
-  });
+  };
+
+  // 1. Join room via explicit socket event (Desktop & Web clients)
+  socket.on('join-room', handleJoinRoom);
+
+  // 2. Auto-join for Android / Native apps connecting with handshake query params
+  const q = socket.handshake.query || {};
+  if (q.room) {
+    const qRoom = String(q.room).trim();
+    const qSecret = q.secret ? String(q.secret).trim() : '';
+    const qNick = q.nickname ? String(q.nickname).trim() : `Learner ${socket.id.slice(0, 4)}`;
+    const qDevId = q.deviceId ? String(q.deviceId).trim() : null;
+
+    console.log(`[Android-Bridge] 📱 Auto-joining mobile client: room="${qRoom}", nick="${qNick}"`);
+    handleJoinRoom({
+      roomId: qRoom,
+      secret: qSecret,
+      user: {
+        name: qNick,
+        deviceId: qDevId,
+        avatar: '📱',
+      }
+    }).catch((err) => {
+      console.warn('[Android-Bridge] Auto-join error:', err.message);
+    });
+  }
 
   // Client request for dynamic ICE & TURN servers
   socket.on('get-ice-servers', async (callback) => {
@@ -445,11 +509,13 @@ io.on('connection', (socket) => {
         senderId: socket.id,
         offer
       });
+      io.to(target).emit('offer', offer);
     } else {
       socket.to(currentRoom).emit('signal-offer', {
         senderId: socket.id,
         offer
       });
+      socket.to(currentRoom).emit('offer', offer);
     }
   });
 
@@ -468,11 +534,13 @@ io.on('connection', (socket) => {
         senderId: socket.id,
         answer
       });
+      io.to(target).emit('answer', answer);
     } else {
       socket.to(currentRoom).emit('signal-answer', {
         senderId: socket.id,
         answer
       });
+      socket.to(currentRoom).emit('answer', answer);
     }
   });
 
@@ -492,11 +560,13 @@ io.on('connection', (socket) => {
         senderId: socket.id,
         candidate
       });
+      io.to(target).emit('ice-candidate', candidate);
     } else {
       socket.to(currentRoom).emit('signal-ice', {
         senderId: socket.id,
         candidate
       });
+      socket.to(currentRoom).emit('ice-candidate', candidate);
     }
   });
 
@@ -539,6 +609,7 @@ io.on('connection', (socket) => {
       isVideoOn: Boolean(isVideoOn),
       isMusicOn: Boolean(isMusicOn),
     });
+    notifyMobilePartners(currentRoom);
   });
 
   // Status updates
@@ -549,6 +620,7 @@ io.on('connection', (socket) => {
       userId: socket.id,
       status
     });
+    notifyMobilePartners(currentRoom);
   });
 
   // Daily Target & To-Do List synchronization
@@ -565,6 +637,7 @@ io.on('connection', (socket) => {
       tasks,
       progress
     });
+    notifyMobilePartners(currentRoom);
   });
 
   // Two-Way Live Focus Timer synchronization
@@ -581,6 +654,80 @@ io.on('connection', (socket) => {
       isRunning,
       activeTask
     });
+    notifyMobilePartners(currentRoom);
+  });
+
+  // ==============================================================
+  // 📱 ANDROID NATIVE COMPANION BRIDGE
+  // Maps mobile events to desktop partner & vice versa
+  // ==============================================================
+  socket.on('task-update', (data) => {
+    if (!isAuthorized()) return;
+    if (currentUser) {
+      if (data?.currentTask) {
+        currentUser.target = data.currentTask;
+        currentUser.activeTask = data.currentTask;
+      }
+      if (typeof data?.elapsedSeconds === 'number') {
+        currentUser.timerSeconds = data.elapsedSeconds;
+      }
+      if (typeof data?.tasksCompleted === 'number') {
+        currentUser.tasksCompleted = data.tasksCompleted;
+      }
+    }
+    socket.to(currentRoom).emit('peer-goal-updated', {
+      userId: socket.id,
+      name: currentUser?.name,
+      target: data?.currentTask,
+      tasks: [],
+      progress: data?.totalTasks ? Math.round(((data.tasksCompleted || 0) / data.totalTasks) * 100) : 0,
+    });
+    socket.to(currentRoom).emit('peer-timer-synced', {
+      userId: socket.id,
+      name: currentUser?.name,
+      seconds: data?.elapsedSeconds || 0,
+      isRunning: true,
+      activeTask: data?.currentTask
+    });
+    notifyMobilePartners(currentRoom);
+  });
+
+  // Android Mobile Call Signaling
+  socket.on('call-request', () => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('call-request', { from: currentUser?.name, senderId: socket.id });
+  });
+
+  socket.on('call-accepted', () => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('call-accepted', { from: currentUser?.name, senderId: socket.id });
+  });
+
+  socket.on('call-ended', () => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('call-ended', { from: currentUser?.name, senderId: socket.id });
+  });
+
+  socket.on('offer', (sdp) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('signal-offer', { senderId: socket.id, offer: sdp });
+    socket.to(currentRoom).emit('offer', sdp);
+  });
+
+  socket.on('answer', (sdp) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('signal-answer', { senderId: socket.id, answer: sdp });
+    socket.to(currentRoom).emit('answer', sdp);
+  });
+
+  socket.on('ice-candidate', (candidate) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('signal-ice', { senderId: socket.id, candidate });
+    socket.to(currentRoom).emit('ice-candidate', candidate);
+  });
+
+  socket.on('sos-alert', () => {
+    console.log(`[Android] SOS ping from ${currentUser?.name || socket.id}`);
   });
 
   // Assign task to peer
@@ -621,6 +768,7 @@ io.on('connection', (socket) => {
       const room = rooms.get(currentRoom);
       room.members.delete(socket.id);
       socket.to(currentRoom).emit('user-left', { userId: socket.id, name: currentUser?.name });
+      notifyMobilePartners(currentRoom);
       
       console.log(`[Disconnect] ${currentUser?.name || socket.id} disconnected from "${currentRoom}" (Remaining: ${room.members.size}/2)`);
       
