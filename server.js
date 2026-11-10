@@ -65,76 +65,72 @@ async function queryLocalAI(prompt, customSystem) {
   }
 }
 
-// WebRTC ICE & Dynamic TURN Relay Provisioning
-let cachedIceServers = [
-  { urls: 'stun:stun.cloudflare.com:3478' },
+// WebRTC ICE & Permanent High-Availability TURN Relay Provisioning
+// NOTE: We use permanent, enterprise-grade OpenRelay (Metered) TURN servers with NO time limit,
+// eliminating the 6-minute lease expiration drop from Cloudflare speed-test credentials.
+const PERMANENT_ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.nextcloud.com:443' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  {
+    urls: [
+      'turn:standard.relay.metered.ca:80',
+      'turn:standard.relay.metered.ca:443',
+      'turn:standard.relay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
 ];
+
+let cachedIceServers = [...PERMANENT_ICE_SERVERS];
 let lastTurnFetch = 0;
 
-// Fetch fresh TURN credentials (Cloudflare credentials expire every 5-10 minutes, so we rotate every 2 minutes)
+// Fetch fresh TURN credentials (supports custom env vars or Metered API if provided, falls back to permanent OpenRelay)
 async function getFreshIceServers(force = false) {
-  const now = Date.now();
-  if (
-    !force &&
-    now - lastTurnFetch < 2 * 60 * 1000 &&
-    cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'))
-  ) {
-    return cachedIceServers;
-  }
-
-  try {
-    const res = await fetch('https://speed.cloudflare.com/turn-creds', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://speed.cloudflare.com/',
+  // 1. If custom TURN env vars provided, prioritize them
+  if (process.env.TURN_URL && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
+    return [
+      ...PERMANENT_ICE_SERVERS.filter((s) => !s.username),
+      {
+        urls: process.env.TURN_URL.split(',').map((u) => u.trim()),
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_CREDENTIAL,
       },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.urls && data.username && data.credential) {
-        cachedIceServers = [
-          { urls: 'stun:stun.cloudflare.com:3478' },
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          {
-            urls: data.urls,
-            username: data.username,
-            credential: data.credential,
-          },
-        ];
-        lastTurnFetch = now;
-        console.log(`[WebRTC-TURN] 🛡️ Refreshed Cloudflare TURN relay credentials (${data.urls.length} URLs, username: ${data.username.slice(0, 10)}...)`);
-        return cachedIceServers;
-      }
+    ];
+  }
+
+  // 2. If Metered API key provided in env, fetch private dynamic TURN credentials
+  if (process.env.METERED_DOMAIN && process.env.METERED_API_KEY) {
+    const now = Date.now();
+    if (!force && now - lastTurnFetch < 60 * 60 * 1000) {
+      return cachedIceServers;
     }
-  } catch (err) {
-    console.warn('[WebRTC-TURN] Warning: Could not fetch dynamic Cloudflare TURN credentials:', err.message);
+    try {
+      const res = await fetch(
+        `https://${process.env.METERED_DOMAIN}.metered.live/api/v1/turn/credentials?apiKey=${process.env.METERED_API_KEY}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (res.ok) {
+        const dynamicServers = await res.json();
+        if (Array.isArray(dynamicServers) && dynamicServers.length > 0) {
+          cachedIceServers = dynamicServers;
+          lastTurnFetch = now;
+          console.log('[WebRTC-TURN] 🛡️ Refreshed private Metered TURN credentials from API');
+          return cachedIceServers;
+        }
+      }
+    } catch (e) {
+      console.warn('[WebRTC-TURN] Failed to fetch Metered API credentials, falling back to permanent OpenRelay:', e.message);
+    }
   }
-  return cachedIceServers;
+
+  return PERMANENT_ICE_SERVERS;
 }
-
-getFreshIceServers().catch(() => {});
-
-// Background TURN cache refresh:
-// Keeps cachedIceServers fresh for newly connecting peers and reconnect requests.
-// NOTE: We do NOT broadcast io.emit('ice-servers') to actively connected clients,
-// because modifying active peer connection credentials triggers ICE candidate re-allocation and causes a 5-6s freeze!
-setInterval(async () => {
-  try {
-    await getFreshIceServers(true);
-    console.log(`[WebRTC-TURN] 🔄 Cached fresh TURN credentials for incoming connections`);
-  } catch (err) {
-    console.warn('[WebRTC-TURN] Background TURN cache update notice:', err.message);
-  }
-}, 10 * 60 * 1000);
 
 // Rooms storage:
 // roomId -> {

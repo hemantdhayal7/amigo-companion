@@ -1,4 +1,5 @@
 // WebRTC Peer-to-Peer Voice & Video Call Manager for Study Companion
+// Configured with high-priority direct STUN and permanent OpenRelay TURN (NO 6-minute lease drops)
 const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -8,7 +9,16 @@ const RTC_CONFIG = {
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.services.mozilla.com:3478' },
-    { urls: 'stun:stun.nextcloud.com:443' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    {
+      urls: [
+        'turn:standard.relay.metered.ca:80',
+        'turn:standard.relay.metered.ca:443',
+        'turn:standard.relay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
   bundlePolicy: 'max-bundle',
   rtcpMuxPolicy: 'require',
