@@ -65,44 +65,29 @@ async function queryLocalAI(prompt, customSystem) {
   }
 }
 
-// WebRTC ICE & Permanent Authenticated Metered TURN Relay
-// Metered TURN credentials provide 50 GB high-speed relay without 6-minute lease drops or periodic freezes!
-const METERED_USERNAME = process.env.METERED_USERNAME || 'c1491cd5f60b70179eafa2fc';
-const METERED_PASSWORD = process.env.METERED_PASSWORD || 'okopcQzr+59jgt6n';
-
-const METERED_ICE_SERVERS = [
-  { urls: 'stun:stun.relay.metered.ca:80' },
+// WebRTC ICE & 100% Free Cloudflare TURN Relay with Seamless In-Flight Rotation
+// Zero cost forever: Uses Cloudflare's free TURN network with 4-minute in-flight proactive rotation,
+// completely eliminating the 6-minute lease drop without any freeze or interruption!
+let cachedIceServers = [
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.services.mozilla.com:3478' },
   { urls: 'stun:stun.nextcloud.com:443' },
-  {
-    urls: [
-      'turn:asia.relay.metered.ca:80',
-      'turn:asia.relay.metered.ca:80?transport=tcp',
-      'turn:asia.relay.metered.ca:443',
-      'turn:asia.relay.metered.ca:443?transport=tcp',
-      'turns:asia.relay.metered.ca:443?transport=tcp',
-      'turn:global.relay.metered.ca:80',
-      'turn:global.relay.metered.ca:80?transport=tcp',
-      'turn:global.relay.metered.ca:443',
-      'turn:global.relay.metered.ca:443?transport=tcp',
-      'turns:global.relay.metered.ca:443?transport=tcp',
-    ],
-    username: METERED_USERNAME,
-    credential: METERED_PASSWORD,
-  },
 ];
+let lastTurnFetch = 0;
 
-let cachedIceServers = [...METERED_ICE_SERVERS];
-
-// Dynamic TURN resolution: Uses permanent Metered credentials by default.
-// If Metered credentials are ever absent, gracefully falls back to Cloudflare TURN.
-async function getFreshIceServers() {
-  if (METERED_USERNAME && METERED_PASSWORD) {
+// Fetch fresh TURN credentials from Cloudflare (100% Free, Zero Cost Forever).
+// Cloudflare credentials have a 360s (6-min) TTL.
+// We cache for 60 seconds so every connecting peer and in-flight rotation request receives
+// fresh credentials with at least 5 minutes of valid lifespan!
+async function getFreshIceServers(force = false) {
+  const now = Date.now();
+  const hasTurn = cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'));
+  if (!force && now - lastTurnFetch < 60 * 1000 && hasTurn) {
     return cachedIceServers;
   }
 
@@ -122,22 +107,35 @@ async function getFreshIceServers() {
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
           { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun.services.mozilla.com:3478' },
+          { urls: 'stun:stun.nextcloud.com:443' },
           {
             urls: data.urls,
             username: data.username,
             credential: data.credential,
           },
         ];
+        lastTurnFetch = now;
+        console.log(`[WebRTC-CF] 🛡️ 100% Free Cloudflare TURN active (${data.urls.length} URLs, user: ${data.username.slice(0, 10)}...)`);
         return cachedIceServers;
       }
     }
   } catch (err) {
-    console.warn('[WebRTC-TURN] Warning: Could not fetch fallback Cloudflare TURN credentials:', err.message);
+    console.warn('[WebRTC-CF] Warning: Could not fetch Cloudflare TURN credentials:', err.message);
   }
   return cachedIceServers;
 }
 
-console.log(`[WebRTC-TURN] 🛡️ Permanent Metered TURN relay active (Account: amigostudy, User: ${METERED_USERNAME.slice(0, 10)}...)`);
+getFreshIceServers().catch(() => {});
+
+// Background keepalive cache refresh (every 2 minutes)
+setInterval(async () => {
+  try {
+    await getFreshIceServers(true);
+  } catch (err) {
+    console.warn('[WebRTC-CF] Background cache notice:', err.message);
+  }
+}, 2 * 60 * 1000);
 
 // Rooms storage:
 // roomId -> {
@@ -547,6 +545,22 @@ io.on('connection', (socket) => {
         answer
       });
       socket.to(currentRoom).emit('answer', answer);
+    }
+  });
+
+  socket.on('rotate-ice-servers', ({ targetUserId, iceServers }) => {
+    if (!isAuthorized()) return;
+    const room = rooms.get(currentRoom);
+    if (!room) return;
+    let target = targetUserId;
+    if (!target || !room.members.has(target)) {
+      target = Array.from(room.members.keys()).find((id) => id !== socket.id);
+    }
+    console.log(`[Signal] 🔄 Forwarding rotate-ice-servers from ${socket.id} -> ${target}`);
+    if (target && room.members.has(target)) {
+      io.to(target).emit('rotate-ice-servers', { senderId: socket.id, iceServers });
+    } else {
+      socket.to(currentRoom).emit('rotate-ice-servers', { senderId: socket.id, iceServers });
     }
   });
 
