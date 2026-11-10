@@ -65,8 +65,13 @@ async function queryLocalAI(prompt, customSystem) {
   }
 }
 
-// WebRTC ICE & Dynamic TURN Relay Provisioning
-let cachedIceServers = [
+// WebRTC ICE & Permanent Authenticated Metered TURN Relay
+// Metered TURN credentials provide 50 GB high-speed relay without 6-minute lease drops or periodic freezes!
+const METERED_USERNAME = process.env.METERED_USERNAME || 'c1491cd5f60b70179eafa2fc';
+const METERED_PASSWORD = process.env.METERED_PASSWORD || 'okopcQzr+59jgt6n';
+
+const METERED_ICE_SERVERS = [
+  { urls: 'stun:stun.relay.metered.ca:80' },
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
@@ -74,17 +79,30 @@ let cachedIceServers = [
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
   { urls: 'stun:stun.nextcloud.com:443' },
+  {
+    urls: [
+      'turn:asia.relay.metered.ca:80',
+      'turn:asia.relay.metered.ca:80?transport=tcp',
+      'turn:asia.relay.metered.ca:443',
+      'turn:asia.relay.metered.ca:443?transport=tcp',
+      'turns:asia.relay.metered.ca:443?transport=tcp',
+      'turn:global.relay.metered.ca:80',
+      'turn:global.relay.metered.ca:80?transport=tcp',
+      'turn:global.relay.metered.ca:443',
+      'turn:global.relay.metered.ca:443?transport=tcp',
+      'turns:global.relay.metered.ca:443?transport=tcp',
+    ],
+    username: METERED_USERNAME,
+    credential: METERED_PASSWORD,
+  },
 ];
-let lastTurnFetch = 0;
 
-// Fetch fresh TURN credentials (Cloudflare credentials expire every 5-10 minutes, so we rotate every 2 minutes)
-async function getFreshIceServers(force = false) {
-  const now = Date.now();
-  if (
-    !force &&
-    now - lastTurnFetch < 2 * 60 * 1000 &&
-    cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'))
-  ) {
+let cachedIceServers = [...METERED_ICE_SERVERS];
+
+// Dynamic TURN resolution: Uses permanent Metered credentials by default.
+// If Metered credentials are ever absent, gracefully falls back to Cloudflare TURN.
+async function getFreshIceServers() {
+  if (METERED_USERNAME && METERED_PASSWORD) {
     return cachedIceServers;
   }
 
@@ -110,31 +128,16 @@ async function getFreshIceServers(force = false) {
             credential: data.credential,
           },
         ];
-        lastTurnFetch = now;
-        console.log(`[WebRTC-TURN] 🛡️ Refreshed Cloudflare TURN relay credentials (${data.urls.length} URLs, username: ${data.username.slice(0, 10)}...)`);
         return cachedIceServers;
       }
     }
   } catch (err) {
-    console.warn('[WebRTC-TURN] Warning: Could not fetch dynamic Cloudflare TURN credentials:', err.message);
+    console.warn('[WebRTC-TURN] Warning: Could not fetch fallback Cloudflare TURN credentials:', err.message);
   }
   return cachedIceServers;
 }
 
-getFreshIceServers().catch(() => {});
-
-// Background TURN cache refresh:
-// Keeps cachedIceServers fresh for newly connecting peers and reconnect requests.
-// NOTE: We do NOT broadcast io.emit('ice-servers') to actively connected clients,
-// because modifying active peer connection credentials triggers ICE candidate re-allocation and causes a 5-6s freeze!
-setInterval(async () => {
-  try {
-    await getFreshIceServers(true);
-    console.log(`[WebRTC-TURN] 🔄 Cached fresh TURN credentials for incoming connections`);
-  } catch (err) {
-    console.warn('[WebRTC-TURN] Background TURN cache update notice:', err.message);
-  }
-}, 10 * 60 * 1000);
+console.log(`[WebRTC-TURN] 🛡️ Permanent Metered TURN relay active (Account: amigostudy, User: ${METERED_USERNAME.slice(0, 10)}...)`);
 
 // Rooms storage:
 // roomId -> {

@@ -1,14 +1,31 @@
 // WebRTC Peer-to-Peer Voice & Video Call Manager for Study Companion
 const RTC_CONFIG = {
   iceServers: [
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.services.mozilla.com:3478' },
     { urls: 'stun:stun.nextcloud.com:443' },
+    {
+      urls: [
+        'turn:asia.relay.metered.ca:80',
+        'turn:asia.relay.metered.ca:80?transport=tcp',
+        'turn:asia.relay.metered.ca:443',
+        'turn:asia.relay.metered.ca:443?transport=tcp',
+        'turns:asia.relay.metered.ca:443?transport=tcp',
+        'turn:global.relay.metered.ca:80',
+        'turn:global.relay.metered.ca:80?transport=tcp',
+        'turn:global.relay.metered.ca:443',
+        'turn:global.relay.metered.ca:443?transport=tcp',
+        'turns:global.relay.metered.ca:443?transport=tcp',
+      ],
+      username: 'c1491cd5f60b70179eafa2fc',
+      credential: 'okopcQzr+59jgt6n',
+    },
   ],
   bundlePolicy: 'max-bundle',
   rtcpMuxPolicy: 'require',
