@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import DesktopApp from './components/desktop/DesktopApp';
 import FloatingCompanion from './components/FloatingCompanion';
 import ScreenShareModal from './components/ScreenShareModal';
 import SessionControls from './components/SessionControls';
@@ -59,6 +60,18 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('study_theme') || 'dark';
   });
+
+  // App Display Mode: 'desktop' (Amigo 2.0 Full Suite) | 'floating' (Circular Companion Overlay)
+  const [appMode, setAppMode] = useState(() => {
+    return (typeof window !== 'undefined' ? localStorage.getItem('study_app_mode') : null) || 'desktop';
+  });
+
+  const handleSetAppMode = (mode) => {
+    setAppMode(mode);
+    try {
+      if (typeof window !== 'undefined') localStorage.setItem('study_app_mode', mode);
+    } catch {}
+  };
 
   // Customizable Quick Reactions
   const [quickEmojis, setQuickEmojis] = useState(() => {
@@ -1233,6 +1246,55 @@ export default function App() {
     };
   };
 
+  if (appMode === 'desktop') {
+    return (
+      <div className="w-full h-full min-h-screen bg-slate-950 text-slate-100 flex flex-col relative select-text overflow-hidden">
+        <DesktopApp
+          onFloatTop={() => handleSetAppMode('floating')}
+          remoteStream={remoteCamStream}
+          localStream={localCamStream}
+          partnerState={{
+            name: members.find((m) => m.id !== (socketId || socketRef.current?.id))?.name || 'Sakura',
+            avatar: members.find((m) => m.id !== (socketId || socketRef.current?.id))?.avatar || '🌸',
+            status: isConnected ? 'Focusing' : 'Offline',
+            isMicOn: isPeerMicOn,
+            isVideoOn: isPeerVideoOn,
+            isSharingScreen: !!peerSharingUser,
+            activeTask: 'Final project slides — outline',
+          }}
+          partnerStatus={isConnected ? 'connected' : 'offline'}
+          callState={{
+            isMicOn,
+            isVideoOn,
+            isScreenSharing: isSharingScreen,
+          }}
+          toggleMic={handleToggleMic}
+          toggleCamera={handleToggleVideo}
+          toggleScreen={handleToggleScreenShare}
+          onSendReaction={handleSendEmoji}
+          socket={socketRef.current}
+          roomId={roomId}
+        />
+
+        {/* Off-screen audio element to play remote partner's voice without being suspended by WebKit display:none */}
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            width: 1,
+            height: 1,
+            opacity: 0.01,
+            pointerEvents: 'none',
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={
@@ -1241,6 +1303,20 @@ export default function App() {
           : "fixed inset-0 pointer-events-none select-none z-50 overflow-hidden"
       }
     >
+      {/* Quick Return to Amigo Desktop Suite Button */}
+      <button
+        type="button"
+        onClick={() => handleSetAppMode('desktop')}
+        data-amigo-interactive="true"
+        className="fixed top-4 left-4 z-[99999] pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-800 text-white text-xs font-semibold backdrop-blur-xl border border-white/20 shadow-2xl cursor-pointer transition hover:scale-105 active:scale-95 group"
+        title="Switch to Amigo Desktop Suite"
+      >
+        <span className="text-sm">🥬</span>
+        <span className="font-bold text-emerald-400">Amigo Suite</span>
+        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded font-mono text-white/80 group-hover:bg-emerald-500/20 group-hover:text-emerald-300">
+          ⤢ Open
+        </span>
+      </button>
       {/* Whole-Screen Floating Reaction Shower Overlay */}
       <div className="fixed inset-0 pointer-events-none z-[99999] overflow-hidden">
         {floatingEmojis.map((item) => (
