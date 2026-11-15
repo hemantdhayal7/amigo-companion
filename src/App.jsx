@@ -1112,6 +1112,14 @@ export default function App() {
     resizeWindowForScreenshare('compact');
   };
 
+  const handleToggleScreenShare = async () => {
+    if (isSharingScreen) {
+      await handleStopScreenShare();
+    } else {
+      await handleStartScreenShare();
+    }
+  };
+
   // Dedicated YouTube Music & System Audio sharing
   const handleStartMusicShare = async () => {
     try {
