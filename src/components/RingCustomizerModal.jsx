@@ -25,46 +25,58 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export const DEFAULT_EMOJIS = ['🥰', '💖', '🚀', '✨', '🫂', '💌', '☕', '🎉'];
+export const DEFAULT_EMOJIS = ['😂', '😊', '🫰', '🪨', '😢', '🤘', '💕', '❤️', '🎉', '🔥'];
 
 export const DEFAULT_MENU_TOOLS = ['drag', 'mic', 'cam', 'share', 'emoji', 'target'];
 
 export const EMOJI_CATEGORIES = {
   favorites: {
-    name: 'Favorites',
+    name: '⭐ Favorites',
     icon: Star,
     color: 'text-amber-400',
-    emojis: ['❤️', '🥰', '🎉', '🔥', '✨', '☕', '👏', '🥳'],
+    emojis: ['😂', '😊', '🫰', '🪨', '😢', '🤘', '💕', '❤️', '🎉', '🔥', '✨', '👏', '🥰', '☕'],
   },
-  love: {
-    name: 'Hearts & Sweet',
-    icon: Sparkles,
-    color: 'text-rose-400',
-    emojis: ['❤️', '🥰', '💖', '💕', '🫂', '💌', '🌸', '✨', '🧸', '💋', '🌹', '🥺'],
-  },
-  celebrate: {
-    name: 'Party & Hype',
-    icon: Sparkles,
-    color: 'text-amber-400',
-    emojis: ['🎉', '🥳', '🔥', '🚀', '🍾', '🎊', '🌟', '👏', '🏆', '👑', '💯', '🙌'],
-  },
-  study: {
-    name: 'Study & Focus',
-    icon: Target,
-    color: 'text-emerald-400',
-    emojis: ['💡', '📖', '☕', '🎯', '💯', '🧠', '⚡', '🥑', '💻', '📚', '✏️', '📝'],
-  },
-  fun: {
-    name: 'Reactions & Fun',
+  reactions: {
+    name: '💬 Reactions',
     icon: Smile,
     color: 'text-sky-400',
-    emojis: ['😂', '🤣', '😜', '🥹', '🐱', '🐶', '🍕', '🥬', '🍦', '🍪', '🍔', '😋'],
+    emojis: ['😂', '😊', '🫰', '🪨', '😢', '🤘', '💕', '🥺', '😭', '🤣', '😆', '🙂', '🎸', '💔', '👏', '🔥'],
+  },
+  love: {
+    name: '💖 Hearts & Sweet',
+    icon: Sparkles,
+    color: 'text-rose-400',
+    emojis: ['🫰', '💕', '❤️', '🥰', '💖', '🫶', '💓', '💗', '🫂', '💌', '🌸', '✨', '🧸', '💋', '🌹', '🥺'],
+  },
+  celebrate: {
+    name: '🎉 Party & Rock',
+    icon: Sparkles,
+    color: 'text-amber-400',
+    emojis: ['🎉', '🥳', '🤘', '🪨', '🔥', '🚀', '🎸', '🍾', '🎊', '🌟', '👏', '🏆', '👑', '💯', '🙌', '✨'],
+  },
+  mood: {
+    name: '🌧️ Mood & Feelings',
+    icon: Sparkles,
+    color: 'text-blue-400',
+    emojis: ['😢', '😭', '🥺', '😔', '😞', '💔', '🪨', '🤘', '🎸', '⚡', '💤', '💭', '🌧️', '🩹', '🫂', '🕊️'],
+  },
+  fun: {
+    name: '😂 Laughs & Fun',
+    icon: Smile,
+    color: 'text-sky-400',
+    emojis: ['😂', '🤣', '😆', '😊', '🙂', '😄', '😜', '🥹', '🐱', '🐶', '🍕', '🥬', '🍦', '🍪', '🍔', '😋'],
+  },
+  study: {
+    name: '🎯 Study & Focus',
+    icon: Target,
+    color: 'text-emerald-400',
+    emojis: ['💡', '📖', '☕', '🎯', '💯', '🧠', '⚡', '🥑', '💻', '📚', '✏️', '📝', '🪨', '🧗'],
   },
   vibes: {
-    name: 'Magic & Mood',
+    name: '✨ Magic & Vibes',
     icon: Sparkles,
     color: 'text-purple-400',
-    emojis: ['🌈', '🍀', '🎧', '👾', '💎', '🌺', '🌙', '🪐', '🎨', '🔮', '🧸', '☀️'],
+    emojis: ['🌈', '🍀', '🎧', '👾', '💎', '🌺', '🌙', '🪐', '🎨', '🔮', '🧸', '☀️', '🎸', '🤘'],
   },
   music: {
     name: 'Music & Audio',
@@ -205,6 +217,12 @@ export default function RingCustomizerModal({
   const [activeEmojiCategory, setActiveEmojiCategory] = useState('favorites');
   const [savedFavorites, setSavedFavorites] = useState(() => {
     try {
+      const version = localStorage.getItem('study_fav_emojis_version');
+      if (version !== '2') {
+        localStorage.setItem('study_fav_emojis_version', '2');
+        localStorage.setItem('study_user_favorite_emojis', JSON.stringify(EMOJI_CATEGORIES.favorites.emojis));
+        return EMOJI_CATEGORIES.favorites.emojis;
+      }
       const saved = localStorage.getItem('study_user_favorite_emojis');
       return saved ? JSON.parse(saved) : EMOJI_CATEGORIES.favorites.emojis;
     } catch {
@@ -353,17 +371,17 @@ export default function RingCustomizerModal({
       {/* ================================================================ */}
       {activeTab === 'emojis' && (
         <div>
-          {/* 8 Reaction Slots */}
+          {/* Quick Reaction Slots */}
           <div className="mb-3">
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-                Your 8 Quick Ring Slots:
+                Your {currentEmojiSlots.length} Quick Ring Slots:
               </label>
               <span className="text-[9px] text-indigo-400 font-mono">
                 Click a slot to replace it
               </span>
             </div>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
               {currentEmojiSlots.map((emoji, idx) => (
                 <button
                   key={idx}

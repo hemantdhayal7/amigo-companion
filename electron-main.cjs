@@ -185,6 +185,11 @@ function createWindow() {
       });
   });
 
+  // Forward renderer console logs to Electron stdout for transparent debugging
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer] ${message}`);
+  });
+
   // Auto-retry if server is still binding port
   mainWindow.webContents.on('did-fail-load', (event, errorCode) => {
     console.log(`[Electron] Page failed to load (${errorCode}), retrying in 500ms...`);

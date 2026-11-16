@@ -1714,7 +1714,9 @@ export default function FloatingCompanion({
                 className="absolute inset-0 pointer-events-none animate-scaleIn"
               >
                 {emojiList.map((emoji, idx) => {
-                  const angles = [-90, -45, 0, 45, 90, 135, 180, 225];
+                  const angles = emojiList.length === 8
+                    ? [-90, -45, 0, 45, 90, 135, 180, 225]
+                    : Array.from({ length: emojiList.length }, (_, i) => -90 + (i * 360) / emojiList.length);
                   const angle = angles[idx % angles.length];
                   const toRad = (deg) => (deg * Math.PI) / 180;
                   const posX = 92 * Math.cos(toRad(angle));

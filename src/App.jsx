@@ -22,7 +22,7 @@ const INITIAL_TASKS = [
   { id: '3', text: 'Draft certification summary sheet', completed: false },
 ];
 
-const DEFAULT_EMOJIS = ['🥰', '💖', '🚀', '✨', '🫂', '💌', '☕', '🎉'];
+const DEFAULT_EMOJIS = ['😂', '😊', '🫰', '🪨', '😢', '🤘', '💕', '❤️', '🎉', '🔥'];
 
 export default function App() {
   // Read room and server from URL query params (or localStorage / default)
@@ -76,7 +76,26 @@ export default function App() {
   // Customizable Quick Reactions
   const [quickEmojis, setQuickEmojis] = useState(() => {
     try {
+      const version = localStorage.getItem('study_emojis_version');
       const saved = localStorage.getItem('study_quick_emojis');
+      if (version !== '2') {
+        localStorage.setItem('study_emojis_version', '2');
+        const oldDefaults = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'];
+        if (!saved || JSON.stringify(JSON.parse(saved)) === JSON.stringify(oldDefaults)) {
+          localStorage.setItem('study_quick_emojis', JSON.stringify(DEFAULT_EMOJIS));
+          return DEFAULT_EMOJIS;
+        } else {
+          const parsed = JSON.parse(saved);
+          const essential = ['😂', '😊', '🫰', '🪨', '😢'];
+          const missing = essential.filter((e) => !parsed.includes(e));
+          if (missing.length > 0) {
+            const merged = [...parsed, ...missing].slice(0, 10);
+            localStorage.setItem('study_quick_emojis', JSON.stringify(merged));
+            return merged;
+          }
+          return parsed;
+        }
+      }
       return saved ? JSON.parse(saved) : DEFAULT_EMOJIS;
     } catch {
       return DEFAULT_EMOJIS;
@@ -715,13 +734,50 @@ export default function App() {
       // Avoid duplicate local spawn if sent by self
       if (sender === nickname || sender === 'You') return;
       spawnFloatingEmoji(id, emoji, sender, isFountain ?? true, direction ?? 'down');
-      if (['🎉', '🥳', '✨', '👏', '❤️', '🥰', '🔥', '🥬'].includes(emoji)) {
-        confetti({
-          particleCount: 45,
-          spread: 70,
-          origin: { y: 0.6 },
-          zIndex: 999999,
-        });
+      if (['🎉', '🥳', '✨', '👏', '❤️', '🥰', '🔥', '🥬', '😂', '😊', '🫰', '💕', '🫶', '🪨', '🤘', '🎸', '😢', '🥺', '😭'].includes(emoji)) {
+        if (['❤️', '🥰', '🫰', '💕', '🫶', '💖'].includes(emoji)) {
+          confetti({
+            particleCount: 45,
+            spread: 75,
+            origin: { y: 0.65 },
+            colors: ['#f43f5e', '#fb7185', '#fda4af', '#f472b6', '#ffffff', '#e11d48'],
+            shapes: ['circle'],
+            zIndex: 999999,
+          });
+        } else if (['😢', '🥺', '😭', '💔'].includes(emoji)) {
+          confetti({
+            particleCount: 35,
+            spread: 50,
+            origin: { y: 0.2 },
+            gravity: 1.6,
+            colors: ['#38bdf8', '#60a5fa', '#93c5fd', '#bae6fd', '#e0f2fe'],
+            shapes: ['circle'],
+            zIndex: 999999,
+          });
+        } else if (['🤘', '🪨', '🎸'].includes(emoji)) {
+          confetti({
+            particleCount: 55,
+            spread: 95,
+            origin: { y: 0.6 },
+            colors: ['#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#ffffff', '#64748b'],
+            zIndex: 999999,
+          });
+        } else if (['😂', '🤣', '😆', '😊', '🙂'].includes(emoji)) {
+          confetti({
+            particleCount: 45,
+            spread: 80,
+            origin: { y: 0.65 },
+            colors: ['#facc15', '#f59e0b', '#fbbf24', '#fde047', '#ffffff'],
+            zIndex: 999999,
+          });
+        } else {
+          confetti({
+            particleCount: 45,
+            spread: 70,
+            origin: { y: 0.6 },
+            zIndex: 999999,
+          });
+        }
       }
       triggerAutoPopout({
         title: `${sender} reacted!`,
@@ -1029,13 +1085,50 @@ export default function App() {
     sounds.playPop();
 
     // Trigger instant festive confetti for joyful reactions
-    if (['🎉', '🥳', '✨', '👏', '❤️', '🥰', '🔥', '🥬'].includes(emoji)) {
-      confetti({
-        particleCount: 50,
-        spread: 70,
-        origin: { y: 0.7 },
-        zIndex: 999999,
-      });
+    if (['🎉', '🥳', '✨', '👏', '❤️', '🥰', '🔥', '🥬', '😂', '😊', '🫰', '💕', '🫶', '🪨', '🤘', '🎸', '😢', '🥺', '😭'].includes(emoji)) {
+      if (['❤️', '🥰', '🫰', '💕', '🫶', '💖'].includes(emoji)) {
+        confetti({
+          particleCount: 50,
+          spread: 75,
+          origin: { y: 0.65 },
+          colors: ['#f43f5e', '#fb7185', '#fda4af', '#f472b6', '#ffffff', '#e11d48'],
+          shapes: ['circle'],
+          zIndex: 999999,
+        });
+      } else if (['😢', '🥺', '😭', '💔'].includes(emoji)) {
+        confetti({
+          particleCount: 35,
+          spread: 50,
+          origin: { y: 0.2 },
+          gravity: 1.6,
+          colors: ['#38bdf8', '#60a5fa', '#93c5fd', '#bae6fd', '#e0f2fe'],
+          shapes: ['circle'],
+          zIndex: 999999,
+        });
+      } else if (['🤘', '🪨', '🎸'].includes(emoji)) {
+        confetti({
+          particleCount: 55,
+          spread: 95,
+          origin: { y: 0.6 },
+          colors: ['#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#ffffff', '#64748b'],
+          zIndex: 999999,
+        });
+      } else if (['😂', '🤣', '😆', '😊', '🙂'].includes(emoji)) {
+        confetti({
+          particleCount: 50,
+          spread: 80,
+          origin: { y: 0.65 },
+          colors: ['#facc15', '#f59e0b', '#fbbf24', '#fde047', '#ffffff'],
+          zIndex: 999999,
+        });
+      } else {
+        confetti({
+          particleCount: 50,
+          spread: 70,
+          origin: { y: 0.7 },
+          zIndex: 999999,
+        });
+      }
     }
 
     // 2. Broadcast to study partner
