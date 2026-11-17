@@ -20,21 +20,23 @@ export default function StudyRoomView({
   partnerName = 'Sakura',
   isMicOn = false,
   isVideoOn = false,
-  onToggleMic,
-  onToggleVideo,
+  onToggleMic = () => {},
+  onToggleVideo = () => {},
   localCamStream,
   remoteCamStream,
   isPeerMicOn = false,
   isPeerVideoOn = false,
   isSharingScreen = false,
-  onToggleScreenShare,
-  onSendEmoji,
-  onToggleFloatOnTop,
-  onLeaveRoom,
+  onToggleScreenShare = () => {},
+  onSendEmoji = () => {},
+  onToggleFloatOnTop = () => {},
+  onFloatTop,
+  onLeaveRoom = () => {},
   tasks = [],
-  onToggleTask,
+  onToggleTask = () => {},
   timerSeconds = 18 * 60 + 24,
 }) {
+  const handleFloatTop = onToggleFloatOnTop || onFloatTop || (() => {});
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'chat' | 'board'
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [recentCheer, setRecentCheer] = useState({ emoji: '💖', text: `${partnerName} cheered you on` });
@@ -100,7 +102,7 @@ export default function StudyRoomView({
 
         {/* Float on Top / Pop-out button */}
         <button
-          onClick={onToggleFloatOnTop}
+          onClick={handleFloatTop}
           className="btn h-8 px-3 rounded-xl bg-[var(--alt)] hover:bg-[var(--line)] text-xs font-semibold flex items-center gap-1.5 shadow-xs"
           title="Minimize call to floating circular companion"
         >

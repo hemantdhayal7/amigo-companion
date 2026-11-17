@@ -19,9 +19,12 @@ export default function HomeView({
   todayFocusedMinutes = 130, // 2h 10m
   dailyGoalMinutes = 240, // 4h
   tasks = [],
-  onNavigate,
-  onOpenPingModal,
+  onNavigate = () => {},
+  onOpenPingModal = () => {},
+  partnerState = {},
+  onFloatTop = () => {},
 }) {
+  const currentPartnerName = partnerState?.name || partnerName;
   const goalPercent = Math.min(100, Math.round((todayFocusedMinutes / dailyGoalMinutes) * 100));
   const focusedHours = Math.floor(todayFocusedMinutes / 60);
   const focusedMins = todayFocusedMinutes % 60;
@@ -243,10 +246,10 @@ export default function HomeView({
         <section className="card p-4 bg-[var(--card)] border border-[var(--line)] rounded-2xl shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-[var(--ps)] text-[var(--p)] flex items-center justify-center font-['Space_Grotesk'] font-bold text-lg shadow-xs">
-              {partnerName.charAt(0).toUpperCase()}
+              {currentPartnerName.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm text-[var(--fg)]">{partnerName}</div>
+              <div className="font-bold text-sm text-[var(--fg)]">{currentPartnerName}</div>
               <div className="flex items-center gap-1.5 text-xs text-[var(--gt)] font-semibold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Focusing now</span>

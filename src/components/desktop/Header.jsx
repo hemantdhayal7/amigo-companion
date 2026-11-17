@@ -4,12 +4,18 @@ import { Search, Bell, ExternalLink, Moon, Sun } from 'lucide-react';
 export default function Header({
   userName = 'Hemant',
   onOpenCommandPalette,
-  onOpenNotifications,
+  onOpenCommand,
+  onOpenNotifications = () => {},
   onToggleFloatOnTop,
+  onFloatTop,
   theme = 'light',
-  onToggleTheme,
-  notificationCount = 3,
+  isDark = false,
+  onToggleTheme = () => {},
+  notificationCount = 0,
 }) {
+  const handleOpenCommand = onOpenCommandPalette || onOpenCommand || (() => {});
+  const handleFloatTop = onToggleFloatOnTop || onFloatTop || (() => {});
+  const currentTheme = theme || (isDark ? 'dark' : 'light');
   const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
@@ -41,7 +47,7 @@ export default function Header({
 
       {/* Spotlight Command Search */}
       <button
-        onClick={onOpenCommandPalette}
+        onClick={handleOpenCommand}
         className="w-[280px] h-9 px-3 rounded-xl bg-[var(--alt)] text-[var(--muted)] flex items-center gap-2 hover:bg-[var(--line)]/50 transition-all text-xs"
         title="Open command palette (Ctrl K)"
       >
@@ -68,14 +74,14 @@ export default function Header({
       <button
         onClick={onToggleTheme}
         className="w-9 h-9 rounded-xl bg-[var(--alt)] text-[var(--fg)] flex items-center justify-center hover:brightness-95 active:scale-95 transition-all"
-        title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+        title={`Switch to ${currentTheme === 'dark' ? 'Light' : 'Dark'} mode`}
       >
-        {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+        {currentTheme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
       </button>
 
       {/* Float on Top (Picture-in-Picture Companion Toggle) */}
       <button
-        onClick={onToggleFloatOnTop}
+        onClick={handleFloatTop}
         className="btn flex items-center gap-2 h-9 px-3.5 rounded-xl bg-[#15803D] text-white font-semibold text-xs shadow-sm hover:brightness-110 active:scale-95 transition-all"
         title="Pop out to floating circular companion widget"
       >

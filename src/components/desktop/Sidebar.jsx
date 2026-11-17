@@ -28,15 +28,21 @@ const NAV_ITEMS = [
 
 export default function Sidebar({
   activeTab = 'home',
+  activeView,
   onSelectTab,
+  onNavigate,
   compact = false,
   onOpenPingModal,
+  onQuickPing,
   streakDays = 12,
   userName = 'Hemant',
   partnerName = 'Sakura',
   isPartnerOnline = true,
   isCallActive = false,
 }) {
+  const currentTab = activeTab || activeView || 'home';
+  const handleSelectTab = onSelectTab || onNavigate || (() => {});
+  const handleOpenPing = onOpenPingModal || onQuickPing || (() => {});
   if (compact) {
     return (
       <nav
@@ -49,11 +55,11 @@ export default function Sidebar({
 
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = currentTab === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => onSelectTab(item.id)}
+              onClick={() => handleSelectTab(item.id)}
               title={item.label}
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                 isActive
@@ -111,11 +117,11 @@ export default function Sidebar({
       <div className="flex flex-col gap-0.5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = currentTab === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => onSelectTab(item.id)}
+              onClick={() => handleSelectTab(item.id)}
               className={`flex items-center gap-2.5 h-[38px] px-2.5 rounded-xl font-medium text-[13px] transition-all ${
                 isActive
                   ? 'bg-[var(--gs)] text-[var(--gt)] font-semibold shadow-sm'
@@ -141,7 +147,7 @@ export default function Sidebar({
 
       {/* Ping Partner Action */}
       <button
-        onClick={onOpenPingModal}
+        onClick={handleOpenPing}
         className="flex items-center gap-2 h-10 px-3 rounded-xl bg-[#7C3AED] text-white font-semibold text-[13px] shadow-sm hover:brightness-110 active:scale-[0.98] transition-all mb-2"
       >
         <Zap size={16} fill="currentColor" />
@@ -153,7 +159,7 @@ export default function Sidebar({
 
       {/* Shared Streak Card */}
       <button
-        onClick={() => onSelectTab('goals')}
+        onClick={() => handleSelectTab('goals')}
         className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--as)] text-[var(--fg)] text-left hover:brightness-95 transition-all mb-2 border border-amber-500/20"
       >
         <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-[var(--a)]">
@@ -167,9 +173,9 @@ export default function Sidebar({
 
       {/* Settings Tab Link */}
       <button
-        onClick={() => onSelectTab('settings')}
+        onClick={() => handleSelectTab('settings')}
         className={`flex items-center gap-2.5 h-[36px] px-2.5 rounded-xl font-medium text-[13px] transition-all ${
-          activeTab === 'settings'
+          currentTab === 'settings'
             ? 'bg-[var(--gs)] text-[var(--gt)] font-semibold'
             : 'text-[var(--muted)] hover:bg-[var(--alt)] hover:text-[var(--fg)]'
         }`}

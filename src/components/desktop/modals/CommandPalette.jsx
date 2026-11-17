@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function CommandPalette({ isOpen, onClose, onNavigate, onStartFocus }) {
+export default function CommandPalette({ isOpen = false, onClose = () => {}, onNavigate = () => {}, onStartFocus = () => {} }) {
   const [query, setQuery] = useState('');
 
   useEffect(() => {

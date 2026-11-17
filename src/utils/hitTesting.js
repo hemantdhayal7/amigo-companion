@@ -2,11 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 
 export const isTauri = () =>
   typeof window !== 'undefined' &&
+  !window.electronAPI &&
+  !navigator.userAgent.includes('Electron') &&
   Boolean(
     window.__TAURI_INTERNALS__ ||
     window.__TAURI__ ||
     window.__TAURI_METADATA__ ||
-    window.__IS_DESKTOP__ ||
     navigator.userAgent.includes('Tauri')
   );
 

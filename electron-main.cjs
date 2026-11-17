@@ -186,8 +186,19 @@ function createWindow() {
   });
 
   // Forward renderer console logs to Electron stdout for transparent debugging
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[Renderer] ${message}`);
+  mainWindow.webContents.on('console-message', (event, ...args) => {
+    let msg, line, sourceId;
+    if (event && typeof event === 'object' && event.message !== undefined) {
+      msg = event.message;
+      line = event.line;
+      sourceId = event.sourceId;
+    } else {
+      msg = args[1];
+      line = args[2];
+      sourceId = args[3];
+    }
+    const loc = sourceId ? ` [${sourceId.split('/').pop()}:${line}]` : '';
+    console.log(`[Renderer]${loc} ${msg}`);
   });
 
   // Auto-retry if server is still binding port
@@ -318,6 +329,31 @@ ipcMain.on('resize-window-for-screenshare', (event, mode) => {
     mainWindow.unmaximize();
     mainWindow.setFullScreen(false);
     mainWindow.setSize(420, 740);
+  }
+});
+
+ipcMain.on('set-app-mode', (event, mode) => {
+  if (!mainWindow) return;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  if (mode === 'desktop') {
+    const deskWidth = Math.min(1280, Math.round(screenWidth * 0.9));
+    const deskHeight = Math.min(850, Math.round(screenHeight * 0.9));
+    const posX = Math.round((screenWidth - deskWidth) / 2);
+    const posY = Math.round((screenHeight - deskHeight) / 2);
+    mainWindow.unmaximize();
+    mainWindow.setAlwaysOnTop(false);
+    mainWindow.setSize(deskWidth, deskHeight);
+    mainWindow.setPosition(posX, posY);
+  } else if (mode === 'floating') {
+    const floatWidth = 420;
+    const floatHeight = 740;
+    const posX = Math.max(10, screenWidth - floatWidth - 20);
+    const posY = Math.max(10, screenHeight - floatHeight - 20);
+    mainWindow.unmaximize();
+    mainWindow.setSize(floatWidth, floatHeight);
+    mainWindow.setPosition(posX, posY);
+    mainWindow.setAlwaysOnTop(true);
   }
 });
 

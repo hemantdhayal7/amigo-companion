@@ -12,7 +12,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   endDrag: () => ipcRenderer.send('end-window-drag'),
   getWindowPosition: () => ipcRenderer.invoke('get-window-position'),
   setWindowPosition: (x, y) => ipcRenderer.send('set-window-position', { x, y }),
+  setAppMode: (mode) => ipcRenderer.send('set-app-mode', mode),
 });
 
 // Flag for desktop app mode in React
 window.__IS_DESKTOP__ = true;
+
+window.addEventListener('error', (event) => {
+  console.error('[UNCAUGHT ERROR TRACE]', event.error ? event.error.stack : event.message, 'at', event.filename, ':', event.lineno, ':', event.colno);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[UNHANDLED REJECTION TRACE]', event.reason ? (event.reason.stack || event.reason) : event);
+});

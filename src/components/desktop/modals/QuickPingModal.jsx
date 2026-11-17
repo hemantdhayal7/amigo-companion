@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function QuickPingModal({ isOpen, onClose, onSendPing, onNavigate }) {
+export default function QuickPingModal({ isOpen = false, onClose = () => {}, onSendPing = () => {}, onNavigate = () => {} }) {
   const [loudness, setLoudness] = useState('quiet'); // 'quiet' | 'gentle' | 'urgent'
   const [selectedPreset, setSelectedPreset] = useState('tea');
   const [customText, setCustomText] = useState('');

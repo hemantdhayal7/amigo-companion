@@ -69,20 +69,29 @@ export default function DesktopApp({
             onNavigate={setActiveView}
             partnerState={partnerState}
             onFloatTop={onFloatTop}
+            onOpenPingModal={() => setIsQuickPingOpen(true)}
           />
         );
+      case 'room':
       case 'study-room':
         return (
           <StudyRoomView
-            remoteStream={remoteStream}
-            localStream={localStream}
-            partnerState={partnerState}
-            callState={callState}
-            toggleMic={toggleMic}
-            toggleCamera={toggleCamera}
-            toggleScreen={toggleScreen}
-            onSendReaction={onSendReaction}
+            userName="Hemant"
+            partnerName={partnerState?.name || 'Sakura'}
+            isMicOn={callState?.isMicOn}
+            isVideoOn={callState?.isVideoOn}
+            onToggleMic={toggleMic}
+            onToggleVideo={toggleCamera}
+            localCamStream={localStream}
+            remoteCamStream={remoteStream}
+            isPeerMicOn={partnerState?.isMicOn}
+            isPeerVideoOn={partnerState?.isVideoOn}
+            isSharingScreen={callState?.isScreenSharing}
+            onToggleScreenShare={toggleScreen}
+            onSendEmoji={onSendReaction}
+            onToggleFloatOnTop={onFloatTop}
             onFloatTop={onFloatTop}
+            onLeaveRoom={onFloatTop}
           />
         );
       case 'focus':
@@ -131,6 +140,7 @@ export default function DesktopApp({
             onNavigate={setActiveView}
             partnerState={partnerState}
             onFloatTop={onFloatTop}
+            onOpenPingModal={() => setIsQuickPingOpen(true)}
           />
         );
     }
@@ -180,9 +190,12 @@ export default function DesktopApp({
       {/* Left Sidebar */}
       <Sidebar
         activeView={activeView}
+        activeTab={activeView}
         onNavigate={setActiveView}
+        onSelectTab={setActiveView}
         partnerStatus={partnerStatus}
         onQuickPing={() => setIsQuickPingOpen(true)}
+        onOpenPingModal={() => setIsQuickPingOpen(true)}
         compact={isCompactSidebar}
         onToggleCompact={() => setIsCompactSidebar(!isCompactSidebar)}
       />
@@ -192,7 +205,9 @@ export default function DesktopApp({
         {/* Top Header */}
         <Header
           onOpenCommand={() => setIsCommandPaletteOpen(true)}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onFloatTop={onFloatTop}
+          onToggleFloatOnTop={onFloatTop}
           isDark={isDark}
           onToggleTheme={() => setIsDark(!isDark)}
         />

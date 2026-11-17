@@ -63,7 +63,7 @@ export default function App() {
 
   // App Display Mode: 'desktop' (Amigo 2.0 Full Suite) | 'floating' (Circular Companion Overlay)
   const [appMode, setAppMode] = useState(() => {
-    return (typeof window !== 'undefined' ? localStorage.getItem('study_app_mode') : null) || 'desktop';
+    return (typeof window !== 'undefined' ? localStorage.getItem('study_app_mode') : null) || 'floating';
   });
 
   const handleSetAppMode = (mode) => {
@@ -71,7 +71,16 @@ export default function App() {
     try {
       if (typeof window !== 'undefined') localStorage.setItem('study_app_mode', mode);
     } catch {}
+    if (typeof window !== 'undefined' && window.electronAPI?.setAppMode) {
+      window.electronAPI.setAppMode(mode);
+    }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electronAPI?.setAppMode) {
+      window.electronAPI.setAppMode(appMode);
+    }
+  }, [appMode]);
 
   // Customizable Quick Reactions
   const [quickEmojis, setQuickEmojis] = useState(() => {
