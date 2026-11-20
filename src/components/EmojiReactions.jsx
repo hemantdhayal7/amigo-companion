@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
 import { Heart, Sparkles, SmilePlus, Flame, Coffee, ArrowDownCircle, ArrowUpCircle, Palette } from 'lucide-react';
 
-const DEFAULT_EMOJIS = ['🥰', '💖', '🌸', '✨', '🫂', '💌', '☕', '🎉'];
+const DEFAULT_EMOJIS = ['😂', '😊', '🫰', '🪨', '😢', '🤘', '💕', '❤️', '🎉', '🔥'];
 
 export default function EmojiReactions({
   onSendEmoji,
@@ -24,7 +24,7 @@ export default function EmojiReactions({
 
     const willShowerDown = forceDown || showerMode === 'down' || emoji === '🎉' || emoji === '🥳' || emoji === '✨';
 
-    if (isCelebration || emoji === '🎉' || emoji === '🥳' || emoji === '🔥') {
+    if (isCelebration || emoji === '🎉' || emoji === '🥳' || emoji === '🔥' || emoji === '🤘' || emoji === '🪨') {
       confetti({
         particleCount: 75,
         spread: 110,
@@ -34,12 +34,31 @@ export default function EmojiReactions({
         disableForReducedMotion: true,
       });
       sounds.playCelebration();
-    } else if (isHeart || emoji === '❤️' || emoji === '🥰') {
+    } else if (isHeart || emoji === '❤️' || emoji === '🥰' || emoji === '🫰' || emoji === '💕') {
       confetti({
-        particleCount: 30,
+        particleCount: 35,
         spread: 60,
         origin: willShowerDown ? { y: 0 } : { y: 0.9 },
         colors: ['#f43f5e', '#fb7185', '#fda4af', '#f472b6', '#ffffff'],
+        shapes: ['circle'],
+        disableForReducedMotion: true,
+      });
+    } else if (emoji === '😢' || emoji === '🥺' || emoji === '😭') {
+      confetti({
+        particleCount: 30,
+        spread: 45,
+        origin: willShowerDown ? { y: 0 } : { y: 0.8 },
+        gravity: 1.5,
+        colors: ['#38bdf8', '#60a5fa', '#93c5fd', '#bae6fd'],
+        shapes: ['circle'],
+        disableForReducedMotion: true,
+      });
+    } else if (emoji === '😂' || emoji === '😊' || emoji === '🤣') {
+      confetti({
+        particleCount: 40,
+        spread: 70,
+        origin: willShowerDown ? { y: 0 } : { y: 0.9 },
+        colors: ['#facc15', '#f59e0b', '#fbbf24', '#ffffff'],
         shapes: ['circle'],
         disableForReducedMotion: true,
       });

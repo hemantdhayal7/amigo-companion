@@ -114,3 +114,276 @@ body {
   from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+/* Blush Pink Quartz Radial Dial */
+.radial-dial-blush {
+  background: radial-gradient(circle at 45% 40%, rgba(255, 241, 242, 0.88) 0%, rgba(254, 226, 226, 0.78) 60%, rgba(254, 205, 211, 0.72) 100%);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    0 24px 50px -10px rgba(159, 18, 57, 0.22),
+    0 10px 20px -5px rgba(244, 63, 94, 0.15),
+    inset 0 2px 4px rgba(255, 255, 255, 0.95),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Recessed Moat (Sunken Circular Groove Ring) */
+.radial-moat-white {
+  background: radial-gradient(circle at 50% 50%, rgba(215, 228, 248, 0.7) 0%, rgba(195, 215, 242, 0.85) 100%);
+  box-shadow: 
+    inset 0 3px 6px rgba(15, 23, 42, 0.2),
+    inset 0 -1px 3px rgba(255, 255, 255, 0.8);
+}
+
+.radial-moat-dark {
+  background: radial-gradient(circle at 50% 50%, rgba(10, 15, 25, 0.92) 0%, rgba(3, 7, 18, 0.97) 100%);
+  box-shadow: 
+    inset 0 3px 6px rgba(0, 0, 0, 0.75),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.radial-moat-blush {
+  background: radial-gradient(circle at 50% 50%, rgba(254, 205, 211, 0.7) 0%, rgba(253, 164, 175, 0.85) 100%);
+  box-shadow: 
+    inset 0 3px 6px rgba(159, 18, 57, 0.22),
+    inset 0 -1px 3px rgba(255, 255, 255, 0.85);
+}
+
+/* Raised Center Hub Button */
+.radial-hub-white {
+  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.98) 0%, rgba(240, 246, 255, 0.88) 60%, rgba(225, 235, 250, 0.82) 100%);
+  box-shadow: 
+    0 6px 14px -2px rgba(15, 23, 42, 0.16),
+    inset 0 2px 3px rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.08);
+}
+
+.radial-hub-dark {
+  background: radial-gradient(circle at 40% 35%, rgba(45, 55, 75, 0.92) 0%, rgba(25, 33, 48, 0.96) 60%, rgba(15, 23, 38, 0.98) 100%);
+  box-shadow: 
+    0 6px 14px -2px rgba(0, 0, 0, 0.65),
+    inset 0 1px 2px rgba(255, 255, 255, 0.25),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5);
+}
+
+.radial-hub-blush {
+  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 241, 242, 0.92) 60%, rgba(254, 226, 226, 0.88) 100%);
+  box-shadow: 
+    0 6px 14px -2px rgba(159, 18, 57, 0.18),
+    inset 0 2px 3px rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* 3D Embossed White Icons (Signature Reference Image Look) */
+.embossed-icon-white {
+  color: #ffffff;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.16)) drop-shadow(0 1px 1px rgba(255, 255, 255, 0.7));
+}
+
+.embossed-icon-dark {
+  color: #f1f5f9;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.65));
+}
+
+.embossed-icon-blush {
+  color: #ffffff;
+  filter: drop-shadow(0 2px 3px rgba(159, 18, 57, 0.22)) drop-shadow(0 1px 1px rgba(255, 255, 255, 0.75));
+}
+
+/* Sector Active / Hover Glows */
+.sector-wedge {
+  transition: fill 0.2s ease, opacity 0.2s ease;
+}
+.sector-wedge:hover {
+  fill: rgba(255, 255, 255, 0.25) !important;
+}
+.sector-wedge:active {
+  fill: rgba(255, 255, 255, 0.38) !important;
+}
+
+/* Outer Emoji Ring Pod Buttons */
+.emoji-pod-white {
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95) 0%, rgba(240, 246, 255, 0.75) 60%, rgba(220, 232, 250, 0.7) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    0 3px 6px -1px rgba(15, 23, 42, 0.12),
+    inset 0 1px 2px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.emoji-pod-dark {
+  background: radial-gradient(circle at 35% 30%, rgba(51, 65, 85, 0.85) 0%, rgba(30, 41, 59, 0.9) 60%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 
+    0 3px 6px -1px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.emoji-pod-blush {
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 241, 242, 0.8) 60%, rgba(254, 205, 211, 0.75) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    0 3px 6px -1px rgba(159, 18, 57, 0.14),
+    inset 0 1px 2px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================================ */
+/* 🥬 AMIGO 2.0 DESIGN SYSTEM (DESKTOP & COMPANION SUITE)        */
+/* ============================================================ */
+.amigo {
+  --bg: #FAFAF9;
+  --card: #FFFFFF;
+  --alt: #F5F5F4;
+  --line: #E7E5E4;
+  --fg: #1C1917;
+  --muted: #6B6560;
+  --g: #16A34A; /* Emerald green - You */
+  --gt: #15803D;
+  --gs: rgba(22, 163, 74, 0.1);
+  --p: #7C3AED; /* Royal Purple - Sakura */
+  --ps: rgba(124, 58, 237, 0.1);
+  --a: #B45309; /* Amber - Quizzes / Alerts */
+  --as: rgba(217, 119, 6, 0.12);
+  --r: #DC2626; /* Rose / Red - Live / Urgent */
+  --rs: rgba(220, 38, 38, 0.09);
+  --b: #2563EB; /* Blue - Mail / Tracker */
+  --bs: rgba(37, 99, 235, 0.09);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.amigo.dark {
+  --bg: #0C0A09;
+  --card: #1C1917;
+  --alt: #292524;
+  --line: #2E2A27;
+  --fg: #FAFAF5;
+  --muted: #A8A29E;
+  --gt: #4ADE80;
+  --gs: rgba(74, 222, 128, 0.13);
+  --p: #A78BFA;
+  --ps: rgba(167, 139, 250, 0.15);
+  --a: #FBBF24;
+  --as: rgba(251, 191, 36, 0.13);
+  --r: #F87171;
+  --rs: rgba(248, 113, 113, 0.13);
+  --b: #60A5FA;
+  --bs: rgba(96, 165, 250, 0.15);
+}
+
+.amigo button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+}
+
+.amigo svg {
+  flex-shrink: 0;
+}
+
+.amigo .card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-sizing: border-box;
+}
+
+.amigo .lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.amigo .h {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+}
+
+.amigo .mut {
+  color: var(--muted);
+}
+
+.amigo .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.amigo .btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--alt);
+  color: var(--fg);
+  box-sizing: border-box;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.amigo .btn:hover {
+  filter: brightness(0.96);
+}
+
+.amigo .btn.pri {
+  background: #15803D;
+  color: #FFFFFF;
+}
+
+.amigo .btn.pri:hover {
+  background: #166534;
+}
+
+.amigo .ic {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.amigo .av {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.amigo .ctl {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--alt);
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.amigo .ctl:hover {
+  transform: scale(1.05);
+}
+
+
+

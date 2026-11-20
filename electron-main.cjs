@@ -100,7 +100,34 @@ function createWindow() {
           callback({});
         }
       })
-      .catch(() => callback({}));
+      .catch((err) => {
+        console.error('[Electron] Display media request error:', err);
+        callback({});
+      });
+  });
+
+  // Forward renderer console logs to Electron stdout for transparent debugging
+  mainWindow.webContents.on('console-message', (event, ...args) => {
+    let msg, line, sourceId;
+    if (event && typeof event === 'object' && event.message !== undefined) {
+      msg = event.message;
+      line = event.line;
+      sourceId = event.sourceId;
+    } else {
+      msg = args[1];
+      line = args[2];
+      sourceId = args[3];
+    }
+    const loc = sourceId ? ` [${sourceId.split('/').pop()}:${line}]` : '';
+    console.log(`[Renderer]${loc} ${msg}`);
+  });
+
+  // Auto-retry if server is still binding port
+  mainWindow.webContents.on('did-fail-load', (event, errorCode) => {
+    console.log(`[Electron] Page failed to load (${errorCode}), retrying in 500ms...`);
+    setTimeout(() => {
+      if (mainWindow) mainWindow.loadURL(APP_URL);
+    }, 500);
   });
 
   // Load app
@@ -166,18 +193,45 @@ ipcMain.handle('get-platform', () => process.platform);
 
 ipcMain.on('resize-window', (event, mode) => {
   if (!mainWindow) return;
-  if (mode === 'fullscreen') mainWindow.setFullScreen(true);
-  else if (mode === 'maximize') mainWindow.maximize();
-  else if (mode === 'unmaximize') { mainWindow.unmaximize(); mainWindow.setFullScreen(false); }
-  else if (mode === 'minimize') mainWindow.minimize();
+  if (mode === 'fullscreen' || mode === 'theater') {
+    mainWindow.maximize();
+  } else if (mode === 'compact') {
+    mainWindow.unmaximize();
+    mainWindow.setFullScreen(false);
+    mainWindow.setSize(420, 740);
+  }
 });
 
-ipcMain.on('show-window', () => { mainWindow?.show(); mainWindow?.focus(); });
-ipcMain.on('hide-window', () => mainWindow?.hide());
-ipcMain.handle('toggle-window', () => {
-  if (!mainWindow) { createWindow(); return true; }
-  if (mainWindow.isVisible()) { mainWindow.hide(); return false; }
-  mainWindow.show(); mainWindow.focus(); return true;
+ipcMain.on('set-app-mode', (event, mode) => {
+  if (!mainWindow) return;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  if (mode === 'desktop') {
+    const deskWidth = Math.min(1280, Math.round(screenWidth * 0.9));
+    const deskHeight = Math.min(850, Math.round(screenHeight * 0.9));
+    const posX = Math.round((screenWidth - deskWidth) / 2);
+    const posY = Math.round((screenHeight - deskHeight) / 2);
+    mainWindow.unmaximize();
+    mainWindow.setAlwaysOnTop(false);
+    mainWindow.setSize(deskWidth, deskHeight);
+    mainWindow.setPosition(posX, posY);
+  } else if (mode === 'floating') {
+    const floatWidth = 420;
+    const floatHeight = 740;
+    const posX = Math.max(10, screenWidth - floatWidth - 20);
+    const posY = Math.max(10, screenHeight - floatHeight - 20);
+    mainWindow.unmaximize();
+    mainWindow.setSize(floatWidth, floatHeight);
+    mainWindow.setPosition(posX, posY);
+    mainWindow.setAlwaysOnTop(true);
+  }
+});
+
+ipcMain.on('show-window', () => {
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 });
 
 ipcMain.handle('is-maximized', () => mainWindow?.isMaximized() ?? false);

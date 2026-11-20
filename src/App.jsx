@@ -1,32 +1,329 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from './contexts/AuthContext';
-import { usePresence } from './hooks/usePresence';
-import { usePings } from './hooks/usePings';
-import Sidebar from './components/Sidebar';
-import Home from './pages/Home';
-import Focus from './pages/Focus';
-import Planner from './pages/Planner';
-import Calendar from './pages/Calendar';
-import StudyRoom from './pages/StudyRoom';
-import Notes from './pages/Notes';
-import Chat from './pages/Chat';
-import Insights from './pages/Insights';
-import Goals from './pages/Goals';
-import Settings from './pages/Settings';
-import Ping from './pages/Ping';
-import Notifications from './pages/Notifications';
-import Login from './pages/Login';
-import LinkPartner from './pages/LinkPartner';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { io } from 'socket.io-client';
+import DesktopApp from './components/desktop/DesktopApp';
+import FloatingCompanion from './components/FloatingCompanion';
+import ScreenShareModal from './components/ScreenShareModal';
+import SessionControls from './components/SessionControls';
+import DailyTargetModal from './components/DailyTargetModal';
+import VisionOSFocusCockpit from './components/VisionOSFocusCockpit';
+import GoalReminderToast from './components/GoalReminderToast';
+import EmojiCustomizerModal, { RingCustomizerModal, DEFAULT_MENU_TOOLS } from './components/RingCustomizerModal';
+import ConnectModal from './components/ConnectModal';
+import CabbageLogo from './components/CabbageLogo';
+import { sounds } from './utils/audio';
+import { PeerCallManager } from './utils/webrtc';
+import confetti from 'canvas-confetti';
+import { setupHitTestSync, updateInteractiveRegions, showAppWindow, hideAppWindow, resizeWindowForScreenshare } from './utils/hitTesting';
+import { parseInviteOrServerLink } from './utils/linkParser';
+
+const INITIAL_TASKS = [
+  { id: '1', text: 'Review Chapter 3 formulas & summary notes', completed: true },
+  { id: '2', text: 'Solve 10 practice exam questions', completed: false },
+  { id: '3', text: 'Draft certification summary sheet', completed: false },
+];
+
+const DEFAULT_EMOJIS = ['😂', '😊', '🫰', '🪨', '😢', '🤘', '💕', '❤️', '🎉', '🔥'];
 
 export default function App() {
-  const { user, profile, partner, loading } = useAuth();
-  const { partnerPresence, setMyStatus } = usePresence(user, partner);
-  const { incomingPing, dismissPing } = usePings(user);
+  // Read room and server from URL query params (or localStorage / default)
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const storedServer = typeof window !== 'undefined' ? localStorage.getItem('study_server_url') : null;
+  const validStoredServer = storedServer && !storedServer.includes('degreedost.com') ? storedServer : null;
+  const rawServer = urlParams?.get('server') || validStoredServer || 'https://amigo-companion.onrender.com';
+  const parsedServerLink = parseInviteOrServerLink(rawServer);
+
+  const initialServer = (parsedServerLink?.serverUrl && !parsedServerLink.serverUrl.includes('degreedost.com'))
+    ? parsedServerLink.serverUrl
+    : 'https://amigo-companion.onrender.com';
+  const initialRoom = urlParams?.get('room') || parsedServerLink?.roomId || localStorage.getItem('study_room_id') || 'our-study-date';
+  const initialSecret = urlParams?.get('secret') || parsedServerLink?.roomSecret || localStorage.getItem('study_room_secret') || 'date2026';
+
+  const [roomId, setRoomId] = useState(initialRoom);
+  const [roomSecret, setRoomSecret] = useState(initialSecret);
+  const [serverUrl, setServerUrl] = useState(initialServer);
+  const [deviceId] = useState(() => {
+    let id = typeof window !== 'undefined' ? localStorage.getItem('study_device_id') : null;
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).substring(2, 10);
+      if (typeof window !== 'undefined') localStorage.setItem('study_device_id', id);
+    }
+    return id;
+  });
+  const [nickname, setNickname] = useState(() => localStorage.getItem('study_nickname') || 'Learner');
+  const [avatar, setAvatar] = useState('🧠');
+  const [isConnected, setIsConnected] = useState(false);
+  const [socketId, setSocketId] = useState(null);
+  const [authError, setAuthError] = useState(null);
+  const [isSecured, setIsSecured] = useState(false);
+
+  // 3 Themes: 'dark' | 'white' | 'blush'
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('study_theme') || 'dark';
+  });
+
+  // App Display Mode: 'desktop' (Amigo 2.0 Full Suite) | 'floating' (Circular Companion Overlay)
+  const [appMode, setAppMode] = useState(() => {
+    return (typeof window !== 'undefined' ? localStorage.getItem('study_app_mode') : null) || 'floating';
+  });
+
+  const handleSetAppMode = (mode) => {
+    setAppMode(mode);
+    try {
+      if (typeof window !== 'undefined') localStorage.setItem('study_app_mode', mode);
+    } catch {}
+    if (typeof window !== 'undefined' && window.electronAPI?.setAppMode) {
+      window.electronAPI.setAppMode(mode);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electronAPI?.setAppMode) {
+      window.electronAPI.setAppMode(appMode);
+    }
+  }, [appMode]);
+
+  // Customizable Quick Reactions
+  const [quickEmojis, setQuickEmojis] = useState(() => {
+    try {
+      const version = localStorage.getItem('study_emojis_version');
+      const saved = localStorage.getItem('study_quick_emojis');
+      if (version !== '2') {
+        localStorage.setItem('study_emojis_version', '2');
+        const oldDefaults = ['🎉', '🥳', '❤️', '🥰', '🔥', '☕', '✨', '👏'];
+        if (!saved || JSON.stringify(JSON.parse(saved)) === JSON.stringify(oldDefaults)) {
+          localStorage.setItem('study_quick_emojis', JSON.stringify(DEFAULT_EMOJIS));
+          return DEFAULT_EMOJIS;
+        } else {
+          const parsed = JSON.parse(saved);
+          const essential = ['😂', '😊', '🫰', '🪨', '😢'];
+          const missing = essential.filter((e) => !parsed.includes(e));
+          if (missing.length > 0) {
+            const merged = [...parsed, ...missing].slice(0, 10);
+            localStorage.setItem('study_quick_emojis', JSON.stringify(merged));
+            return merged;
+          }
+          return parsed;
+        }
+      }
+      return saved ? JSON.parse(saved) : DEFAULT_EMOJIS;
+    } catch {
+      return DEFAULT_EMOJIS;
+    }
+  });
+
+  // Customizable Menu Ring Slots (8 sectors)
+  const [menuTools, setMenuTools] = useState(() => {
+    try {
+      const saved = localStorage.getItem('study_menu_tools');
+      return saved ? JSON.parse(saved) : DEFAULT_MENU_TOOLS;
+    } catch {
+      return DEFAULT_MENU_TOOLS;
+    }
+  });
+
+  // One ring at a time: 'menu' | 'emoji' | 'none'
+  const [ringMode, setRingMode] = useState(() => {
+    return localStorage.getItem('study_ring_mode') || 'menu';
+  });
 
   const [page, setPage] = useState(() => {
     try { return localStorage.getItem('amigo_page') || 'home'; } catch { return 'home'; }
   });
-  const [platform, setPlatform] = useState('darwin');
+
+  const [customizerTab, setCustomizerTab] = useState('emojis'); // 'emojis' | 'menu'
+
+  // Real-time Voice and Video Call State
+  const [isMicOn, setIsMicOn] = useState(false);
+  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [localCamStream, setLocalCamStream] = useState(null);
+  const [isPeerMicOn, setIsPeerMicOn] = useState(false);
+  const [isPeerVideoOn, setIsPeerVideoOn] = useState(false);
+  const [remoteCamStream, setRemoteCamStream] = useState(null);
+  const [mediaPermissionError, setMediaPermissionError] = useState(null);
+
+  // YouTube Music & System Audio sharing state
+  const [isSharingMusic, setIsSharingMusic] = useState(false);
+  const [isPeerMusicOn, setIsPeerMusicOn] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.85);
+  const [micVolume, setMicVolume] = useState(1.0);
+  const [musicShareError, setMusicShareError] = useState(null);
+
+  const peerCallManagerRef = useRef(null);
+  const remoteAudioRef = useRef(null);
+  const hasAutoStartedVideoRef = useRef(false);
+  const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] = useState(false);
+
+  // Screen Docking state: 'right' (docked right next to screen) | 'left' | 'free' (floating)
+  const [dockPosition, setDockPosition] = useState('right');
+
+  // Target and To-Do list state with LocalStorage persistence
+  const [target, setTarget] = useState(() => {
+    return localStorage.getItem('study_today_target') || 'Complete exam prep milestone & problem set';
+  });
+
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('study_today_tasks');
+      return saved ? JSON.parse(saved) : INITIAL_TASKS;
+    } catch {
+      return INITIAL_TASKS;
+    }
+  });
+
+  // Calculate progress %
+  const completedCount = tasks.filter((t) => t.completed).length;
+  const progress = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+
+  // 10-Minute Target Hover Check-in state
+  const [reminderInterval, setReminderInterval] = useState(10); // minutes
+  const [secondsToNextNudge, setSecondsToNextNudge] = useState(10 * 60);
+  const [showNudgeToast, setShowNudgeToast] = useState(false);
+
+  const [members, setMembers] = useState(() => [
+    { id: 'self', name: nickname || 'You', avatar: avatar || '🧠', status: 'studying', isSharing: false, target, tasks, progress },
+  ]);
+
+  // Peer Live Focus Stopwatch state (Two-way sync)
+  const [peerFocusTimer, setPeerFocusTimer] = useState({
+    seconds: 24 * 60 + 18,
+    isRunning: true,
+    activeTask: 'Drafting Chapter 4 Summary Notes',
+    name: 'Siddhi',
+  });
+
+  const [activeModal, setActiveModal] = useState('none'); // 'none' | 'screen' | 'sos' | 'session' | 'target' | 'customizer' | 'connect'
+  const [floatingEmojis, setFloatingEmojis] = useState([]);
+  const [isSharingScreen, setIsSharingScreen] = useState(false);
+  const [localStream, setLocalStream] = useState(null);
+  const [peerStream, setPeerStream] = useState(null);
+  const [peerSharingUser, setPeerSharingUser] = useState(null);
+  const [screenViewMode, setScreenViewMode] = useState('theater'); // 'compact' | 'theater' | 'fullscreen' | 'minimized'
+  const [currentStatus, setCurrentStatus] = useState('studying');
+
+  // Display Mode: Always kept on screen! No auto-hiding after 5 seconds.
+  const [displayMode, setDisplayMode] = useState('pinned');
+  const isKeepOnScreen = true;
+
+  // Active call or screen share state: keeps companion on screen continuously
+  const isCallActive = Boolean(
+    isVideoOn ||
+    isPeerVideoOn ||
+    isMicOn ||
+    isPeerMicOn ||
+    isSharingScreen ||
+    peerSharingUser ||
+    peerStream ||
+    remoteCamStream
+  );
+
+  const [popoutEvent, setPopoutEvent] = useState(null);
+  const [isPopoutVisible, setIsPopoutVisible] = useState(true);
+
+  const triggerAutoPopout = useCallback((eventData) => {
+    setPopoutEvent({
+      ...eventData,
+      id: Date.now(),
+    });
+    setIsPopoutVisible(true);
+    showAppWindow();
+  }, []);
+
+  // Ensure Amigo always stays on screen and never auto-hides
+  useEffect(() => {
+    localStorage.setItem('amigo_display_mode', 'pinned');
+    setIsPopoutVisible(true);
+    showAppWindow();
+
+    const timer = setTimeout(() => {
+      showAppWindow();
+      updateInteractiveRegions();
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Check if running in Tauri / Electron native floating app or standard browser
+  const isTauri =
+    typeof window !== 'undefined' &&
+    Boolean(
+      window.__TAURI_INTERNALS__ ||
+      window.__TAURI__ ||
+      window.__TAURI_METADATA__ ||
+      window.__IS_DESKTOP__ ||
+      navigator.userAgent.includes('Electron') ||
+      navigator.userAgent.includes('Tauri')
+    );
+
+  // Browser dragging coordinates fallback
+  const [browserPos, setBrowserPos] = useState({
+    x: typeof window !== 'undefined' ? Math.max(20, window.innerWidth - 420) : 100,
+    y: typeof window !== 'undefined' ? Math.max(20, window.innerHeight - 560) : 100,
+  });
+
+  const handleBrowserDragStart = (e) => {
+    if (isTauri) return;
+
+    // Smoothly calculate current position from bounding rect so there is NO jumping
+    const containerEl = document.getElementById('amigo-floating-container');
+    const rect = containerEl ? containerEl.getBoundingClientRect() : null;
+
+    const currentX = rect ? rect.left : browserPos.x;
+    const currentY = rect ? rect.top : browserPos.y;
+
+    if (dockPosition !== 'free') {
+      setDockPosition('free');
+      setBrowserPos({ x: currentX, y: currentY });
+    }
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let animFrame = null;
+    let pendingX = currentX;
+    let pendingY = currentY;
+
+    const onMouseMove = (moveEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      pendingX = Math.max(10, Math.min(window.innerWidth - 320, currentX + dx));
+      pendingY = Math.max(10, Math.min(window.innerHeight - 180, currentY + dy));
+
+      if (!animFrame) {
+        animFrame = requestAnimationFrame(() => {
+          setBrowserPos({ x: pendingX, y: pendingY });
+          animFrame = null;
+        });
+      }
+    };
+
+    const onMouseUp = () => {
+      if (animFrame) {
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+      }
+      setBrowserPos({ x: pendingX, y: pendingY });
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      setTimeout(updateInteractiveRegions, 50);
+    };
+
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('mouseup', onMouseUp, { passive: true });
+  };
+
+  const handleToggleDock = () => {
+    setDockPosition((prev) => {
+      if (prev === 'right') return 'free';
+      if (prev === 'free') return 'left';
+      return 'right';
+    });
+  };
+
+  const socketRef = useRef(null);
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem('study_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     try { localStorage.setItem('amigo_page', page); } catch {}
@@ -39,49 +336,911 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
-        e.preventDefault();
-        setPage('ping');
+    updateInteractiveRegions();
+  }, [
+    activeModal,
+    showNudgeToast,
+    authError,
+    mediaPermissionError,
+    dockPosition,
+    members.length,
+  ]);
+
+  // Unlock browser audio autoplay policy on any user interaction gesture (Linux Chrome / Windows Edge)
+  useEffect(() => {
+    const unlockAudio = () => {
+      const audioEl = remoteAudioRef.current;
+      if (audioEl) {
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        if (audioEl.srcObject && audioEl.paused) {
+          audioEl.play().then(() => {
+            console.log('[App] 🔊 Remote audio playback successfully resumed');
+            setIsAudioAutoplayBlocked(false);
+          }).catch((err) => {
+            console.debug('[App] unlockAudio play deferred:', err);
+          });
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Shortcut: Option+V / Alt+V to toggle VisionOS Glass Studio
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
+    const handleKeyDown = (e) => {
+      if (e.altKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        setActiveModal((prev) => (prev === 'vision_studio' ? 'none' : 'vision_studio'));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Connect to signaling server with aggressive auto-reconnect
+  useEffect(() => {
+    setAuthError(null);
+    const socket = io(serverUrl, {
+      reconnection: true,
+      reconnectionAttempts: Infinity, // Keep retrying automatically on computer reboot / network reconnect
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 4000,
+      randomizationFactor: 0.1,
+      timeout: 20000,
+      transports: ['websocket', 'polling'],
+      extraHeaders: {
+        'Bypass-Tunnel-Reminder': 'true',
+      },
+    });
+    socketRef.current = socket;
+
+    // Active Application-Level Heartbeat to prevent socket timeouts & idle drops
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('heartbeat', { deviceId, name: nickname });
+      }
+    }, 20000);
+
+    // Keep Render Free-Tier Container Awake (Ping health endpoint every 4 minutes)
+    const renderKeepAlive = setInterval(() => {
+      fetch(`${serverUrl}/api/health`, { headers: { 'Bypass-Tunnel-Reminder': 'true' } }).catch(() => {});
+    }, 4 * 60 * 1000);
+
+    // Initialize WebRTC PeerCallManager
+    peerCallManagerRef.current = new PeerCallManager({
+      socket,
+      onRemoteStreamUpdate: (stream) => {
+        const videoTracks = stream.getVideoTracks().filter((t) => t.readyState === 'live');
+        const audioTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
+        console.log('[App] Remote media stream updated — videoTracks:', videoTracks.length, 'audioTracks:', audioTracks.length);
+
+        // Separate Video-Only stream for <video> elements so GStreamer/WebKitGTK/Chromium never stalls waiting for muted audio sync
+        setRemoteCamStream((prevStream) => {
+          if (videoTracks.length === 0) {
+            setPeerStream(null);
+            return null;
+          }
+          const prevTrackIds = prevStream?.getVideoTracks().map((t) => t.id).sort().join(',') || '';
+          const newTrackIds = videoTracks.map((t) => t.id).sort().join(',');
+          if (prevStream && prevTrackIds === newTrackIds && !stream._forceTimestamp) {
+            return prevStream;
+          }
+          const fresh = new MediaStream(videoTracks);
+          setPeerStream(fresh);
+          return fresh;
+        });
+
+        // Dedicated Audio-Only stream for <audio> element so remote partner's voice plays immediately
+        if (remoteAudioRef.current) {
+          if (audioTracks.length > 0) {
+            const currentAudioStream = remoteAudioRef.current.srcObject;
+            const currentTrackId = currentAudioStream?.getAudioTracks()[0]?.id;
+            if (currentTrackId !== audioTracks[0].id || !currentAudioStream) {
+              remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
+            }
+            remoteAudioRef.current.muted = false;
+            remoteAudioRef.current.volume = 1.0;
+            if (remoteAudioRef.current.paused) {
+              remoteAudioRef.current.play().then(() => {
+                setIsAudioAutoplayBlocked(false);
+              }).catch((err) => {
+                if (err.name === 'NotAllowedError') {
+                  setIsAudioAutoplayBlocked(true);
+                }
+              });
+            }
+
+            // Ensure live playout when voice packets begin
+            audioTracks.forEach((track) => {
+              track.onunmute = () => {
+                console.log('[App] Remote audio track unmuted! Triggering immediate playout...');
+                if (remoteAudioRef.current && remoteAudioRef.current.paused) {
+                  remoteAudioRef.current.muted = false;
+                  remoteAudioRef.current.volume = 1.0;
+                  remoteAudioRef.current.play().then(() => {
+                    setIsAudioAutoplayBlocked(false);
+                  }).catch(() => {});
+                }
+              };
+            });
+          } else {
+            remoteAudioRef.current.srcObject = null;
+          }
+        }
+      },
+      onPeerMediaStatus: ({ isPeerMicOn: pMic, isPeerVideoOn: pVid, isPeerMusicOn: pMus }) => {
+        setIsPeerMicOn(pMic);
+        setIsPeerVideoOn(pVid);
+        setIsPeerMusicOn(Boolean(pMus));
+
+        if ((pMic || pMus) && remoteAudioRef.current) {
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.volume = 1.0;
+          if (remoteAudioRef.current.paused) {
+            remoteAudioRef.current.play().then(() => {
+              setIsAudioAutoplayBlocked(false);
+            }).catch((err) => {
+              if (err.name === 'NotAllowedError') {
+                setIsAudioAutoplayBlocked(true);
+              }
+            });
+          }
+        }
+      },
+      onError: (errMsg) => {
+        setMediaPermissionError(errMsg);
+        sounds.playGentleAlert();
+      },
+    });
+
+    peerCallManagerRef.current.onMusicStatusChange = ({ isSharing }) => {
+      setIsSharingMusic(isSharing);
+    };
+
+    socket.on('connect', () => {
+      console.log(`[Socket] Connected to Amigo 🎉 signaling server at ${serverUrl}`);
+      setIsConnected(true);
+      setSocketId(socket.id);
+      setAuthError(null);
+      // Pre-fetch dynamic TURN relay credentials from server
+      socket.emit('get-ice-servers', (resp) => {
+        if (resp?.iceServers && peerCallManagerRef.current) {
+          peerCallManagerRef.current.updateIceServers(resp.iceServers);
+        }
+      });
+      fetch(`${serverUrl}/api/webrtc/ice-servers`, {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.iceServers && peerCallManagerRef.current) {
+            peerCallManagerRef.current.updateIceServers(data.iceServers);
+          }
+        })
+        .catch(() => {});
+      socket.emit('join-room', {
+        roomId,
+        secret: roomSecret,
+        user: {
+          deviceId,
+          name: nickname,
+          avatar,
+          status: currentStatus,
+          target,
+          tasks,
+          progress,
+          isMicOn: Boolean(peerCallManagerRef.current?.isMicOn),
+          isVideoOn: Boolean(peerCallManagerRef.current?.isVideoOn),
+        },
+      });
+    });
+
+    socket.on('auth-error', (err) => {
+      console.error('[Security Alert] Auth error from server:', err);
+      setAuthError(err.message || 'Access denied');
+      setIsConnected(false);
+      setSocketId(null);
+      setMembers([{ id: 'self', name: nickname, avatar, status: 'studying', isSharing: false, target, tasks, progress }]);
+      sounds.playGentleAlert();
+    });
+
+    socket.on('connect_error', () => {
+      setIsConnected(false);
+      setSocketId(null);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected:', reason);
+      setIsConnected(false);
+      setSocketId(null);
+      setMembers([{ id: 'self', name: nickname, avatar, status: 'studying', isSharing: false, target, tasks, progress }]);
+    });
+
+    socket.on('room-synced', (data) => {
+      setAuthError(null);
+      setIsConnected(true);
+      setIsSecured(true);
+      if (data.self?.id) {
+        setSocketId(data.self.id);
+      }
+      if (data.iceServers && peerCallManagerRef.current) {
+        peerCallManagerRef.current.updateIceServers(data.iceServers);
+      }
+      if (data.members && data.members.length > 0) {
+        setMembers(data.members);
+        const partner = data.members.find((m) => m.id !== socket.id);
+        if (partner && peerCallManagerRef.current) {
+          console.log('[App] Existing partner found in room-synced, initiating call to:', partner.id);
+          peerCallManagerRef.current.setTargetPeerId(partner.id);
+          peerCallManagerRef.current.initiateCallTo(partner.id).catch(console.warn);
+          setIsPeerVideoOn(Boolean(partner.isVideoOn));
+          setIsPeerMicOn(Boolean(partner.isMicOn));
+        }
+      }
+    });
+
+    socket.on('user-joined', (newUser) => {
+      setMembers((prev) => [...prev.filter((m) => m.id !== newUser.id), newUser]);
+      triggerAutoPopout({
+        title: `${newUser.name} joined!`,
+        detail: 'Study buddy is online',
+        icon: newUser.avatar || '🌸',
+      });
+      if (peerCallManagerRef.current) {
+        console.log('[App] Partner joined room, setting target peer and broadcasting status:', newUser.id);
+        peerCallManagerRef.current.setTargetPeerId(newUser.id);
+        peerCallManagerRef.current.broadcastMediaStatus();
+        setIsPeerVideoOn(Boolean(newUser.isVideoOn));
+        setIsPeerMicOn(Boolean(newUser.isMicOn));
+
+        // The newly joined partner initiates call via room-synced.
+        // Fallback initiate after 2s only if connection has not started yet.
+        setTimeout(() => {
+          const pc = peerCallManagerRef.current?.peerConnection;
+          const isConnected = pc && (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected');
+          if (!isConnected && peerCallManagerRef.current?.targetPeerId === newUser.id) {
+            console.log('[App] Fallback: Initiating call to joined partner:', newUser.id);
+            peerCallManagerRef.current.initiateCallTo(newUser.id).catch(console.warn);
+          }
+        }, 2000);
+      }
+    });
+
+    socket.on('user-left', ({ userId }) => {
+      setMembers((prev) => prev.filter((m) => m.id !== userId));
+      if (peerSharingUser && peerSharingUser.id === userId) {
+        setPeerSharingUser(null);
+        setPeerStream(null);
+      }
+      if (peerCallManagerRef.current) {
+        console.log('[App] Partner left room, resetting WebRTC peer connection');
+        peerCallManagerRef.current.resetPeerConnection();
+      }
+      setIsPeerMicOn(false);
+      setIsPeerVideoOn(false);
+      setRemoteCamStream(null);
+      triggerAutoPopout({
+        title: 'Study buddy left',
+        detail: 'Disconnected from study date',
+        icon: '👋',
+      });
+    });
+
+    socket.on('peer-goal-updated', ({ userId, target: peerTarget, tasks: peerTasks, progress: peerProg }) => {
+      setMembers((prev) =>
+        prev.map((m) => (m.id === userId ? { ...m, target: peerTarget, tasks: peerTasks, progress: peerProg } : m))
+      );
+      triggerAutoPopout({
+        title: 'Goal Progress Updated! 🎯',
+        detail: `${peerTarget || 'Milestone'} (${peerProg}%)`,
+        icon: '🎯',
+      });
+    });
+
+    // Two-way focus timer sync
+    socket.on('peer-timer-synced', ({ userId, name, seconds: pSec, isRunning: pRun, activeTask: pTask }) => {
+      setPeerFocusTimer({
+        userId,
+        name: name || 'Siddhi',
+        seconds: pSec,
+        isRunning: pRun,
+        activeTask: pTask,
+        updatedAt: Date.now(),
+      });
+    });
+
+    // Peer assigned a task to me
+    socket.on('peer-task-assigned', ({ fromName, targetUserId, task }) => {
+      setTasks((prev) => {
+        const updated = [...prev, { ...task, id: task.id || Date.now().toString() }];
+        const newProg = Math.round((updated.filter((t) => t.completed).length / updated.length) * 100);
+        broadcastGoal(target, updated, newProg);
+        return updated;
+      });
+      sounds.playCelebration();
+      triggerAutoPopout({
+        title: `${fromName || 'Study buddy'} added a task for you! 💌`,
+        detail: task.text,
+        icon: '📝',
+      });
+    });
+
+    socket.on('emoji-received', ({ id, emoji, sender, isFountain, direction }) => {
+      // Avoid duplicate local spawn if sent by self
+      if (sender === nickname || sender === 'You') return;
+      spawnFloatingEmoji(id, emoji, sender, isFountain ?? true, direction ?? 'down');
+      if (['🎉', '🥳', '✨', '👏', '❤️', '🥰', '🔥', '🥬', '😂', '😊', '🫰', '💕', '🫶', '🪨', '🤘', '🎸', '😢', '🥺', '😭'].includes(emoji)) {
+        if (['❤️', '🥰', '🫰', '💕', '🫶', '💖'].includes(emoji)) {
+          confetti({
+            particleCount: 45,
+            spread: 75,
+            origin: { y: 0.65 },
+            colors: ['#f43f5e', '#fb7185', '#fda4af', '#f472b6', '#ffffff', '#e11d48'],
+            shapes: ['circle'],
+            zIndex: 999999,
+          });
+        } else if (['😢', '🥺', '😭', '💔'].includes(emoji)) {
+          confetti({
+            particleCount: 35,
+            spread: 50,
+            origin: { y: 0.2 },
+            gravity: 1.6,
+            colors: ['#38bdf8', '#60a5fa', '#93c5fd', '#bae6fd', '#e0f2fe'],
+            shapes: ['circle'],
+            zIndex: 999999,
+          });
+        } else if (['🤘', '🪨', '🎸'].includes(emoji)) {
+          confetti({
+            particleCount: 55,
+            spread: 95,
+            origin: { y: 0.6 },
+            colors: ['#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#ffffff', '#64748b'],
+            zIndex: 999999,
+          });
+        } else if (['😂', '🤣', '😆', '😊', '🙂'].includes(emoji)) {
+          confetti({
+            particleCount: 45,
+            spread: 80,
+            origin: { y: 0.65 },
+            colors: ['#facc15', '#f59e0b', '#fbbf24', '#fde047', '#ffffff'],
+            zIndex: 999999,
+          });
+        } else {
+          confetti({
+            particleCount: 45,
+            spread: 70,
+            origin: { y: 0.6 },
+            zIndex: 999999,
+          });
+        }
+      }
+      triggerAutoPopout({
+        title: `${sender} reacted!`,
+        detail: `${emoji} reaction received`,
+        icon: emoji,
+      });
+    });
+
+    socket.on('peer-screen-status', ({ name, isSharing }) => {
+      if (isSharing) {
+        setPeerSharingUser(name);
+        setActiveModal('screen');
+        setScreenViewMode('theater');
+        resizeWindowForScreenshare('theater');
+        sounds.playCelebration();
+        triggerAutoPopout({
+          title: `${name} is sharing screen! 🖥️`,
+          detail: 'Screen share opened in Theater mode',
+          icon: '🖥️',
+        });
+      } else {
+        setPeerSharingUser(null);
+        setPeerStream(null);
+        setActiveModal((prev) => (prev === 'screen' ? 'none' : prev));
+        resizeWindowForScreenshare('compact');
+      }
+    });
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(renderKeepAlive);
+      peerCallManagerRef.current?.destroy();
+      socket.disconnect();
+    };
+  }, [serverUrl, roomId, roomSecret, nickname, avatar]);
+
+  // Active Audio Playout Watchdog: If partner is speaking or sharing music, ensure remote audio is actively unmuted and playing
+  useEffect(() => {
+    if (!isPeerMicOn && !isPeerMusicOn) {
+      setIsAudioAutoplayBlocked(false);
+      return;
+    }
+
+    const checkPlayout = () => {
+      const audioEl = remoteAudioRef.current;
+      if (audioEl && audioEl.srcObject && audioEl.paused) {
+        audioEl.muted = false;
+        audioEl.volume = 1.0;
+        audioEl.play().then(() => {
+          setIsAudioAutoplayBlocked(false);
+        }).catch((err) => {
+          if (err.name === 'NotAllowedError') {
+            setIsAudioAutoplayBlocked(true);
+          }
+        });
+      }
+    };
+
+    checkPlayout();
+    const interval = setInterval(checkPlayout, 1500);
+    return () => clearInterval(interval);
+  }, [isPeerMicOn, isPeerMusicOn]);
+
+  // Broadcast goal & progress update to room
+  const broadcastGoal = (newTarget, newTasks, newProg) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('update-goal', {
+        target: newTarget,
+        tasks: newTasks,
+        progress: newProg,
+      });
+    }
+  };
+
+  // Target & Task Handlers
+  const handleUpdateTarget = (newTarget) => {
+    setTarget(newTarget);
+    broadcastGoal(newTarget, tasks, progress);
+  };
+
+  const handleAddTask = (text) => {
+    const updated = [...tasks, { id: Date.now().toString(), text, completed: false }];
+    const newProg = Math.round((updated.filter((t) => t.completed).length / updated.length) * 100);
+    setTasks(updated);
+    broadcastGoal(target, updated, newProg);
+  };
+
+  const handleToggleTask = (taskId) => {
+    const taskBefore = tasks.find((t) => t.id === taskId);
+    const updated = tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t));
+    const newProg = Math.round((updated.filter((t) => t.completed).length / updated.length) * 100);
+    setTasks(updated);
+    broadcastGoal(target, updated, newProg);
+
+    if (taskBefore && !taskBefore.completed) {
+      spawnFloatingEmoji(null, '🎉', 'You', true, 'down');
+      sounds.playCelebration();
+      triggerAutoPopout({
+        title: 'Task Checked Off! 🎉',
+        detail: `Progress: ${newProg}% complete`,
+        icon: '✅',
+      });
+    }
+  };
+
+  const handleDeleteTask = (taskId) => {
+    const updated = tasks.filter((t) => t.id !== taskId);
+    const newProg = updated.length > 0 ? Math.round((updated.filter((t) => t.completed).length / updated.length) * 100) : 0;
+    setTasks(updated);
+    broadcastGoal(target, updated, newProg);
+  };
+
+  const handleEditTask = (taskId, newText) => {
+    const updated = tasks.map((t) => (t.id === taskId ? { ...t, text: newText } : t));
+    setTasks(updated);
+    broadcastGoal(target, updated, progress);
+  };
+
+  const handleSyncFocusTimer = (sec, running, currentActiveTask) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('sync-focus-timer', {
+        seconds: sec,
+        isRunning: running,
+        activeTask: currentActiveTask || target,
+      });
+    }
+  };
+
+  const handleAssignTaskToPeer = (taskText, estTime = '20m') => {
+    const newTask = {
+      id: Date.now().toString(),
+      text: taskText,
+      completed: false,
+      estTime,
+      assignedBy: nickname || 'You',
+    };
+    const peer = members.find((m) => m.id !== 'self');
+    if (peer && socketRef.current) {
+      socketRef.current.emit('assign-task-to-peer', {
+        targetUserId: peer.id,
+        task: newTask,
+      });
+    }
+    // Optimistically update peer's tasks in local members state
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id !== 'self'
+          ? {
+              ...m,
+              tasks: [...(m.tasks || []), newTask],
+            }
+          : m
+      )
+    );
+    sounds.playPop();
+    triggerAutoPopout({
+      title: `Task sent to ${peer?.name || 'Siddhi'}! 💌`,
+      detail: taskText,
+      icon: '🚀',
+    });
+  };
+
+  // Microphone toggle with real-time WebRTC audio streaming
+  const handleToggleMic = async () => {
+    try {
+      setMediaPermissionError(null);
+      if (!peerCallManagerRef.current) return;
+      const res = await peerCallManagerRef.current.toggleMic();
+      setIsMicOn(res.isMicOn);
+      sounds.playPop();
+    } catch (err) {
+      console.warn('Microphone toggle failed:', err);
+    }
+  };
+
+  // Video Camera toggle with real-time WebRTC video streaming
+  const handleToggleVideo = async () => {
+    try {
+      setMediaPermissionError(null);
+      if (!peerCallManagerRef.current) return;
+      const res = await peerCallManagerRef.current.toggleVideo();
+      setIsVideoOn(res.isVideoOn);
+      setLocalCamStream(res.isVideoOn && res.stream ? new MediaStream(res.stream.getVideoTracks()) : null);
+      if (res.isVideoOn) {
+        sounds.playCelebration();
+      } else {
+        sounds.playPop();
+      }
+    } catch (err) {
+      console.warn('Camera toggle failed:', err);
+    }
+  };
+
+  // Auto-start local camera once connected so both users can see each other immediately
+  useEffect(() => {
+    if (!isConnected) {
+      hasAutoStartedVideoRef.current = false;
+      return;
+    }
+
+    if (!hasAutoStartedVideoRef.current && !isVideoOn) {
+      hasAutoStartedVideoRef.current = true;
+      console.log('[App] Auto-starting camera for face-to-face study session...');
+      handleToggleVideo().catch((err) => {
+        console.warn('[App] Auto-start video error:', err);
+      });
+    }
+  }, [isConnected]);
 
   // Set status based on current page
   useEffect(() => {
-    if (!user) return;
-    if (page === 'focus') setMyStatus('studying', 'Focus session');
-    else if (page === 'room') setMyStatus('studying', 'Study Room');
-    else setMyStatus('online', '');
-  }, [page, user]);
+    if (isPeerVideoOn && !isVideoOn) {
+      console.log('[App] Partner video detected, auto-starting local camera for two-way video...');
+      handleToggleVideo().catch((err) => {
+        console.warn('[App] Partner video auto-start error:', err);
+      });
+    }
+  }, [isPeerVideoOn, isVideoOn]);
 
-  if (loading) {
-    return (
-      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--g)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            </svg>
-          </div>
-          <div style={{ fontSize: 14, color: 'var(--muted)' }}>Loading...</div>
-        </div>
-      </div>
-    );
-  }
+  // Emoji & Ring customization handlers
+  const handleSaveEmojis = (newEmojis) => {
+    setQuickEmojis(newEmojis);
+    try {
+      localStorage.setItem('study_quick_emojis', JSON.stringify(newEmojis));
+    } catch {}
+  };
 
-  if (!user) return <Login />;
-  if (!profile?.partnerId) return <LinkPartner />;
+  const handleSaveMenuTools = (newTools) => {
+    setMenuTools(newTools);
+    try {
+      localStorage.setItem('study_menu_tools', JSON.stringify(newTools));
+    } catch {}
+  };
 
-  const nickname = profile?.displayName || user?.displayName || 'User';
-  const partnerName = partner?.displayName || 'Partner';
-  const partnerInitial = partner?.initial || partnerName.charAt(0).toUpperCase();
+  const handleChangeRingMode = (mode) => {
+    setRingMode(mode);
+    try {
+      localStorage.setItem('study_ring_mode', mode);
+    } catch {}
+  };
+
+  const handleChangeScale = (newScale) => {
+    const clamped = Math.max(0.7, Math.min(1.6, Number(newScale.toFixed(2))));
+    setCompanionScale(clamped);
+    try {
+      localStorage.setItem('study_companion_scale', clamped.toString());
+    } catch {}
+  };
+
+  const handleResetDefaults = () => {
+    setQuickEmojis(DEFAULT_EMOJIS);
+    setMenuTools(DEFAULT_MENU_TOOLS);
+    setCompanionScale(1.0);
+    setRingMode('menu');
+    try {
+      localStorage.setItem('study_quick_emojis', JSON.stringify(DEFAULT_EMOJIS));
+      localStorage.setItem('study_menu_tools', JSON.stringify(DEFAULT_MENU_TOOLS));
+      localStorage.setItem('study_companion_scale', '1');
+      localStorage.setItem('study_ring_mode', 'menu');
+    } catch {}
+  };
+
+  const handleWatchScreen = () => {
+    setActiveModal('screen');
+    setScreenViewMode('theater');
+    resizeWindowForScreenshare('theater');
+    sounds.playPop();
+  };
+
+  // Helper to spawn whole-screen floating emoji cascade
+  const spawnFloatingEmoji = (id, emoji, sender, isFountain = true, direction = 'down') => {
+    sounds.playPop();
+    const count = isFountain ? 8 : 1;
+    const baseId = id || `${Date.now()}-${Math.random()}`;
+    const newItems = [];
+
+    for (let i = 0; i < count; i++) {
+      newItems.push({
+        id: `${baseId}-${i}`,
+        emoji,
+        sender,
+        direction: direction || 'down',
+        showSender: i === 0,
+        x: Math.floor(Math.random() * 80) + 10,
+        delay: i * 85,
+        duration: 3.2 + Math.random() * 0.8,
+        size: i === 0 ? 'text-5xl' : i % 2 === 0 ? 'text-4xl' : 'text-3xl',
+      });
+    }
+
+    setFloatingEmojis((prev) => [...prev, ...newItems]);
+
+    setTimeout(() => {
+      setFloatingEmojis((prev) => prev.filter((e) => !newItems.some((ni) => ni.id === e.id)));
+    }, 4500);
+  };
+
+  // Send an emoji to study mates with instant local celebration
+  const handleSendEmoji = (emoji, options = {}) => {
+    const isFountain = options.isFountain ?? true;
+    const direction = options.direction ?? 'down';
+
+    // 1. Instant local visual & audio celebration
+    spawnFloatingEmoji(null, emoji, 'You', isFountain, direction);
+    sounds.playPop();
+
+    // Trigger instant festive confetti for joyful reactions
+    if (['🎉', '🥳', '✨', '👏', '❤️', '🥰', '🔥', '🥬', '😂', '😊', '🫰', '💕', '🫶', '🪨', '🤘', '🎸', '😢', '🥺', '😭'].includes(emoji)) {
+      if (['❤️', '🥰', '🫰', '💕', '🫶', '💖'].includes(emoji)) {
+        confetti({
+          particleCount: 50,
+          spread: 75,
+          origin: { y: 0.65 },
+          colors: ['#f43f5e', '#fb7185', '#fda4af', '#f472b6', '#ffffff', '#e11d48'],
+          shapes: ['circle'],
+          zIndex: 999999,
+        });
+      } else if (['😢', '🥺', '😭', '💔'].includes(emoji)) {
+        confetti({
+          particleCount: 35,
+          spread: 50,
+          origin: { y: 0.2 },
+          gravity: 1.6,
+          colors: ['#38bdf8', '#60a5fa', '#93c5fd', '#bae6fd', '#e0f2fe'],
+          shapes: ['circle'],
+          zIndex: 999999,
+        });
+      } else if (['🤘', '🪨', '🎸'].includes(emoji)) {
+        confetti({
+          particleCount: 55,
+          spread: 95,
+          origin: { y: 0.6 },
+          colors: ['#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#ffffff', '#64748b'],
+          zIndex: 999999,
+        });
+      } else if (['😂', '🤣', '😆', '😊', '🙂'].includes(emoji)) {
+        confetti({
+          particleCount: 50,
+          spread: 80,
+          origin: { y: 0.65 },
+          colors: ['#facc15', '#f59e0b', '#fbbf24', '#fde047', '#ffffff'],
+          zIndex: 999999,
+        });
+      } else {
+        confetti({
+          particleCount: 50,
+          spread: 70,
+          origin: { y: 0.7 },
+          zIndex: 999999,
+        });
+      }
+    }
+
+    // 2. Broadcast to study partner
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('send-emoji', { emoji, isFountain, direction });
+    }
+  };
+
+  // Start Screen Share
+  const handleStartScreenShare = async () => {
+    try {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: 'always',
+            width: { ideal: 1920, max: 1920 },
+            height: { ideal: 1080, max: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+          },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 2,
+            sampleRate: 48000,
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: true,
+        });
+      }
+
+      setLocalStream(stream);
+      setIsSharingScreen(true);
+      if (stream.getAudioTracks().length > 0) {
+        setIsSharingMusic(true);
+      }
+      setActiveModal('screen');
+      setScreenViewMode('theater');
+      resizeWindowForScreenshare('theater');
+
+      // Pipe through WebRTC to partner!
+      if (peerCallManagerRef.current) {
+        await peerCallManagerRef.current.startScreenShare(stream);
+      }
+
+      stream.getVideoTracks()[0].onended = () => {
+        handleStopScreenShare();
+      };
+    } catch (err) {
+      console.warn('Screen share canceled or not permitted:', err);
+    }
+  };
+
+  // Stop Screen Share
+  const handleStopScreenShare = async () => {
+    if (peerCallManagerRef.current) {
+      await peerCallManagerRef.current.stopScreenShare();
+    }
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+      setLocalStream(null);
+    }
+    setIsSharingScreen(false);
+    if (!peerCallManagerRef.current?.musicStream) {
+      setIsSharingMusic(false);
+    }
+    if (!peerSharingUser) {
+      setActiveModal((prev) => (prev === 'screen' ? 'none' : prev));
+    }
+    resizeWindowForScreenshare('compact');
+  };
+
+  const handleToggleScreenShare = async () => {
+    if (isSharingScreen) {
+      await handleStopScreenShare();
+    } else {
+      await handleStartScreenShare();
+    }
+  };
+
+  // Dedicated YouTube Music & System Audio sharing
+  const handleStartMusicShare = async () => {
+    try {
+      setMusicShareError(null);
+      if (!peerCallManagerRef.current) return;
+      await peerCallManagerRef.current.startAudioShare();
+      setIsSharingMusic(true);
+      sounds.playSuccess();
+    } catch (err) {
+      console.warn('[App] Music share canceled or failed:', err);
+      if (err.message === 'NO_AUDIO_TRACK' || err.name === 'NoAudioTrackError') {
+        setMusicShareError(
+          "⚠️ Audio was not captured: In the share dialog, make sure to pick a Chrome Tab (e.g. YouTube Music) and check 'Share tab audio' at the bottom-left!"
+        );
+        sounds.playGentleAlert();
+      } else if (err.name !== 'NotAllowedError') {
+        setMusicShareError(`Audio share error: ${err.message || 'Permission denied'}`);
+      }
+    }
+  };
+
+  const handleStopMusicShare = () => {
+    if (peerCallManagerRef.current) {
+      peerCallManagerRef.current.stopAudioShare();
+    }
+    setIsSharingMusic(false);
+    setMusicShareError(null);
+    sounds.playPop();
+  };
+
+  const handleToggleMusic = () => {
+    if (isSharingMusic) {
+      handleStopMusicShare();
+    } else {
+      handleStartMusicShare();
+    }
+  };
+
+  const handleSetMusicVolume = (vol) => {
+    setMusicVolume(vol);
+    if (peerCallManagerRef.current) {
+      peerCallManagerRef.current.setMusicVolume(vol);
+    }
+  };
+
+  const handleSetMicVolume = (vol) => {
+    setMicVolume(vol);
+    if (peerCallManagerRef.current) {
+      peerCallManagerRef.current.setMicVolume(vol);
+    }
+  };
+
+  // Handle Crisis SOS
+  // Handle Status change
+  const handleStatusChange = (status) => {
+    setCurrentStatus(status);
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('update-status', { status });
+    }
+  };
+
+  // Leave Session
+  const handleLeaveSession = () => {
+    if (isSharingScreen) {
+      handleStopScreenShare();
+    }
+    if (isMicOn && audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      setIsMicOn(false);
+    }
+    if (isVideoOn && localCamStream) {
+      localCamStream.getTracks().forEach((t) => t.stop());
+      setIsVideoOn(false);
+    }
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('leave-room');
+    }
+    alert('You have left the study session. Keep up the great work and take care!');
+    setActiveModal('none');
+  };
+
+  const handleAskQuickAi = (prompt) => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        return reject(new Error('Signaling server not connected. Connect both devices first.'));
+      }
+      const reqId = `${Date.now()}-${Math.random()}`;
+      const timeout = setTimeout(() => {
+        socketRef.current?.off('quick-ai-result', onResult);
+        reject(new Error('AI explanation timed out'));
+      }, 45000);
 
   const hideSidebar = page === 'room';
 
@@ -107,40 +1266,426 @@ export default function App() {
     }
   };
 
+  if (appMode === 'desktop') {
+    return (
+      <div className="w-full h-full min-h-screen bg-slate-950 text-slate-100 flex flex-col relative select-text overflow-hidden">
+        <DesktopApp
+          onFloatTop={() => handleSetAppMode('floating')}
+          remoteStream={remoteCamStream}
+          localStream={localCamStream}
+          partnerState={{
+            name: members.find((m) => m.id !== (socketId || socketRef.current?.id))?.name || 'Sakura',
+            avatar: members.find((m) => m.id !== (socketId || socketRef.current?.id))?.avatar || '🌸',
+            status: isConnected ? 'Focusing' : 'Offline',
+            isMicOn: isPeerMicOn,
+            isVideoOn: isPeerVideoOn,
+            isSharingScreen: !!peerSharingUser,
+            activeTask: 'Final project slides — outline',
+          }}
+          partnerStatus={isConnected ? 'connected' : 'offline'}
+          callState={{
+            isMicOn,
+            isVideoOn,
+            isScreenSharing: isSharingScreen,
+          }}
+          toggleMic={handleToggleMic}
+          toggleCamera={handleToggleVideo}
+          toggleScreen={handleToggleScreenShare}
+          onSendReaction={handleSendEmoji}
+          socket={socketRef.current}
+          roomId={roomId}
+        />
+
+        {/* Off-screen audio element to play remote partner's voice without being suspended by WebKit display:none */}
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            width: 1,
+            height: 1,
+            opacity: 0.01,
+            pointerEvents: 'none',
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', background: 'var(--bg)', overflow: 'hidden' }}>
-      {!hideSidebar && (
-        <Sidebar active={page} onNavigate={setPage} nickname={nickname} platform={platform}
-          partnerName={partnerName} partnerOnline={partnerPresence.online} partnerStatus={partnerPresence.status} />
+    <div
+      className={
+        isTauri
+          ? "w-full h-full flex flex-col justify-center items-center p-2 select-none relative"
+          : "fixed inset-0 pointer-events-none select-none z-50 overflow-hidden"
+      }
+    >
+      {/* Quick Return to Amigo Desktop Suite Button */}
+      <button
+        type="button"
+        onClick={() => handleSetAppMode('desktop')}
+        data-amigo-interactive="true"
+        className="fixed top-4 left-4 z-[99999] pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-800 text-white text-xs font-semibold backdrop-blur-xl border border-white/20 shadow-2xl cursor-pointer transition hover:scale-105 active:scale-95 group"
+        title="Switch to Amigo Desktop Suite"
+      >
+        <span className="text-sm">🥬</span>
+        <span className="font-bold text-emerald-400">Amigo Suite</span>
+        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded font-mono text-white/80 group-hover:bg-emerald-500/20 group-hover:text-emerald-300">
+          ⤢ Open
+        </span>
+      </button>
+      {/* Whole-Screen Floating Reaction Shower Overlay */}
+      <div className="fixed inset-0 pointer-events-none z-[99999] overflow-hidden">
+        {floatingEmojis.map((item) => (
+          <div
+            key={item.id}
+            className={`${
+              item.direction === 'down' ? 'shower-down-item' : 'floating-emoji-item'
+            } flex flex-col items-center`}
+            style={{
+              left: `${item.x}%`,
+              ...(item.direction === 'down' ? { top: '-40px' } : { bottom: '20px' }),
+              animationDelay: `${item.delay || 0}ms`,
+              animationDuration: `${item.duration || 3.6}s`,
+            }}
+          >
+            <span
+              className={`${
+                item.size || 'text-4xl'
+              } filter drop-shadow-[0_6px_16px_rgba(0,0,0,0.6)] select-none transition-transform`}
+            >
+              {item.emoji}
+            </span>
+            {item.showSender && (
+              <span className="text-[10px] font-medium bg-black/80 text-white/95 px-2 py-0.5 rounded-full mt-1 border border-white/15 shadow-xl backdrop-blur-md">
+                {item.sender}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Discrete Top Menu Bar Pill (Shown when Amigo is tucked into Menu Mode) */}
+      {!isPopoutVisible && !isKeepOnScreen && !isCallActive && (
+        <div
+          data-amigo-interactive="true"
+          onClick={() => {
+            setIsPopoutVisible(true);
+            triggerAutoPopout({
+              title: 'Amigo Opened',
+              detail: 'Click to interact with dial',
+              icon: '🥬',
+            });
+          }}
+          className="fixed top-4 right-6 z-50 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white border border-white/20 shadow-2xl backdrop-blur-2xl cursor-pointer hover:border-emerald-400 hover:scale-105 transition-all text-xs font-semibold select-none group"
+          title="Amigo in Menu Mode (Click to open or wait for updates)"
+        >
+          <CabbageLogo size={18} animated />
+          <span className="font-extrabold tracking-tight text-emerald-400 text-[11px]">AMIGO</span>
+          <span className="text-[9px] text-white/60 font-mono">| ⏱️ Menu Mode</span>
+          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full font-mono font-bold">
+            {progress}%
+          </span>
+        </div>
       )}
-      <main style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {renderPage()}
-        {incomingPing && (
-          <div style={{
-            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-            padding: '12px 20px', borderRadius: 14,
-            background: incomingPing.level === 'Urgent' ? 'var(--r)' : 'var(--p)',
-            color: '#fff', display: 'flex', alignItems: 'center', gap: 12,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 1000, maxWidth: 400,
-            animation: 'slideDown 0.3s ease-out',
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 700, flexShrink: 0,
-            }}>{partnerInitial}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{partnerName} pinged you</div>
-              <div style={{ fontSize: 12, opacity: 0.9 }}>{incomingPing.message} · {incomingPing.level}</div>
-            </div>
-            <button onClick={() => dismissPing(incomingPing.id)} style={{
-              border: 'none', background: 'rgba(255,255,255,0.2)', borderRadius: 8,
-              width: 28, height: 28, cursor: 'pointer', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-            }}>✕</button>
+
+      {/* 1. Fullscreen Study Screen Share Overlay (True Edge-to-Edge Full Screen) */}
+      {activeModal === 'screen' && (
+        <ScreenShareModal
+          isSharing={isSharingScreen}
+          localStream={localStream}
+          peerStream={peerStream}
+          remoteCamStream={remoteCamStream}
+          peerSharingUser={peerSharingUser}
+          onStartShare={handleStartScreenShare}
+          onStopShare={handleStopScreenShare}
+          onClose={() => {
+            setActiveModal('none');
+            resizeWindowForScreenshare('compact');
+          }}
+          viewMode={screenViewMode}
+          onChangeViewMode={(mode) => setScreenViewMode(mode)}
+          isSharingMusic={isSharingMusic}
+          peerSharingMusic={isPeerMusicOn}
+          musicVolume={musicVolume}
+          micVolume={micVolume}
+          musicShareError={musicShareError}
+          onStartMusicShare={handleStartMusicShare}
+          onStopMusicShare={handleStopMusicShare}
+          onChangeMusicVolume={handleSetMusicVolume}
+          onChangeMicVolume={handleSetMicVolume}
+          onDismissMusicError={() => setMusicShareError(null)}
+        />
+      )}
+
+      {/* Floating / Side-Docked Companion Widget */}
+      <div
+        id="amigo-floating-container"
+        className={`w-full mx-auto pointer-events-auto transition-all duration-300 flex flex-col items-center max-w-[360px] ${
+          !isPopoutVisible && !isKeepOnScreen && !isCallActive
+            ? 'opacity-0 pointer-events-none scale-95 select-none'
+            : 'opacity-100 scale-100'
+        }`}
+        style={{ ...getContainerStyle(), zIndex: 95000 }}
+      >
+        {/* Peer Screen Sharing Notification Banner (1-Click to view) */}
+        {peerSharingUser && activeModal !== 'screen' && (
+          <div data-amigo-interactive="true" className="w-full mb-2.5">
+            <button
+              onClick={() => {
+                setActiveModal('screen');
+                setScreenViewMode('theater');
+                resizeWindowForScreenshare('theater');
+              }}
+              className="w-full py-2.5 px-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-2xl text-xs font-semibold flex items-center justify-between shadow-xl shadow-indigo-600/30 border border-indigo-400/40 animate-pulse transition active:scale-95"
+            >
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span>🖥️ {peerSharingUser} is sharing screen</span>
+              </div>
+              <span className="text-[10px] bg-white/20 px-2.5 py-1 rounded-lg font-mono font-bold flex items-center gap-1">
+                View Screen ⤢
+              </span>
+            </button>
           </div>
         )}
-      </main>
+        {/* 10-Minute Target Hover Check-in Toast */}
+        {showNudgeToast && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <GoalReminderToast
+              target={target}
+              tasks={tasks}
+              progress={progress}
+              onToggleTask={handleToggleTask}
+              onOpenTargetModal={() => {
+                setShowNudgeToast(false);
+                setActiveModal('target');
+              }}
+              onSnooze={() => {
+                setShowNudgeToast(false);
+                setSecondsToNextNudge(reminderInterval * 60);
+                sounds.playCelebration();
+              }}
+              onDismiss={() => setShowNudgeToast(false)}
+            />
+          </div>
+        )}
+
+        {/* Connect 2 Computers Modal */}
+        {activeModal === 'connect' && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <ConnectModal
+              roomId={roomId}
+              onSaveRoomId={(newRoom) => {
+                setRoomId(newRoom);
+                sounds.playPop();
+              }}
+              roomSecret={roomSecret}
+              onSaveRoomSecret={(newSecret) => {
+                setRoomSecret(newSecret);
+                sounds.playPop();
+              }}
+              serverUrl={serverUrl}
+              onSaveServerUrl={(newServer) => {
+                const parsed = parseInviteOrServerLink(newServer);
+                const cleanServer = parsed?.serverUrl || newServer.trim().replace(/\/+$/, '');
+                setServerUrl(cleanServer);
+                if (parsed?.roomId) setRoomId(parsed.roomId);
+                if (parsed?.roomSecret) setRoomSecret(parsed.roomSecret);
+                sounds.playPop();
+              }}
+              nickname={nickname}
+              onSaveNickname={(newName) => {
+                setNickname(newName);
+                sounds.playPop();
+              }}
+              onClose={() => setActiveModal('none')}
+              theme={theme}
+              authError={authError}
+              isConnected={isConnected}
+              membersCount={members.length}
+            />
+          </div>
+        )}
+
+        {/* Ring & Menu Customizer Modal */}
+        {activeModal === 'customizer' && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <RingCustomizerModal
+              initialTab={customizerTab}
+              emojis={quickEmojis}
+              menuTools={menuTools}
+              onSaveEmojis={handleSaveEmojis}
+              onSaveMenuTools={handleSaveMenuTools}
+              onResetDefaults={handleResetDefaults}
+              onSendEmoji={handleSendEmoji}
+              onClose={() => setActiveModal('none')}
+              theme={theme}
+            />
+          </div>
+        )}
+
+        {/* Modals rendered directly adjacent to widget */}
+        {activeModal === 'target' && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <DailyTargetModal
+              target={target}
+              tasks={tasks}
+              onUpdateTarget={handleUpdateTarget}
+              onAddTask={handleAddTask}
+              onToggleTask={handleToggleTask}
+              onDeleteTask={handleDeleteTask}
+              members={members}
+              selfId={socketRef.current?.id || 'self'}
+              reminderInterval={reminderInterval}
+              onSetReminderInterval={setReminderInterval}
+              secondsToNextNudge={secondsToNextNudge}
+              onClose={() => setActiveModal('none')}
+              onSwitchToVisionStudio={() => setActiveModal('vision_studio')}
+            />
+          </div>
+        )}
+
+        {/* Direction 2: VisionOS Floating Glass Studio (Isolated Beta Mode) */}
+        {activeModal === 'vision_studio' && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <VisionOSFocusCockpit
+              isOpen={true}
+              onClose={() => setActiveModal('none')}
+              target={target}
+              tasks={tasks}
+              onToggleTask={handleToggleTask}
+              onAddTask={handleAddTask}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
+              onUpdateTarget={handleUpdateTarget}
+              onAssignTaskToPeer={handleAssignTaskToPeer}
+              members={members}
+              peerFocusTimer={peerFocusTimer}
+              onSyncFocusTimer={handleSyncFocusTimer}
+              deadline="11:30 PM"
+              onSwitchToClassic={() => setActiveModal('target')}
+            />
+          </div>
+        )}
+
+        {activeModal === 'session' && (
+          <div data-amigo-interactive="true" className="mb-2">
+            <SessionControls
+              currentStatus={currentStatus}
+              onStatusChange={handleStatusChange}
+              onLeaveSession={handleLeaveSession}
+              onClose={() => setActiveModal('none')}
+            />
+          </div>
+        )}
+
+        {/* The Floating / Side-Docked Companion Widget */}
+        <FloatingCompanion
+          roomId={roomId}
+          roomSecret={roomSecret}
+          authError={authError}
+          isConnected={isConnected}
+          members={members}
+          selfUser={{ id: socketId || socketRef.current?.id || 'self', name: nickname, avatar }}
+          isSharingScreen={isSharingScreen}
+          peerSharingUser={peerSharingUser}
+          target={target}
+          progress={progress}
+          onOpenTargetModal={() => setActiveModal(activeModal === 'target' ? 'none' : 'target')}
+          onOpenConnectModal={() => setActiveModal('connect')}
+          onSendEmoji={handleSendEmoji}
+          floatingEmojis={floatingEmojis}
+          quickEmojis={quickEmojis}
+          menuTools={menuTools}
+          ringMode={ringMode}
+          onChangeRingMode={handleChangeRingMode}
+          companionScale={companionScale}
+          onChangeScale={handleChangeScale}
+          onOpenCustomizer={(tab) => {
+            setCustomizerTab(tab || 'emojis');
+            setActiveModal('customizer');
+          }}
+          onOpenScreenShare={() => {
+            if (activeModal === 'screen') {
+              setActiveModal('none');
+              resizeWindowForScreenshare('compact');
+            } else {
+              setActiveModal('screen');
+              setScreenViewMode('theater');
+              resizeWindowForScreenshare('theater');
+            }
+          }}
+          onWatchScreen={handleWatchScreen}
+          onOpenSession={() => setActiveModal(activeModal === 'session' ? 'none' : 'session')}
+          onLeaveSession={handleLeaveSession}
+          onBrowserDragStart={handleBrowserDragStart}
+          dockPosition={dockPosition}
+          onToggleDock={handleToggleDock}
+          theme={theme}
+          onSetTheme={setTheme}
+          onResetDefaults={handleResetDefaults}
+          isMicOn={isMicOn}
+          isVideoOn={isVideoOn}
+          onToggleMic={handleToggleMic}
+          onToggleVideo={handleToggleVideo}
+          localCamStream={localCamStream}
+          isPeerMicOn={isPeerMicOn}
+          isPeerVideoOn={isPeerVideoOn}
+          remoteCamStream={remoteCamStream}
+          mediaPermissionError={mediaPermissionError}
+          onDismissMediaError={() => setMediaPermissionError(null)}
+          displayMode={displayMode}
+          popoutEvent={popoutEvent}
+          isCallActive={isCallActive}
+          onHideToTray={hideAppWindow}
+          isSharingMusic={isSharingMusic}
+          isPeerMusicOn={isPeerMusicOn}
+          musicVolume={musicVolume}
+          musicShareError={musicShareError}
+          onDismissMusicShareError={() => setMusicShareError(null)}
+          onToggleMusic={handleToggleMusic}
+          onStopMusic={handleStopMusicShare}
+          onChangeMusicVolume={handleSetMusicVolume}
+          onRequestKeyframe={() => peerCallManagerRef.current?.requestKeyFrame()}
+          onRestartIce={() => peerCallManagerRef.current?.restartIce()}
+          isAudioAutoplayBlocked={isAudioAutoplayBlocked}
+          onUnlockAudio={() => {
+            const audioEl = remoteAudioRef.current;
+            if (audioEl) {
+              audioEl.muted = false;
+              audioEl.volume = 1.0;
+              if (audioEl.srcObject) {
+                audioEl.play().then(() => {
+                  setIsAudioAutoplayBlocked(false);
+                }).catch(() => {});
+              }
+            }
+          }}
+        />
+
+        {/* Off-screen audio element to play remote partner's voice without being suspended by WebKit display:none */}
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            width: 1,
+            height: 1,
+            opacity: 0.01,
+            pointerEvents: 'none',
+          }}
+        />
+      </div>
     </div>
   );
 }

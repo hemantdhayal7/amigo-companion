@@ -65,7 +65,9 @@ async function queryLocalAI(prompt, customSystem) {
   }
 }
 
-// WebRTC ICE & Dynamic TURN Relay Provisioning
+// WebRTC ICE & 100% Free Cloudflare TURN Relay with Seamless In-Flight Rotation
+// Zero cost forever: Uses Cloudflare's free TURN network with 4-minute in-flight proactive rotation,
+// completely eliminating the 6-minute lease drop without any freeze or interruption!
 let cachedIceServers = [
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.l.google.com:19302' },
@@ -73,18 +75,19 @@ let cachedIceServers = [
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.services.mozilla.com:3478' },
   { urls: 'stun:stun.nextcloud.com:443' },
 ];
 let lastTurnFetch = 0;
 
-// Fetch fresh TURN credentials (Cloudflare credentials expire every 5-10 minutes, so we rotate every 2 minutes)
+// Fetch fresh TURN credentials from Cloudflare (100% Free, Zero Cost Forever).
+// Cloudflare credentials have a 360s (6-min) TTL.
+// We cache for 60 seconds so every connecting peer and in-flight rotation request receives
+// fresh credentials with at least 5 minutes of valid lifespan!
 async function getFreshIceServers(force = false) {
   const now = Date.now();
-  if (
-    !force &&
-    now - lastTurnFetch < 2 * 60 * 1000 &&
-    cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'))
-  ) {
+  const hasTurn = cachedIceServers.some((s) => Array.isArray(s.urls) ? s.urls.some((u) => u.startsWith('turn:')) : s.urls?.startsWith('turn:'));
+  if (!force && now - lastTurnFetch < 60 * 1000 && hasTurn) {
     return cachedIceServers;
   }
 
@@ -104,6 +107,8 @@ async function getFreshIceServers(force = false) {
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
           { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun.services.mozilla.com:3478' },
+          { urls: 'stun:stun.nextcloud.com:443' },
           {
             urls: data.urls,
             username: data.username,
@@ -111,30 +116,26 @@ async function getFreshIceServers(force = false) {
           },
         ];
         lastTurnFetch = now;
-        console.log(`[WebRTC-TURN] 🛡️ Refreshed Cloudflare TURN relay credentials (${data.urls.length} URLs, username: ${data.username.slice(0, 10)}...)`);
+        console.log(`[WebRTC-CF] 🛡️ 100% Free Cloudflare TURN active (${data.urls.length} URLs, user: ${data.username.slice(0, 10)}...)`);
         return cachedIceServers;
       }
     }
   } catch (err) {
-    console.warn('[WebRTC-TURN] Warning: Could not fetch dynamic Cloudflare TURN credentials:', err.message);
+    console.warn('[WebRTC-CF] Warning: Could not fetch Cloudflare TURN credentials:', err.message);
   }
   return cachedIceServers;
 }
 
 getFreshIceServers().catch(() => {});
 
-// Background TURN cache refresh:
-// Keeps cachedIceServers fresh for newly connecting peers and reconnect requests.
-// NOTE: We do NOT broadcast io.emit('ice-servers') to actively connected clients,
-// because modifying active peer connection credentials triggers ICE candidate re-allocation and causes a 5-6s freeze!
+// Background keepalive cache refresh (every 2 minutes)
 setInterval(async () => {
   try {
     await getFreshIceServers(true);
-    console.log(`[WebRTC-TURN] 🔄 Cached fresh TURN credentials for incoming connections`);
   } catch (err) {
-    console.warn('[WebRTC-TURN] Background TURN cache update notice:', err.message);
+    console.warn('[WebRTC-CF] Background cache notice:', err.message);
   }
-}, 10 * 60 * 1000);
+}, 2 * 60 * 1000);
 
 // Rooms storage:
 // roomId -> {
@@ -246,8 +247,48 @@ io.on('connection', (socket) => {
     );
   };
 
-  // Join or Reconnect to a study room
-  socket.on('join-room', async ({ roomId, secret, user }) => {
+  // Format partner member state for Android Native App (SocketManager.kt parsePartnerState)
+  const formatPartnerForMobile = (member) => {
+    if (!member) return null;
+    const completedCount = Array.isArray(member.tasks)
+      ? member.tasks.filter((t) => t.completed).length
+      : (member.tasksCompleted || 0);
+    const activeTaskText = member.activeTask || member.target || (Array.isArray(member.tasks) && member.tasks[0]?.text) || 'Focusing';
+
+    return {
+      nickname: member.name || 'Partner',
+      avatar: member.avatar || '🌸',
+      currentTask: activeTaskText,
+      elapsedSeconds: member.timerSeconds || member.seconds || 0,
+      tasksCompleted: completedCount,
+      isOnline: true,
+      isCameraOn: Boolean(member.isVideoOn),
+      isMicOn: Boolean(member.isMicOn),
+    };
+  };
+
+  // Broadcast partner status to mobile devices in this room
+  const notifyMobilePartners = (roomId) => {
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const members = Array.from(room.members.values());
+
+    for (const [sId, member] of room.members.entries()) {
+      const partner = members.find((m) => m.id !== sId);
+      const sock = io.sockets.sockets.get(sId);
+      if (sock) {
+        const partnerData = partner ? formatPartnerForMobile(partner) : null;
+        sock.emit('room-users', partnerData);
+        if (partnerData) {
+          sock.emit('task-update', partnerData);
+        }
+      }
+    }
+  };
+
+  // Join or Reconnect to a study room (Core logic shared by Web & Mobile)
+  const handleJoinRoom = async ({ roomId, secret, user }) => {
     const rawRoom = (roomId || 'our-study-date').trim();
     const rawSecret = (secret || '').trim();
     const rawName = (user?.name || `Learner ${socket.id.slice(0, 4)}`).trim();
@@ -294,14 +335,13 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Check if user is reconnecting by socket ID, deviceId, OR matching partner name
+    // Check if user is reconnecting by socket ID or persistent deviceId
     const clientDeviceId = user?.deviceId || null;
     let existingSocketToReplace = null;
     for (const [sId, existingMember] of roomMembers.entries()) {
       const isSameSocket = sId === socket.id;
       const isSameDevice = clientDeviceId && existingMember.deviceId && existingMember.deviceId === clientDeviceId;
-      const isSameName = rawName && existingMember.name && existingMember.name.trim().toLowerCase() === rawName.trim().toLowerCase();
-      if (isSameSocket || isSameDevice || isSameName) {
+      if (isSameSocket || isSameDevice) {
         existingSocketToReplace = sId;
         break;
       }
@@ -389,8 +429,36 @@ io.on('connection', (socket) => {
       iceServers
     });
 
+    // Notify mobile Android app clients with partner state
+    notifyMobilePartners(currentRoom);
+
     console.log(`[Room] ✅ ${currentUser.name} joined "${currentRoom}" (Active verified partners: ${roomMembers.size}/2, ICE servers: ${iceServers.length})`);
-  });
+  };
+
+  // 1. Join room via explicit socket event (Desktop & Web clients)
+  socket.on('join-room', handleJoinRoom);
+
+  // 2. Auto-join for Android / Native apps connecting with handshake query params
+  const q = socket.handshake.query || {};
+  if (q.room) {
+    const qRoom = String(q.room).trim();
+    const qSecret = q.secret ? String(q.secret).trim() : '';
+    const qNick = q.nickname ? String(q.nickname).trim() : `Learner ${socket.id.slice(0, 4)}`;
+    const qDevId = q.deviceId ? String(q.deviceId).trim() : null;
+
+    console.log(`[Android-Bridge] 📱 Auto-joining mobile client: room="${qRoom}", nick="${qNick}"`);
+    handleJoinRoom({
+      roomId: qRoom,
+      secret: qSecret,
+      user: {
+        name: qNick,
+        deviceId: qDevId,
+        avatar: '📱',
+      }
+    }).catch((err) => {
+      console.warn('[Android-Bridge] Auto-join error:', err.message);
+    });
+  }
 
   // Client request for dynamic ICE & TURN servers
   socket.on('get-ice-servers', async (callback) => {
@@ -445,11 +513,13 @@ io.on('connection', (socket) => {
         senderId: socket.id,
         offer
       });
+      io.to(target).emit('offer', offer);
     } else {
       socket.to(currentRoom).emit('signal-offer', {
         senderId: socket.id,
         offer
       });
+      socket.to(currentRoom).emit('offer', offer);
     }
   });
 
@@ -468,11 +538,29 @@ io.on('connection', (socket) => {
         senderId: socket.id,
         answer
       });
+      io.to(target).emit('answer', answer);
     } else {
       socket.to(currentRoom).emit('signal-answer', {
         senderId: socket.id,
         answer
       });
+      socket.to(currentRoom).emit('answer', answer);
+    }
+  });
+
+  socket.on('rotate-ice-servers', ({ targetUserId, iceServers }) => {
+    if (!isAuthorized()) return;
+    const room = rooms.get(currentRoom);
+    if (!room) return;
+    let target = targetUserId;
+    if (!target || !room.members.has(target)) {
+      target = Array.from(room.members.keys()).find((id) => id !== socket.id);
+    }
+    console.log(`[Signal] 🔄 Forwarding rotate-ice-servers from ${socket.id} -> ${target}`);
+    if (target && room.members.has(target)) {
+      io.to(target).emit('rotate-ice-servers', { senderId: socket.id, iceServers });
+    } else {
+      socket.to(currentRoom).emit('rotate-ice-servers', { senderId: socket.id, iceServers });
     }
   });
 
@@ -492,11 +580,13 @@ io.on('connection', (socket) => {
         senderId: socket.id,
         candidate
       });
+      io.to(target).emit('ice-candidate', candidate);
     } else {
       socket.to(currentRoom).emit('signal-ice', {
         senderId: socket.id,
         candidate
       });
+      socket.to(currentRoom).emit('ice-candidate', candidate);
     }
   });
 
@@ -539,6 +629,7 @@ io.on('connection', (socket) => {
       isVideoOn: Boolean(isVideoOn),
       isMusicOn: Boolean(isMusicOn),
     });
+    notifyMobilePartners(currentRoom);
   });
 
   // Status updates
@@ -549,6 +640,7 @@ io.on('connection', (socket) => {
       userId: socket.id,
       status
     });
+    notifyMobilePartners(currentRoom);
   });
 
   // Daily Target & To-Do List synchronization
@@ -565,104 +657,108 @@ io.on('connection', (socket) => {
       tasks,
       progress
     });
+    notifyMobilePartners(currentRoom);
   });
 
-  // Crisis SOS alert
-  socket.on('trigger-sos', ({ note }) => {
+  // Two-Way Live Focus Timer synchronization
+  socket.on('sync-focus-timer', ({ seconds, isRunning, activeTask }) => {
     if (!isAuthorized()) return;
-    console.log(`[SOS ALERT] 🚨 Triggered by ${currentUser.name} in room ${currentRoom}`);
-    
-    io.to(currentRoom).emit('sos-alert-received', {
+    currentUser.timerSeconds = seconds;
+    currentUser.isTimerRunning = isRunning;
+    currentUser.activeTask = activeTask;
+
+    socket.to(currentRoom).emit('peer-timer-synced', {
       userId: socket.id,
-      senderName: currentUser.name,
-      avatar: currentUser.avatar,
-      note: note || 'is asking for a caring check-in or emotional support right now.',
-      timestamp: Date.now()
+      name: currentUser.name,
+      seconds,
+      isRunning,
+      activeTask
     });
+    notifyMobilePartners(currentRoom);
   });
 
   // ==============================================================
-  // 📸 EPHEMERAL DOUBT & LOCAL AI ASSISTANT (3-Hour Self-Destruct)
+  // 📱 ANDROID NATIVE COMPANION BRIDGE
+  // Maps mobile events to desktop partner & vice versa
   // ==============================================================
-  socket.on('create-doubt', ({ id, image, question }) => {
+  socket.on('task-update', (data) => {
     if (!isAuthorized()) return;
-    const room = rooms.get(currentRoom);
-    if (!room) return;
-    if (!room.doubts) room.doubts = new Map();
-
-    const doubtId = id || `doubt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const now = Date.now();
-    const newDoubt = {
-      id: doubtId,
-      image: image || null,
-      question: (question || '').trim(),
-      senderId: socket.id,
-      senderName: currentUser.name,
-      senderAvatar: currentUser.avatar,
-      createdAt: now,
-      expiresAt: now + DOUBT_TTL_MS, // 3 hours lifetime
-      aiAnswer: null,
-      aiStatus: 'idle',
-    };
-
-    room.doubts.set(doubtId, newDoubt);
-    console.log(`[Doubt] ❓ New ephemeral doubt ${doubtId} posted by ${currentUser.name} in "${currentRoom}" (Self-destruct in 3h)`);
-
-    io.to(currentRoom).emit('doubt-created', newDoubt);
+    if (currentUser) {
+      if (data?.currentTask) {
+        currentUser.target = data.currentTask;
+        currentUser.activeTask = data.currentTask;
+      }
+      if (typeof data?.elapsedSeconds === 'number') {
+        currentUser.timerSeconds = data.elapsedSeconds;
+      }
+      if (typeof data?.tasksCompleted === 'number') {
+        currentUser.tasksCompleted = data.tasksCompleted;
+      }
+    }
+    socket.to(currentRoom).emit('peer-goal-updated', {
+      userId: socket.id,
+      name: currentUser?.name,
+      target: data?.currentTask,
+      tasks: [],
+      progress: data?.totalTasks ? Math.round(((data.tasksCompleted || 0) / data.totalTasks) * 100) : 0,
+    });
+    socket.to(currentRoom).emit('peer-timer-synced', {
+      userId: socket.id,
+      name: currentUser?.name,
+      seconds: data?.elapsedSeconds || 0,
+      isRunning: true,
+      activeTask: data?.currentTask
+    });
+    notifyMobilePartners(currentRoom);
   });
 
-  socket.on('delete-doubt', ({ doubtId }) => {
+  // Android Mobile Call Signaling
+  socket.on('call-request', () => {
     if (!isAuthorized()) return;
-    const room = rooms.get(currentRoom);
-    if (!room || !room.doubts) return;
-
-    if (room.doubts.has(doubtId)) {
-      room.doubts.delete(doubtId);
-      console.log(`[Doubt] 🗑️ Doubt ${doubtId} manually resolved/deleted in "${currentRoom}"`);
-      io.to(currentRoom).emit('doubt-deleted', { doubtId });
-    }
+    socket.to(currentRoom).emit('call-request', { from: currentUser?.name, senderId: socket.id });
   });
 
-  // Query Local AI (Ollama gemma3:1b-it-qat) for a doubt
-  socket.on('ask-doubt-ai', async ({ doubtId, prompt }) => {
+  socket.on('call-accepted', () => {
     if (!isAuthorized()) return;
-    const room = rooms.get(currentRoom);
-    if (!room || !room.doubts) return;
-
-    const doubt = room.doubts.get(doubtId);
-    if (!doubt) return;
-
-    doubt.aiStatus = 'generating';
-    io.to(currentRoom).emit('doubt-ai-status', { doubtId, status: 'generating' });
-
-    try {
-      const userPrompt = prompt || doubt.question || 'Please provide a clear, step-by-step explanation for this study problem.';
-      console.log(`[Local AI] 🧠 Querying Ollama (${DEFAULT_MODEL}) for doubt ${doubtId}...`);
-      const answer = await queryLocalAI(userPrompt);
-      
-      doubt.aiAnswer = answer;
-      doubt.aiStatus = 'completed';
-      console.log(`[Local AI] ✅ Completed explanation for doubt ${doubtId}`);
-
-      io.to(currentRoom).emit('doubt-ai-answered', { doubtId, answer, status: 'completed' });
-    } catch (err) {
-      console.error(`[Local AI] ❌ Error answering doubt ${doubtId}:`, err.message);
-      doubt.aiStatus = 'error';
-      doubt.aiError = err.message || 'Local AI query failed';
-      io.to(currentRoom).emit('doubt-ai-status', { doubtId, status: 'error', error: doubt.aiError });
-    }
+    socket.to(currentRoom).emit('call-accepted', { from: currentUser?.name, senderId: socket.id });
   });
 
-  // Quick Direct AI Question without screenshot
-  socket.on('ask-quick-ai', async ({ prompt, requestId }) => {
+  socket.on('call-ended', () => {
     if (!isAuthorized()) return;
-    try {
-      console.log(`[Quick AI] 🧠 Querying Ollama (${DEFAULT_MODEL}) for ${currentUser.name}...`);
-      const answer = await queryLocalAI(prompt);
-      socket.emit('quick-ai-result', { requestId, prompt, answer, success: true });
-    } catch (err) {
-      socket.emit('quick-ai-result', { requestId, prompt, error: err.message, success: false });
-    }
+    socket.to(currentRoom).emit('call-ended', { from: currentUser?.name, senderId: socket.id });
+  });
+
+  socket.on('offer', (sdp) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('signal-offer', { senderId: socket.id, offer: sdp });
+    socket.to(currentRoom).emit('offer', sdp);
+  });
+
+  socket.on('answer', (sdp) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('signal-answer', { senderId: socket.id, answer: sdp });
+    socket.to(currentRoom).emit('answer', sdp);
+  });
+
+  socket.on('ice-candidate', (candidate) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('signal-ice', { senderId: socket.id, candidate });
+    socket.to(currentRoom).emit('ice-candidate', candidate);
+  });
+
+  socket.on('sos-alert', () => {
+    console.log(`[Android] SOS ping from ${currentUser?.name || socket.id}`);
+  });
+
+  // Assign task to peer
+  socket.on('assign-task-to-peer', ({ targetUserId, task }) => {
+    if (!isAuthorized()) return;
+    socket.to(currentRoom).emit('peer-task-assigned', {
+      fromUserId: socket.id,
+      fromName: currentUser.name,
+      targetUserId,
+      task
+    });
   });
 
   // Application-level Heartbeat to keep connection alive and update room activity
@@ -692,6 +788,7 @@ io.on('connection', (socket) => {
       const room = rooms.get(currentRoom);
       room.members.delete(socket.id);
       socket.to(currentRoom).emit('user-left', { userId: socket.id, name: currentUser?.name });
+      notifyMobilePartners(currentRoom);
       
       console.log(`[Disconnect] ${currentUser?.name || socket.id} disconnected from "${currentRoom}" (Remaining: ${room.members.size}/2)`);
       
