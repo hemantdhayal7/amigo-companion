@@ -180,7 +180,7 @@ export default function Calendar() {
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Find time together</span>
           </div>
           <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
-            You and Siddhi both have 7–10 PM free every evening this week.
+            You both have 7–10 PM free every evening this week.
           </p>
         </div>
         <div style={{

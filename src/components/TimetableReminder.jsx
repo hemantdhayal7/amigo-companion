@@ -409,7 +409,7 @@ export default function TimetableReminder({ theme = 'dark', nickname = 'Hemant' 
             {/* Partner schedule */}
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#A855F7', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <User size={10} /> Siddhi
+                <User size={10} /> Partner
               </div>
               {SAKURA_SCHEDULE.map((b, i) => {
                 const isCurrent = partnerBlock && b.start === partnerBlock.start;

@@ -177,7 +177,7 @@ export default function Notes() {
                     padding: '8px 12px', borderRadius: 8, background: 'var(--ps)',
                     borderLeft: '3px solid var(--p)', fontSize: 12, color: 'var(--fg2)',
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--p)', marginBottom: 2 }}>Siddhi's comment</div>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--p)', marginBottom: 2 }}>Partner's comment</div>
                     Should we add the dropout regularization example from lecture?
                   </div>
                 </div>
@@ -317,7 +317,7 @@ export default function Notes() {
           }}>
             <Zap size={14} style={{ color: 'var(--p)' }} />
             <span style={{ fontSize: 12, color: 'var(--fg)' }}>Quiz each other</span>
-            <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>Siddhi is online</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>Partner is online</span>
           </div>
         </div>
       </div>

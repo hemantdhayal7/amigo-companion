@@ -211,7 +211,7 @@ export default function StudyRoom({ onBack }) {
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
               <span style={{ width: 6, height: 6, borderRadius: 3, background: '#16A34A' }} />
-              Siddhi
+              Partner
             </div>
 
             {/* Self-view PiP */}
@@ -315,7 +315,7 @@ export default function StudyRoom({ onBack }) {
                 {chatMessages.length === 0 && <div style={{ fontSize: 11, color: '#4B5563', textAlign: 'center', padding: 8 }}>No messages yet</div>}
                 {chatMessages.map(m => (
                   <div key={m.id} style={{ fontSize: 11, color: m.from === 'me' ? '#16A34A' : '#7C3AED' }}>
-                    <span style={{ fontWeight: 600 }}>{m.from === 'me' ? 'You' : 'Siddhi'}</span>
+                    <span style={{ fontWeight: 600 }}>{m.from === 'me' ? 'You' : 'Partner'}</span>
                     <span style={{ color: '#9CA3AF' }}> {m.time} </span>
                     <span style={{ color: '#E5E7EB' }}>{m.text}</span>
                   </div>

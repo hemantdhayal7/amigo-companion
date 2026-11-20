@@ -10,7 +10,7 @@ const MODES = [
 
 const SOUNDS = ['Rain', 'Lo-fi', 'Forest', 'Cafe', 'White noise', 'Silent'];
 
-export default function Focus() {
+export default function Focus({ partnerName = 'Partner', partnerInitial, partnerPresence }) {
   const [mode, setMode] = useState(() => load('focus_mode', 'pomodoro'));
   const [timeLeft, setTimeLeft] = useState(() => {
     const m = MODES.find(x => x.id === load('focus_mode', 'pomodoro'));
@@ -227,13 +227,19 @@ export default function Focus() {
                 width: 32, height: 32, borderRadius: 10, background: 'var(--ps)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13, fontWeight: 700, color: 'var(--p)',
-              }}>S</div>
+              }}>{partnerInitial || partnerName?.charAt(0)?.toUpperCase() || 'P'}</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Siddhi</div>
-                <div style={{ fontSize: 11, color: 'var(--g)' }}>Also focusing · 18:42 left</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{partnerName}</div>
+                <div style={{ fontSize: 11, color: partnerPresence?.online ? 'var(--g)' : 'var(--muted)' }}>
+                  {partnerPresence?.online
+                    ? partnerPresence?.status === 'studying' ? 'Also focusing' : 'Online'
+                    : 'Offline'}
+                </div>
               </div>
             </div>
-            <div style={{ fontSize: 20, textAlign: 'center', padding: 8 }}>💪 You got this!</div>
+            <div style={{ fontSize: 20, textAlign: 'center', padding: 8 }}>
+              {partnerPresence?.online && partnerPresence?.status === 'studying' ? '💪 You got this!' : '📚 Focus time!'}
+            </div>
           </div>
 
           {/* Soundscape */}

@@ -8,11 +8,19 @@ const PRESETS = [
 
 const LEVELS = ['Gentle', 'Normal', 'Urgent'];
 
-export default function Ping({ onClose }) {
+export default function Ping({ onClose, partnerName = 'Partner', partnerInitial, partnerPresence }) {
   const [selected, setSelected] = useState(null);
   const [level, setLevel] = useState('Normal');
   const [custom, setCustom] = useState('');
   const [sent, setSent] = useState(false);
+
+  const initial = partnerInitial || partnerName?.charAt(0)?.toUpperCase() || 'P';
+  const online = partnerPresence?.online;
+  const statusText = online
+    ? (partnerPresence?.status === 'studying'
+      ? `Studying${partnerPresence?.activity ? ' · ' + partnerPresence.activity : ''}`
+      : 'Online')
+    : 'Offline';
 
   const handleSend = () => {
     setSent(true);
@@ -29,7 +37,7 @@ export default function Ping({ onClose }) {
       }}>
         <div style={{ fontSize: 48 }}>⚡</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--p)', fontFamily: "'Space Grotesk', sans-serif" }}>Ping sent!</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Siddhi will see "{message}" as a {level.toLowerCase()} ping</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)' }}>{partnerName} will see "{message}" as a {level.toLowerCase()} ping</div>
       </div>
     );
   }
@@ -61,10 +69,10 @@ export default function Ping({ onClose }) {
           width: 40, height: 40, borderRadius: 12, background: 'var(--ps)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 16, fontWeight: 700, color: 'var(--p)',
-        }}>S</div>
+        }}>{initial}</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Siddhi</div>
-          <div style={{ fontSize: 12, color: 'var(--g)' }}>Online · Projects & Theory</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{partnerName}</div>
+          <div style={{ fontSize: 12, color: online ? 'var(--g)' : 'var(--muted)' }}>{statusText}</div>
         </div>
       </div>
 
@@ -131,7 +139,7 @@ export default function Ping({ onClose }) {
         ))}
       </div>
       <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 24 }}>
-        {level === 'Gentle' && 'Waits silently until her break'}
+        {level === 'Gentle' && 'Waits silently until their break'}
         {level === 'Normal' && 'Shows a banner with a soft chime'}
         {level === 'Urgent' && 'Rings for 20s, even through focus · 3/day limit'}
       </div>

@@ -1,23 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Home, Clock, ListTodo, CalendarDays, Video, BookOpen, MessageCircle,
   BarChart3, Target, Settings, Zap, Flame,
 } from 'lucide-react';
+import { load } from '../utils/store';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: Home },
   { id: 'focus', label: 'Focus', icon: Clock },
-  { id: 'planner', label: 'Planner', icon: ListTodo, badge: 2 },
+  { id: 'planner', label: 'Planner', icon: ListTodo },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'room', label: 'Study Room', icon: Video },
   { id: 'notes', label: 'Notes & Cards', icon: BookOpen },
-  { id: 'chat', label: 'Chat', icon: MessageCircle, badge: 3 },
+  { id: 'chat', label: 'Chat', icon: MessageCircle },
   { id: 'insights', label: 'Insights', icon: BarChart3 },
   { id: 'goals', label: 'Goals & Rewards', icon: Target },
 ];
 
-export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platform = 'darwin' }) {
+export default function Sidebar({
+  active, onNavigate, nickname = 'User', platform = 'darwin',
+  partnerName = 'Partner', partnerOnline = false, partnerStatus = 'offline',
+}) {
   const isMac = platform === 'darwin';
+  const streak = load('streak', { days: 0, freezes: 2 });
 
   return (
     <div style={{
@@ -25,7 +30,6 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
       borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column',
       flexShrink: 0, userSelect: 'none',
     }}>
-      {/* Logo — extra top padding on Mac for traffic lights */}
       <div className="drag-region" style={{ padding: isMac ? '38px 16px 12px' : '12px 16px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 8, background: 'var(--g)',
@@ -40,7 +44,6 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
         </span>
       </div>
 
-      {/* Nav items */}
       <nav className="no-drag" style={{ flex: 1, padding: '4px 8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
@@ -62,14 +65,6 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
             >
               <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
               <span style={{ flex: 1 }}>{item.label}</span>
-              {item.badge && (
-                <span style={{
-                  background: 'var(--g)', color: '#fff', fontSize: 10, fontWeight: 700,
-                  borderRadius: 10, padding: '1px 7px', lineHeight: '16px',
-                }}>
-                  {item.badge}
-                </span>
-              )}
             </button>
           );
         })}
@@ -86,7 +81,7 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
           }}
         >
           <Zap size={16} />
-          <span style={{ flex: 1, textAlign: 'left' }}>Ping Siddhi</span>
+          <span style={{ flex: 1, textAlign: 'left' }}>Ping {partnerName}</span>
           <span style={{ fontSize: 10, opacity: 0.7 }}>Ctrl ⇧ P</span>
         </button>
       </div>
@@ -96,8 +91,8 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
           <Flame size={16} style={{ color: '#F59E0B' }} />
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>12-day streak</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Shared with Siddhi</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{streak.days}-day streak</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Shared with {partnerName}</div>
           </div>
         </div>
       </div>
@@ -124,10 +119,14 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
             width: 28, height: 28, borderRadius: 8, background: 'var(--gs)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12, fontWeight: 700, color: 'var(--g)',
-          }}>H</div>
+          }}>{nickname.charAt(0).toUpperCase()}</div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{nickname}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Connected · 24 ms</div>
+            <div style={{ fontSize: 10, color: partnerOnline ? 'var(--g)' : 'var(--muted)' }}>
+              {partnerOnline
+                ? partnerStatus === 'studying' ? `${partnerName} is studying` : `${partnerName} online`
+                : `${partnerName} offline`}
+            </div>
           </div>
         </div>
       </div>

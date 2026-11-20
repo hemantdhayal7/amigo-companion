@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle2, AlertTriangle, Mail, Sparkles, Flame, BookOpen, Play } from 'lucide-react';
 import { load, save } from '../utils/store';
 
-export default function Home() {
+export default function Home({ user, profile, partner, partnerPresence, partnerName, partnerInitial }) {
   const [tasks] = useState(() => load('planner_tasks', []));
   const [deadlines] = useState(() => load('planner_deadlines', []));
   const [goals] = useState(() => load('goals', []));
-  const [streak] = useState(() => load('streak', { days: 12, freezes: 2 }));
+  const [streak] = useState(() => load('streak', { days: 0, freezes: 2 }));
   const [focusLog] = useState(() => load('focus_log', { totalMinutes: 0, sessions: 0 }));
   const [plan, setPlan] = useState(() => load('tonight_plan', [
     { time: '7:00 PM', label: 'Shared revision — Statistics', done: false },
@@ -18,6 +18,7 @@ export default function Home() {
 
   const togglePlan = (i) => setPlan(prev => prev.map((p, j) => j === i ? { ...p, done: !p.done } : p));
 
+  const myName = profile?.displayName || user?.displayName || 'User';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const dayName = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
@@ -28,12 +29,20 @@ export default function Home() {
   const focusHours = Math.floor(focusLog.totalMinutes / 60);
   const focusMins = focusLog.totalMinutes % 60;
 
+  const partnerOnline = partnerPresence?.online;
+  const partnerActivity = partnerPresence?.activity || partnerPresence?.status || 'offline';
+  const statusText = partnerOnline
+    ? (partnerActivity === 'studying' || partnerPresence?.status === 'studying'
+      ? `Studying${partnerPresence?.activity ? ' — ' + partnerPresence.activity : ''}`
+      : 'Online')
+    : 'Offline';
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1100, overflowY: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: 'var(--fg)', margin: 0 }}>
-            {greeting}, Hemant
+            {greeting}, {myName}
           </h1>
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0' }}>
             {dayName} · {totalTasks - doneTasks} tasks remaining · {deadlines.filter(d => d.urgent).length} urgent deadlines
@@ -65,12 +74,14 @@ export default function Home() {
           {/* Partner card */}
           <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--card)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--ps)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'var(--p)' }}>S</div>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--ps)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: 'var(--p)' }}>
+                {partnerInitial || partnerName?.charAt(0)?.toUpperCase() || 'P'}
+              </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Siddhi</div>
-                <div style={{ fontSize: 12, color: 'var(--g)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--g)', display: 'inline-block' }} />
-                  Studying — Projects & Theory
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{partnerName}</div>
+                <div style={{ fontSize: 12, color: partnerOnline ? 'var(--g)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 3, background: partnerOnline ? 'var(--g)' : 'var(--muted)', display: 'inline-block' }} />
+                  {statusText}
                 </div>
               </div>
             </div>

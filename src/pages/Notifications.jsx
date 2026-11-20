@@ -19,7 +19,7 @@ function Toggle({ on, onChange }) {
 }
 
 const NOTIF_TYPES = [
-  { label: 'Pings from Siddhi', key: 'pings' },
+  { label: 'Pings from partner', key: 'pings' },
   { label: 'Calls & knocks', key: 'calls' },
   { label: 'Chat messages', key: 'chat' },
   { label: 'Deadline alerts', key: 'deadlines' },
@@ -204,7 +204,7 @@ export default function Notifications() {
                 fontSize: 12, fontWeight: 700, color: 'var(--p)',
               }}>S</div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Siddhi pinged you</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Partner pinged you</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>Break in 5 · Normal</div>
               </div>
             </div>

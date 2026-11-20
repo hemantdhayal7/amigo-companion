@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Eye, Clock, Link2, Palette, Zap, Moon, Sun, Monitor, ChevronRight } from 'lucide-react';
+import { User, Bell, Eye, Clock, Link2, Palette, Zap, Moon, Sun, Monitor, ChevronRight, LogOut } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { load, save } from '../utils/store';
 
 function Toggle({ on, onChange }) {
@@ -31,7 +32,8 @@ function SettingRow({ icon: Icon, iconColor, label, desc, children }) {
   );
 }
 
-export default function Settings({ onNavigate }) {
+export default function Settings({ onNavigate, user, profile, partner, partnerPresence, partnerName, partnerInitial }) {
+  const { logout } = useAuth();
   const [settings, setSettings] = useState(() => load('settings', {
     focusShield: true,
     quietDelivery: true,
@@ -59,25 +61,34 @@ export default function Settings({ onNavigate }) {
     }
   };
 
+  const myName = profile?.displayName || user?.displayName || 'User';
+  const myInitial = profile?.initial || myName.charAt(0).toUpperCase();
+  const myEmail = user?.email || '';
+  const partnerOnline = partnerPresence?.online;
+
   return (
     <div style={{ padding: '28px 32px', height: '100%', overflowY: 'auto', maxWidth: 700 }}>
       <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: 'var(--fg)', margin: '0 0 24px' }}>Settings</h1>
 
       {/* Profile */}
       <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--card)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--gs)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: 'var(--g)' }}>H</div>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--gs)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: 'var(--g)' }}>{myInitial}</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>Hemant</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>GATE · IIT Madras · {settings.dailyGoal}h daily goal</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>{myName}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{myEmail} · {settings.dailyGoal}h daily goal</div>
         </div>
       </div>
 
       {/* Partner */}
       <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--card)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--ps)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: 'var(--p)' }}>S</div>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--ps)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: 'var(--p)' }}>
+          {partnerInitial || partnerName?.charAt(0)?.toUpperCase() || 'P'}
+        </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>Linked with Siddhi</div>
-          <div style={{ fontSize: 12, color: 'var(--g)' }}>Connected · 24 ms latency</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>Linked with {partnerName}</div>
+          <div style={{ fontSize: 12, color: partnerOnline ? 'var(--g)' : 'var(--muted)' }}>
+            {partnerOnline ? 'Partner online' : 'Partner offline'}
+          </div>
         </div>
       </div>
 
@@ -88,7 +99,7 @@ export default function Settings({ onNavigate }) {
           <SettingRow icon={Bell} iconColor="var(--a)" label="Notification settings" desc="Banners, sounds, phone alerts">
             <button onClick={() => onNavigate?.('notifications')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)' }}><ChevronRight size={16} /></button>
           </SettingRow>
-          <SettingRow icon={Zap} iconColor="var(--p)" label="Ping Siddhi shortcut" desc="Ctrl ⇧ P">
+          <SettingRow icon={Zap} iconColor="var(--p)" label={`Ping ${partnerName} shortcut`} desc="Ctrl ⇧ P">
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>Change</span>
           </SettingRow>
           <SettingRow label="Quiet delivery" desc="Hold messages during focus sessions">
@@ -96,9 +107,9 @@ export default function Settings({ onNavigate }) {
           </SettingRow>
         </div>
 
-        {/* What Siddhi can see */}
+        {/* What partner can see */}
         <div style={{ padding: '4px 20px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--card)' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', padding: '14px 0 4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>What Siddhi can see</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', padding: '14px 0 4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>What {partnerName} can see</div>
           <SettingRow icon={Eye} label="Your focus status" desc="Online, studying, on break">
             <Toggle on={settings.showFocusStatus} onChange={v => update('showFocusStatus', v)} />
           </SettingRow>
@@ -149,14 +160,14 @@ export default function Settings({ onNavigate }) {
           </SettingRow>
         </div>
 
-        {/* Integrations */}
+        {/* Account */}
         <div style={{ padding: '4px 20px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)', background: 'var(--card)' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', padding: '14px 0 4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Integrations</div>
-          <SettingRow icon={Link2} label="Google Calendar" desc="Syncing events">
-            <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--g)' }}>Connected</span>
-          </SettingRow>
-          <SettingRow label="Gmail" desc="Email tracking">
-            <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--g)' }}>Connected</span>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', padding: '14px 0 4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Account</div>
+          <SettingRow icon={LogOut} iconColor="var(--r)" label="Sign out" desc={`Signed in as ${myEmail}`}>
+            <button onClick={logout} style={{
+              padding: '6px 14px', borderRadius: 8, border: '1px solid var(--r)',
+              background: 'transparent', color: 'var(--r)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+            }}>Sign out</button>
           </SettingRow>
         </div>
       </div>
