@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Bell, BellOff, Volume2, Moon, Zap, Clock } from 'lucide-react';
-import { load, save } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 function Toggle({ on, onChange }) {
   return (
@@ -40,26 +40,21 @@ NOTIF_TYPES.forEach(t => {
 
 const DEFAULT_ALERTS = ['24h before', '1h before'];
 
-export default function Notifications() {
-  const [matrix, setMatrix] = useState(() => load('notif_matrix', DEFAULT_MATRIX));
-  const [pingSettings, setPingSettings] = useState(() => load('notif_pings', { gentle: true, normal: true, urgent: true }));
-  const [quietTimes, setQuietTimes] = useState(() => load('notif_quiet', { start: '22:00', end: '07:00' }));
-  const [deadlineAlerts, setDeadlineAlerts] = useState(() => load('notif_deadline_alerts', DEFAULT_ALERTS));
-
-  useEffect(() => { save('notif_matrix', matrix); }, [matrix]);
-  useEffect(() => { save('notif_pings', pingSettings); }, [pingSettings]);
-  useEffect(() => { save('notif_quiet', quietTimes); }, [quietTimes]);
-  useEffect(() => { save('notif_deadline_alerts', deadlineAlerts); }, [deadlineAlerts]);
+export default function Notifications({ user }) {
+  const [matrix, saveMatrix] = useSyncData(user, 'notif_matrix', DEFAULT_MATRIX);
+  const [pingSettings, savePingSettings] = useSyncData(user, 'notif_pings', { gentle: true, normal: true, urgent: true });
+  const [quietTimes, saveQuietTimes] = useSyncData(user, 'notif_quiet', { start: '22:00', end: '07:00' });
+  const [deadlineAlerts, saveDeadlineAlerts] = useSyncData(user, 'notif_deadline_alerts', DEFAULT_ALERTS);
 
   const toggle = (key, col) => {
-    setMatrix(prev => ({
+    saveMatrix(prev => ({
       ...prev,
       [key]: { ...prev[key], [col]: !prev[key][col] },
     }));
   };
 
   const toggleAlert = (label) => {
-    setDeadlineAlerts(prev =>
+    saveDeadlineAlerts(prev =>
       prev.includes(label) ? prev.filter(a => a !== label) : [...prev, label]
     );
   };
@@ -138,15 +133,15 @@ export default function Notifications() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--fg)' }}>Gentle pings</span>
-                <Toggle on={pingSettings.gentle} onChange={v => setPingSettings(prev => ({ ...prev, gentle: v }))} />
+                <Toggle on={pingSettings.gentle} onChange={v => savePingSettings(prev => ({ ...prev, gentle: v }))} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--fg)' }}>Normal pings</span>
-                <Toggle on={pingSettings.normal} onChange={v => setPingSettings(prev => ({ ...prev, normal: v }))} />
+                <Toggle on={pingSettings.normal} onChange={v => savePingSettings(prev => ({ ...prev, normal: v }))} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--fg)' }}>Urgent pings</span>
-                <Toggle on={pingSettings.urgent} onChange={v => setPingSettings(prev => ({ ...prev, urgent: v }))} />
+                <Toggle on={pingSettings.urgent} onChange={v => savePingSettings(prev => ({ ...prev, urgent: v }))} />
               </div>
               <div style={{ padding: '8px 0', borderTop: '1px solid var(--line)', marginTop: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -170,14 +165,14 @@ export default function Notifications() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>From</div>
-                <input type="time" value={quietTimes.start} onChange={e => setQuietTimes(prev => ({ ...prev, start: e.target.value }))} style={{
+                <input type="time" value={quietTimes.start} onChange={e => saveQuietTimes(prev => ({ ...prev, start: e.target.value }))} style={{
                   width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--line)',
                   background: 'var(--alt)', fontSize: 12, color: 'var(--fg)', outline: 'none',
                 }} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>To</div>
-                <input type="time" value={quietTimes.end} onChange={e => setQuietTimes(prev => ({ ...prev, end: e.target.value }))} style={{
+                <input type="time" value={quietTimes.end} onChange={e => saveQuietTimes(prev => ({ ...prev, end: e.target.value }))} style={{
                   width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--line)',
                   background: 'var(--alt)', fontSize: 12, color: 'var(--fg)', outline: 'none',
                 }} />

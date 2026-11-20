@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Phone, Video, Hand, Zap, Send, X } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const PRESETS = [
   'Start now?', 'Break in 5', 'Call me when free',
@@ -8,7 +10,7 @@ const PRESETS = [
 
 const LEVELS = ['Gentle', 'Normal', 'Urgent'];
 
-export default function Ping({ onClose, partnerName = 'Partner', partnerInitial, partnerPresence }) {
+export default function Ping({ onClose, user, partner, partnerName = 'Partner', partnerInitial, partnerPresence }) {
   const [selected, setSelected] = useState(null);
   const [level, setLevel] = useState('Normal');
   const [custom, setCustom] = useState('');
@@ -22,9 +24,26 @@ export default function Ping({ onClose, partnerName = 'Partner', partnerInitial,
       : 'Online')
     : 'Offline';
 
-  const handleSend = () => {
-    setSent(true);
-    setTimeout(() => { setSent(false); onClose?.(); }, 2000);
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    if (!message || !user || !partner) return;
+    setSending(true);
+    try {
+      await addDoc(collection(db, 'pings'), {
+        from: user.uid,
+        to: partner.uid,
+        message,
+        level,
+        createdAt: serverTimestamp(),
+        read: false,
+      });
+      setSent(true);
+      setTimeout(() => { setSent(false); onClose?.(); }, 2000);
+    } catch (err) {
+      console.error('Failed to send ping:', err);
+    }
+    setSending(false);
   };
 
   const message = selected !== null ? PRESETS[selected] : custom;

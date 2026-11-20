@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Users, Sparkles, Clock, Plus, Trash2 } from 'lucide-react';
-import { load, save, uid } from '../utils/store';
+import { uid } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 7);
 
@@ -27,16 +28,14 @@ const DEFAULT_EVENTS = [
   { id: 'e4', date: new Date().toISOString().slice(0, 10), start: 19, end: 22, label: 'Shared Study', color: 'var(--rs)', textColor: 'var(--r)' },
 ];
 
-export default function Calendar() {
+export default function Calendar({ user }) {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [events, setEvents] = useState(() => load('calendar_events', DEFAULT_EVENTS));
+  const [events, saveEvents] = useSyncData(user, 'calendar_events', DEFAULT_EVENTS);
   const [selectedDayIdx, setSelectedDayIdx] = useState(() => (new Date().getDay() + 6) % 7);
   const [showAdd, setShowAdd] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newStart, setNewStart] = useState(9);
   const [newEnd, setNewEnd] = useState(10);
-
-  useEffect(() => { save('calendar_events', events); }, [events]);
 
   const weekDates = getWeekDates(weekOffset);
   const selectedDate = weekDates[selectedDayIdx];
@@ -54,12 +53,12 @@ export default function Calendar() {
       { color: 'var(--as)', textColor: 'var(--a)' },
     ];
     const c = colors[events.length % colors.length];
-    setEvents(prev => [...prev, { id: uid(), date: selectedISO, start: newStart, end: newEnd, label: newLabel.trim(), ...c }]);
+    saveEvents(prev => [...prev, { id: uid(), date: selectedISO, start: newStart, end: newEnd, label: newLabel.trim(), ...c }]);
     setNewLabel('');
     setShowAdd(false);
   };
 
-  const deleteEvent = (id) => setEvents(prev => prev.filter(e => e.id !== id));
+  const deleteEvent = (id) => saveEvents(prev => prev.filter(e => e.id !== id));
 
   const isToday = selectedISO === new Date().toISOString().slice(0, 10);
 

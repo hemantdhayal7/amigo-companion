@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { User, Bell, Eye, Clock, Link2, Palette, Zap, Moon, Sun, Monitor, ChevronRight, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { load, save } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 function Toggle({ on, onChange }) {
   return (
@@ -34,7 +34,7 @@ function SettingRow({ icon: Icon, iconColor, label, desc, children }) {
 
 export default function Settings({ onNavigate, user, profile, partner, partnerPresence, partnerName, partnerInitial }) {
   const { logout } = useAuth();
-  const [settings, setSettings] = useState(() => load('settings', {
+  const [settings, saveSettings] = useSyncData(user, 'settings', {
     focusShield: true,
     quietDelivery: true,
     showFocusStatus: true,
@@ -44,11 +44,9 @@ export default function Settings({ onNavigate, user, profile, partner, partnerPr
     dailyGoal: 5,
     focusMode: 'pomodoro',
     focusDuration: 25,
-  }));
+  });
 
-  useEffect(() => { save('settings', settings); }, [settings]);
-
-  const update = (key, val) => setSettings(prev => ({ ...prev, [key]: val }));
+  const update = (key, val) => saveSettings(prev => ({ ...prev, [key]: val }));
 
   const setTheme = (theme) => {
     update('theme', theme);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { usePresence } from './hooks/usePresence';
+import { usePings } from './hooks/usePings';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
 import Focus from './pages/Focus';
@@ -20,6 +21,7 @@ import LinkPartner from './pages/LinkPartner';
 export default function App() {
   const { user, profile, partner, loading } = useAuth();
   const { partnerPresence, setMyStatus } = usePresence(user, partner);
+  const { incomingPing, dismissPing } = usePings(user);
 
   const [page, setPage] = useState(() => {
     try { return localStorage.getItem('amigo_page') || 'home'; } catch { return 'home'; }
@@ -113,6 +115,31 @@ export default function App() {
       )}
       <main style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {renderPage()}
+        {incomingPing && (
+          <div style={{
+            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+            padding: '12px 20px', borderRadius: 14,
+            background: incomingPing.level === 'Urgent' ? 'var(--r)' : 'var(--p)',
+            color: '#fff', display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 1000, maxWidth: 400,
+            animation: 'slideDown 0.3s ease-out',
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14, fontWeight: 700, flexShrink: 0,
+            }}>{partnerInitial}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{partnerName} pinged you</div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>{incomingPing.message} · {incomingPing.level}</div>
+            </div>
+            <button onClick={() => dismissPing(incomingPing.id)} style={{
+              border: 'none', background: 'rgba(255,255,255,0.2)', borderRadius: 8,
+              width: 28, height: 28, cursor: 'pointer', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+            }}>✕</button>
+          </div>
+        )}
       </main>
     </div>
   );

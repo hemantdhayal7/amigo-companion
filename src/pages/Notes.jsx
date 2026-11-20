@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Plus, Users, RotateCcw, Zap, Trash2, ChevronLeft } from 'lucide-react';
-import { load, save, uid } from '../utils/store';
+import { uid } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 const DEFAULT_NOTEBOOKS = [
   { id: 'nb1', name: 'Statistics', color: 'var(--b)', notes: [
@@ -20,9 +21,10 @@ const DEFAULT_FLASHCARDS = [
   { id: 'f3', front: 'What is backpropagation?', back: 'An algorithm for training neural networks by computing gradients of the loss function with respect to weights using the chain rule.', subject: 'ML & AI', ease: 2.5, interval: 1 },
 ];
 
-export default function Notes() {
-  const [notebooks, setNotebooks] = useState(() => load('notebooks', DEFAULT_NOTEBOOKS));
-  const [flashcards, setFlashcards] = useState(() => load('flashcards', DEFAULT_FLASHCARDS));
+export default function Notes({ user, partnerPresence }) {
+  const [notebooks, saveNotebooks] = useSyncData(user, 'notebooks', DEFAULT_NOTEBOOKS);
+  const [flashcards, saveFlashcards] = useSyncData(user, 'flashcards', DEFAULT_FLASHCARDS);
+  const [reviewStats, saveReviewStats] = useSyncData(user, 'review_stats', { reviewed: 0, correct: 0 });
   const [flipped, setFlipped] = useState(false);
   const [cardIdx, setCardIdx] = useState(0);
   const [activeNb, setActiveNb] = useState(null);
@@ -34,18 +36,13 @@ export default function Notes() {
   const [newNoteContent, setNewNoteContent] = useState('');
   const [newCardFront, setNewCardFront] = useState('');
   const [newCardBack, setNewCardBack] = useState('');
-  const [reviewStats, setReviewStats] = useState(() => load('review_stats', { reviewed: 0, correct: 0 }));
-
-  useEffect(() => { save('notebooks', notebooks); }, [notebooks]);
-  useEffect(() => { save('flashcards', flashcards); }, [flashcards]);
-  useEffect(() => { save('review_stats', reviewStats); }, [reviewStats]);
 
   const card = flashcards[cardIdx % flashcards.length];
 
   const nextCard = (quality) => {
-    setReviewStats(prev => ({
-      reviewed: prev.reviewed + 1,
-      correct: quality === 'Good' || quality === 'Easy' ? prev.correct + 1 : prev.correct,
+    saveReviewStats(prev => ({
+      reviewed: (prev?.reviewed || 0) + 1,
+      correct: quality === 'Good' || quality === 'Easy' ? (prev?.correct || 0) + 1 : (prev?.correct || 0),
     }));
     setFlipped(false);
     setCardIdx((cardIdx + 1) % flashcards.length);
@@ -54,19 +51,19 @@ export default function Notes() {
   const addNotebook = () => {
     if (!newNbName.trim()) return;
     const colors = ['var(--b)', 'var(--p)', 'var(--g)', 'var(--a)', 'var(--r)'];
-    setNotebooks(prev => [...prev, { id: uid(), name: newNbName.trim(), color: colors[prev.length % colors.length], notes: [] }]);
+    saveNotebooks(prev => [...prev, { id: uid(), name: newNbName.trim(), color: colors[prev.length % colors.length], notes: [] }]);
     setNewNbName('');
     setShowAddNb(false);
   };
 
   const deleteNotebook = (id) => {
-    setNotebooks(prev => prev.filter(nb => nb.id !== id));
+    saveNotebooks(prev => prev.filter(nb => nb.id !== id));
     if (activeNb === id) setActiveNb(null);
   };
 
   const addNote = () => {
     if (!newNoteTitle.trim() || !activeNb) return;
-    setNotebooks(prev => prev.map(nb => nb.id === activeNb
+    saveNotebooks(prev => prev.map(nb => nb.id === activeNb
       ? { ...nb, notes: [...nb.notes, { id: uid(), title: newNoteTitle.trim(), content: newNoteContent.trim(), created: new Date().toISOString().slice(0, 10) }] }
       : nb
     ));
@@ -76,7 +73,7 @@ export default function Notes() {
   };
 
   const deleteNote = (nbId, noteId) => {
-    setNotebooks(prev => prev.map(nb => nb.id === nbId
+    saveNotebooks(prev => prev.map(nb => nb.id === nbId
       ? { ...nb, notes: nb.notes.filter(n => n.id !== noteId) }
       : nb
     ));
@@ -84,13 +81,13 @@ export default function Notes() {
 
   const addFlashcard = () => {
     if (!newCardFront.trim() || !newCardBack.trim()) return;
-    setFlashcards(prev => [...prev, { id: uid(), front: newCardFront.trim(), back: newCardBack.trim(), subject: 'General', ease: 2.5, interval: 1 }]);
+    saveFlashcards(prev => [...prev, { id: uid(), front: newCardFront.trim(), back: newCardBack.trim(), subject: 'General', ease: 2.5, interval: 1 }]);
     setNewCardFront('');
     setNewCardBack('');
     setShowAddCard(false);
   };
 
-  const deleteFlashcard = (id) => setFlashcards(prev => prev.filter(f => f.id !== id));
+  const deleteFlashcard = (id) => saveFlashcards(prev => prev.filter(f => f.id !== id));
 
   const currentNb = notebooks.find(nb => nb.id === activeNb);
 

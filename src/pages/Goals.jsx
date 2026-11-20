@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Target, Trophy, Flame, Gift, Star, Users, Lock, Plus, Trash2 } from 'lucide-react';
-import { load, save, uid } from '../utils/store';
+import { uid } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 const COLORS = ['var(--g)', 'var(--p)', 'var(--a)', 'var(--b)', 'var(--r)'];
 
@@ -20,27 +21,24 @@ const ACHIEVEMENTS = [
   { icon: '🏆', label: 'Champion', desc: 'Complete all goals', unlocked: false },
 ];
 
-export default function Goals() {
-  const [goals, setGoals] = useState(() => load('goals', DEFAULT_GOALS));
-  const [streak, setStreak] = useState(() => load('streak', { days: 12, freezes: 2 }));
+export default function Goals({ user }) {
+  const [goals, saveGoals] = useSyncData(user, 'goals', DEFAULT_GOALS);
+  const [streak, saveStreak] = useSyncData(user, 'streak', { days: 12, freezes: 2 });
   const [newGoal, setNewGoal] = useState('');
   const [showAdd, setShowAdd] = useState(false);
 
-  useEffect(() => { save('goals', goals); }, [goals]);
-  useEffect(() => { save('streak', streak); }, [streak]);
-
   const updateProgress = (id, delta) => {
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, progress: Math.max(0, Math.min(100, g.progress + delta)) } : g));
+    saveGoals(prev => prev.map(g => g.id === id ? { ...g, progress: Math.max(0, Math.min(100, g.progress + delta)) } : g));
   };
 
   const addGoal = () => {
     if (!newGoal.trim()) return;
-    setGoals(prev => [...prev, { id: uid(), label: newGoal.trim(), progress: 0, target: 'Set target', shared: false, color: COLORS[prev.length % COLORS.length] }]);
+    saveGoals(prev => [...prev, { id: uid(), label: newGoal.trim(), progress: 0, target: 'Set target', shared: false, color: COLORS[prev.length % COLORS.length] }]);
     setNewGoal('');
     setShowAdd(false);
   };
 
-  const deleteGoal = (id) => setGoals(prev => prev.filter(g => g.id !== id));
+  const deleteGoal = (id) => saveGoals(prev => prev.filter(g => g.id !== id));
   const rewards = goals.filter(g => g.progress >= 100).length;
 
   return (

@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TrendingUp, Clock, BookOpen, Flame, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { load, today } from '../utils/store';
+import { today } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
-export default function Insights() {
-  const [focusLog] = useState(() => load('focus_log', { totalMinutes: 0, sessions: 0, longestMin: 0, breaks: 0, daily: {} }));
-  const [tasks] = useState(() => load('planner_tasks', []));
-  const [goals] = useState(() => load('goals', []));
-  const [streak] = useState(() => load('streak', { days: 12, freezes: 2 }));
-  const [reviewStats] = useState(() => load('review_stats', { reviewed: 0, correct: 0 }));
+export default function Insights({ user }) {
+  const [focusLog] = useSyncData(user, 'focus_log', { totalMinutes: 0, sessions: 0, longestMin: 0, breaks: 0, daily: {} });
+  const [tasks] = useSyncData(user, 'planner_tasks', []);
+  const [goals] = useSyncData(user, 'goals', []);
+  const [streak] = useSyncData(user, 'streak', { days: 12, freezes: 2 });
+  const [reviewStats] = useSyncData(user, 'review_stats', { reviewed: 0, correct: 0 });
 
   const daily = focusLog.daily || {};
   const now = new Date();

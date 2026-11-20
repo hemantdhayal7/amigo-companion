@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Clock, CheckCircle2, AlertTriangle, Mail, Sparkles, Flame, BookOpen, Play } from 'lucide-react';
-import { load, save } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 export default function Home({ user, profile, partner, partnerPresence, partnerName, partnerInitial }) {
-  const [tasks] = useState(() => load('planner_tasks', []));
-  const [deadlines] = useState(() => load('planner_deadlines', []));
-  const [goals] = useState(() => load('goals', []));
-  const [streak] = useState(() => load('streak', { days: 0, freezes: 2 }));
-  const [focusLog] = useState(() => load('focus_log', { totalMinutes: 0, sessions: 0 }));
-  const [plan, setPlan] = useState(() => load('tonight_plan', [
+  const [tasks] = useSyncData(user, 'planner_tasks', []);
+  const [deadlines] = useSyncData(user, 'planner_deadlines', []);
+  const [goals] = useSyncData(user, 'goals', []);
+  const [streak] = useSyncData(user, 'streak', { days: 0, freezes: 2 });
+  const [focusLog] = useSyncData(user, 'focus_log', { totalMinutes: 0, sessions: 0 });
+  const [plan, savePlan] = useSyncData(user, 'tonight_plan', [
     { time: '7:00 PM', label: 'Shared revision — Statistics', done: false },
     { time: '8:30 PM', label: 'Practice exam set #4', done: false },
     { time: '9:30 PM', label: 'Review & wind down', done: false },
-  ]));
+  ]);
 
-  useEffect(() => { save('tonight_plan', plan); }, [plan]);
-
-  const togglePlan = (i) => setPlan(prev => prev.map((p, j) => j === i ? { ...p, done: !p.done } : p));
+  const togglePlan = (i) => savePlan(prev => prev.map((p, j) => j === i ? { ...p, done: !p.done } : p));
 
   const myName = profile?.displayName || user?.displayName || 'User';
   const hour = new Date().getHours();

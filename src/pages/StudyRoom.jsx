@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, MicOff, Video, VideoOff, Monitor, MessageCircle, PhoneOff, Clock, CheckCircle2, Circle, Plus, Trash2 } from 'lucide-react';
-import { load, save, uid } from '../utils/store';
+import { uid } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 const MODES = [
   { id: 'pomodoro', label: 'Pomodoro', duration: 25 * 60, breakDur: 5 * 60 },
@@ -14,16 +15,16 @@ const DEFAULT_TASKS = [
   { id: 't3', text: 'Draft summary sheet', done: false },
 ];
 
-export default function StudyRoom({ onBack }) {
+export default function StudyRoom({ onBack, user }) {
   const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(false);
-  const [tasks, setTasks] = useState(() => load('room_tasks', DEFAULT_TASKS));
+  const [tasks, saveTasks] = useSyncData(user, 'room_tasks', DEFAULT_TASKS);
   const [newTask, setNewTask] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState(() => load('room_chat', []));
+  const [chatMessages, saveChatMessages] = useSyncData(user, 'room_chat', []);
 
-  const [mode] = useState(() => load('focus_mode', 'pomodoro'));
+  const [mode] = useSyncData(user, 'focus_mode', 'pomodoro');
   const currentMode = MODES.find(m => m.id === mode) || MODES[0];
   const [timeLeft, setTimeLeft] = useState(currentMode.duration);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -38,9 +39,6 @@ export default function StudyRoom({ onBack }) {
   const [audioLevel, setAudioLevel] = useState(0);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
-
-  useEffect(() => { save('room_tasks', tasks); }, [tasks]);
-  useEffect(() => { save('room_chat', chatMessages); }, [chatMessages]);
 
   // Session elapsed timer
   useEffect(() => {
@@ -141,17 +139,17 @@ export default function StudyRoom({ onBack }) {
     };
   }, []);
 
-  const toggleTask = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const toggleTask = (id) => saveTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
   const addTask = () => {
     if (!newTask.trim()) return;
-    setTasks(prev => [...prev, { id: uid(), text: newTask.trim(), done: false }]);
+    saveTasks(prev => [...prev, { id: uid(), text: newTask.trim(), done: false }]);
     setNewTask('');
   };
-  const deleteTask = (id) => setTasks(prev => prev.filter(t => t.id !== id));
+  const deleteTask = (id) => saveTasks(prev => prev.filter(t => t.id !== id));
 
   const sendChat = () => {
     if (!chatInput.trim()) return;
-    setChatMessages(prev => [...prev, { id: uid(), from: 'me', text: chatInput.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+    saveChatMessages(prev => [...prev, { id: uid(), from: 'me', text: chatInput.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
     setChatInput('');
   };
 

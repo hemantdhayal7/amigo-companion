@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, Play, AlertTriangle, Clock, Mail, Bell, Plus, Sparkles, X, Trash2 } from 'lucide-react';
-import { load, save, uid, today } from '../utils/store';
+import { uid } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 const DEFAULT_TASKS = [
   { id: 'dt1', text: 'Solve 10 practice exam questions', done: false, subject: 'Statistics', est: '45 min', createdAt: new Date().toISOString() },
@@ -20,11 +21,11 @@ const DEFAULT_REMINDERS = [
 
 const TABS = ['Tasks', 'Deadlines', 'Reminders', 'Email'];
 
-export default function Planner() {
+export default function Planner({ user }) {
   const [tab, setTab] = useState('Tasks');
-  const [tasks, setTasks] = useState(() => load('planner_tasks', DEFAULT_TASKS));
-  const [deadlines, setDeadlines] = useState(() => load('planner_deadlines', DEFAULT_DEADLINES));
-  const [reminders, setReminders] = useState(() => load('planner_reminders', DEFAULT_REMINDERS));
+  const [tasks, saveTasks] = useSyncData(user, 'planner_tasks', DEFAULT_TASKS);
+  const [deadlines, saveDeadlines] = useSyncData(user, 'planner_deadlines', DEFAULT_DEADLINES);
+  const [reminders, saveReminders] = useSyncData(user, 'planner_reminders', DEFAULT_REMINDERS);
   const [newTask, setNewTask] = useState('');
   const [newDeadline, setNewDeadline] = useState('');
   const [newReminder, setNewReminder] = useState('');
@@ -32,33 +33,29 @@ export default function Planner() {
   const [showAddDeadline, setShowAddDeadline] = useState(false);
   const [showAddReminder, setShowAddReminder] = useState(false);
 
-  useEffect(() => { save('planner_tasks', tasks); }, [tasks]);
-  useEffect(() => { save('planner_deadlines', deadlines); }, [deadlines]);
-  useEffect(() => { save('planner_reminders', reminders); }, [reminders]);
-
-  const toggleTask = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done, doneAt: !t.done ? new Date().toISOString() : null } : t));
-  const deleteTask = (id) => setTasks(prev => prev.filter(t => t.id !== id));
+  const toggleTask = (id) => saveTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done, doneAt: !t.done ? new Date().toISOString() : null } : t));
+  const deleteTask = (id) => saveTasks(prev => prev.filter(t => t.id !== id));
   const addTask = () => {
     if (!newTask.trim()) return;
-    setTasks(prev => [...prev, { id: uid(), text: newTask.trim(), done: false, createdAt: new Date().toISOString() }]);
+    saveTasks(prev => [...prev, { id: uid(), text: newTask.trim(), done: false, createdAt: new Date().toISOString() }]);
     setNewTask('');
     setShowAddTask(false);
   };
   const addDeadline = () => {
     if (!newDeadline.trim()) return;
-    setDeadlines(prev => [...prev, { id: uid(), label: newDeadline.trim(), due: 'Set date...', urgent: false }]);
+    saveDeadlines(prev => [...prev, { id: uid(), label: newDeadline.trim(), due: 'Set date...', urgent: false }]);
     setNewDeadline('');
     setShowAddDeadline(false);
   };
-  const deleteDeadline = (id) => setDeadlines(prev => prev.filter(d => d.id !== id));
+  const deleteDeadline = (id) => saveDeadlines(prev => prev.filter(d => d.id !== id));
   const addReminder = () => {
     if (!newReminder.trim()) return;
-    setReminders(prev => [...prev, { id: uid(), label: newReminder.trim(), due: 'Set time...', snoozed: false }]);
+    saveReminders(prev => [...prev, { id: uid(), label: newReminder.trim(), due: 'Set time...', snoozed: false }]);
     setNewReminder('');
     setShowAddReminder(false);
   };
-  const deleteReminder = (id) => setReminders(prev => prev.filter(r => r.id !== id));
-  const snoozeReminder = (id) => setReminders(prev => prev.map(r => r.id === id ? { ...r, snoozed: !r.snoozed } : r));
+  const deleteReminder = (id) => saveReminders(prev => prev.filter(r => r.id !== id));
+  const snoozeReminder = (id) => saveReminders(prev => prev.map(r => r.id === id ? { ...r, snoozed: !r.snoozed } : r));
 
   const activeTasks = tasks.filter(t => !t.done);
   const doneTasks = tasks.filter(t => t.done);

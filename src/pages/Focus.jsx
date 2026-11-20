@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, RotateCcw, Coffee, Shield, Volume2 } from 'lucide-react';
-import { load, save, today } from '../utils/store';
+import { today } from '../utils/store';
+import { useSyncData } from '../hooks/useSyncData';
 
 const MODES = [
   { id: 'pomodoro', label: 'Pomodoro', duration: 25 * 60, breakDur: 5 * 60 },
@@ -10,45 +11,44 @@ const MODES = [
 
 const SOUNDS = ['Rain', 'Lo-fi', 'Forest', 'Cafe', 'White noise', 'Silent'];
 
-export default function Focus({ partnerName = 'Partner', partnerInitial, partnerPresence }) {
-  const [mode, setMode] = useState(() => load('focus_mode', 'pomodoro'));
+export default function Focus({ user, partnerName = 'Partner', partnerInitial, partnerPresence }) {
+  const [savedMode, saveMode] = useSyncData(user, 'focus_mode', 'pomodoro');
+  const [sound, saveSound] = useSyncData(user, 'focus_sound', 'Lo-fi');
+  const [focusLog, saveFocusLog] = useSyncData(user, 'focus_log', { totalMinutes: 0, sessions: 0, longestMin: 0, breaks: 0, daily: {} });
+
+  const [mode, setMode] = useState(savedMode);
   const [timeLeft, setTimeLeft] = useState(() => {
-    const m = MODES.find(x => x.id === load('focus_mode', 'pomodoro'));
+    const m = MODES.find(x => x.id === savedMode);
     return m ? m.duration : 25 * 60;
   });
   const [running, setRunning] = useState(false);
   const [round, setRound] = useState(1);
   const [isBreak, setIsBreak] = useState(false);
-  const [sound, setSound] = useState(() => load('focus_sound', 'Lo-fi'));
-  const [focusLog, setFocusLog] = useState(() => load('focus_log', { totalMinutes: 0, sessions: 0, longestMin: 0, breaks: 0, daily: {} }));
   const intervalRef = useRef(null);
   const sessionStartRef = useRef(null);
 
   const currentMode = MODES.find(m => m.id === mode);
   const total = isBreak ? currentMode.breakDur : currentMode.duration;
 
-  useEffect(() => { save('focus_sound', sound); }, [sound]);
-  useEffect(() => { save('focus_log', focusLog); }, [focusLog]);
-
   const logSession = (durationSec) => {
     const mins = Math.round(durationSec / 60);
     if (mins < 1) return;
     const d = today();
-    setFocusLog(prev => {
-      const daily = { ...prev.daily };
+    saveFocusLog(prev => {
+      const daily = { ...(prev?.daily || {}) };
       daily[d] = (daily[d] || 0) + mins;
       return {
-        totalMinutes: prev.totalMinutes + mins,
-        sessions: prev.sessions + 1,
-        longestMin: Math.max(prev.longestMin, mins),
-        breaks: prev.breaks,
+        totalMinutes: (prev?.totalMinutes || 0) + mins,
+        sessions: (prev?.sessions || 0) + 1,
+        longestMin: Math.max(prev?.longestMin || 0, mins),
+        breaks: prev?.breaks || 0,
         daily,
       };
     });
   };
 
   const logBreak = () => {
-    setFocusLog(prev => ({ ...prev, breaks: prev.breaks + 1 }));
+    saveFocusLog(prev => ({ ...prev, breaks: (prev?.breaks || 0) + 1 }));
   };
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function Focus({ partnerName = 'Partner', partnerInitial, partner
     }
     const m = MODES.find(x => x.id === id);
     setMode(id);
-    save('focus_mode', id);
+    saveMode(id);
     setTimeLeft(m.duration);
     setRunning(false);
     setIsBreak(false);
@@ -253,7 +253,7 @@ export default function Focus({ partnerName = 'Partner', partnerInitial, partner
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {SOUNDS.map(s => (
-                <button key={s} onClick={() => setSound(s)} style={{
+                <button key={s} onClick={() => saveSound(s)} style={{
                   padding: '5px 12px', borderRadius: 8, border: '1px solid var(--line)',
                   background: s === sound ? 'var(--gs)' : 'var(--card)',
                   color: s === sound ? 'var(--gt)' : 'var(--muted)',

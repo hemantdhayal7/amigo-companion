@@ -22,7 +22,18 @@ export default function Login() {
         await login(email, password);
       }
     } catch (err) {
-      setError(err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)/, '').trim());
+      const code = err.code || '';
+      const messages = {
+        'auth/email-already-in-use': 'This email is already registered. Try signing in.',
+        'auth/weak-password': 'Password must be at least 6 characters.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/user-not-found': 'No account found with this email.',
+        'auth/wrong-password': 'Incorrect password.',
+        'auth/invalid-credential': 'Incorrect email or password.',
+        'auth/too-many-requests': 'Too many attempts. Please wait a moment.',
+        'auth/network-request-failed': 'Network error. Check your connection.',
+      };
+      setError(messages[code] || err.message || 'Something went wrong.');
     }
     setLoading(false);
   };
