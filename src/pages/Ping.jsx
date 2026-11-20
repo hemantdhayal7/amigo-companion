@@ -29,7 +29,7 @@ export default function Ping({ onClose }) {
       }}>
         <div style={{ fontSize: 48 }}>⚡</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--p)', fontFamily: "'Space Grotesk', sans-serif" }}>Ping sent!</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Sakura will see "{message}" as a {level.toLowerCase()} ping</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Siddhi will see "{message}" as a {level.toLowerCase()} ping</div>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export default function Ping({ onClose }) {
           fontSize: 16, fontWeight: 700, color: 'var(--p)',
         }}>S</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Sakura</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Siddhi</div>
           <div style={{ fontSize: 12, color: 'var(--g)' }}>Online · Projects & Theory</div>
         </div>
       </div>

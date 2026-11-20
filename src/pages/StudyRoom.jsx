@@ -59,7 +59,7 @@ export default function StudyRoom() {
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
               <span style={{ width: 6, height: 6, borderRadius: 3, background: '#16A34A' }} />
-              Sakura
+              Siddhi
             </div>
             {/* PiP self-view */}
             <div style={{

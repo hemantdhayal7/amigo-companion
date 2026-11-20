@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, BellOff, Volume2, Moon, Zap, Clock } from 'lucide-react';
+import { load, save } from '../utils/store';
 
 function Toggle({ on, onChange }) {
   return (
@@ -18,7 +19,7 @@ function Toggle({ on, onChange }) {
 }
 
 const NOTIF_TYPES = [
-  { label: 'Pings from Sakura', key: 'pings' },
+  { label: 'Pings from Siddhi', key: 'pings' },
   { label: 'Calls & knocks', key: 'calls' },
   { label: 'Chat messages', key: 'chat' },
   { label: 'Deadline alerts', key: 'deadlines' },
@@ -28,24 +29,39 @@ const NOTIF_TYPES = [
   { label: 'Streak warnings', key: 'streak' },
 ];
 
-export default function Notifications() {
-  const [matrix, setMatrix] = useState(() => {
-    const m = {};
-    NOTIF_TYPES.forEach(t => { m[t.key] = { banner: true, sound: true, phone: t.key === 'pings' || t.key === 'calls' || t.key === 'deadlines', email: t.key === 'deadlines' }; });
-    return m;
-  });
+const DEFAULT_MATRIX = {};
+NOTIF_TYPES.forEach(t => {
+  DEFAULT_MATRIX[t.key] = {
+    banner: true, sound: true,
+    phone: t.key === 'pings' || t.key === 'calls' || t.key === 'deadlines',
+    email: t.key === 'deadlines',
+  };
+});
 
-  const [pingGentle, setPingGentle] = useState(true);
-  const [pingNormal, setPingNormal] = useState(true);
-  const [pingUrgent, setPingUrgent] = useState(true);
-  const [quietStart, setQuietStart] = useState('22:00');
-  const [quietEnd, setQuietEnd] = useState('07:00');
+const DEFAULT_ALERTS = ['24h before', '1h before'];
+
+export default function Notifications() {
+  const [matrix, setMatrix] = useState(() => load('notif_matrix', DEFAULT_MATRIX));
+  const [pingSettings, setPingSettings] = useState(() => load('notif_pings', { gentle: true, normal: true, urgent: true }));
+  const [quietTimes, setQuietTimes] = useState(() => load('notif_quiet', { start: '22:00', end: '07:00' }));
+  const [deadlineAlerts, setDeadlineAlerts] = useState(() => load('notif_deadline_alerts', DEFAULT_ALERTS));
+
+  useEffect(() => { save('notif_matrix', matrix); }, [matrix]);
+  useEffect(() => { save('notif_pings', pingSettings); }, [pingSettings]);
+  useEffect(() => { save('notif_quiet', quietTimes); }, [quietTimes]);
+  useEffect(() => { save('notif_deadline_alerts', deadlineAlerts); }, [deadlineAlerts]);
 
   const toggle = (key, col) => {
     setMatrix(prev => ({
       ...prev,
       [key]: { ...prev[key], [col]: !prev[key][col] },
     }));
+  };
+
+  const toggleAlert = (label) => {
+    setDeadlineAlerts(prev =>
+      prev.includes(label) ? prev.filter(a => a !== label) : [...prev, label]
+    );
   };
 
   return (
@@ -82,7 +98,7 @@ export default function Notifications() {
                 <span style={{ fontSize: 13, color: 'var(--fg)' }}>{t.label}</span>
                 {['banner', 'sound', 'phone', 'email'].map(col => (
                   <div key={col} style={{ display: 'flex', justifyContent: 'center' }}>
-                    <Toggle on={matrix[t.key][col]} onChange={() => toggle(t.key, col)} />
+                    <Toggle on={matrix[t.key]?.[col] || false} onChange={() => toggle(t.key, col)} />
                   </div>
                 ))}
               </div>
@@ -93,10 +109,10 @@ export default function Notifications() {
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>Deadline alerts</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {['24h before', '6h before', '1h before', 'At deadline'].map(t => (
-                  <button key={t} style={{
+                  <button key={t} onClick={() => toggleAlert(t)} style={{
                     padding: '5px 12px', borderRadius: 8, border: '1px solid var(--line)',
-                    background: t === '24h before' || t === '1h before' ? 'var(--gs)' : 'var(--card)',
-                    color: t === '24h before' || t === '1h before' ? 'var(--gt)' : 'var(--muted)',
+                    background: deadlineAlerts.includes(t) ? 'var(--gs)' : 'var(--card)',
+                    color: deadlineAlerts.includes(t) ? 'var(--gt)' : 'var(--muted)',
                     fontSize: 11, fontWeight: 500, cursor: 'pointer',
                   }}>
                     {t}
@@ -122,15 +138,15 @@ export default function Notifications() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--fg)' }}>Gentle pings</span>
-                <Toggle on={pingGentle} onChange={setPingGentle} />
+                <Toggle on={pingSettings.gentle} onChange={v => setPingSettings(prev => ({ ...prev, gentle: v }))} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--fg)' }}>Normal pings</span>
-                <Toggle on={pingNormal} onChange={setPingNormal} />
+                <Toggle on={pingSettings.normal} onChange={v => setPingSettings(prev => ({ ...prev, normal: v }))} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--fg)' }}>Urgent pings</span>
-                <Toggle on={pingUrgent} onChange={setPingUrgent} />
+                <Toggle on={pingSettings.urgent} onChange={v => setPingSettings(prev => ({ ...prev, urgent: v }))} />
               </div>
               <div style={{ padding: '8px 0', borderTop: '1px solid var(--line)', marginTop: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -154,14 +170,14 @@ export default function Notifications() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>From</div>
-                <input type="time" value={quietStart} onChange={e => setQuietStart(e.target.value)} style={{
+                <input type="time" value={quietTimes.start} onChange={e => setQuietTimes(prev => ({ ...prev, start: e.target.value }))} style={{
                   width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--line)',
                   background: 'var(--alt)', fontSize: 12, color: 'var(--fg)', outline: 'none',
                 }} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>To</div>
-                <input type="time" value={quietEnd} onChange={e => setQuietEnd(e.target.value)} style={{
+                <input type="time" value={quietTimes.end} onChange={e => setQuietTimes(prev => ({ ...prev, end: e.target.value }))} style={{
                   width: '100%', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--line)',
                   background: 'var(--alt)', fontSize: 12, color: 'var(--fg)', outline: 'none',
                 }} />
@@ -188,7 +204,7 @@ export default function Notifications() {
                 fontSize: 12, fontWeight: 700, color: 'var(--p)',
               }}>S</div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Sakura pinged you</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Siddhi pinged you</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>Break in 5 · Normal</div>
               </div>
             </div>

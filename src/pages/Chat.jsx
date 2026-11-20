@@ -1,177 +1,114 @@
-import React, { useState } from 'react';
-import { Send, Mic, Paperclip, SmilePlus } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Paperclip, Smile, Mic, Send, Phone, Video } from 'lucide-react';
+import { load, save, uid, formatTime } from '../utils/store';
 
-const MESSAGES = [
-  { from: 'them', text: 'Hey, did you finish the stats practice set?', time: '5:12 PM' },
-  { from: 'me', text: 'Almost! 7 out of 10 done. The probability ones are tricky 😅', time: '5:14 PM' },
-  { from: 'them', text: 'I found a great video that explains Bayes theorem really well, want me to share it?', time: '5:15 PM' },
-  { from: 'me', text: 'Yes please! I keep mixing up prior and posterior', time: '5:16 PM' },
-  { from: 'them', type: 'session', text: 'Sakura invited you to a study session', detail: 'Stats Revision · 7:00 PM tonight · 1.5h planned', time: '5:20 PM' },
-  { from: 'them', type: 'voice', duration: '0:42', time: '5:22 PM' },
-  { from: 'me', text: "Perfect, I'll join at 7. Let me finish this set first 💪", time: '5:24 PM' },
-  { from: 'system', text: '2 messages held during your focus session · delivered now', time: '6:30 PM' },
+const QUICK_REPLIES = ['On my way!', 'Give me 5 min', 'Sounds good', 'Let\'s take a break', 'Ready when you are', 'Good job today!'];
+
+const DEFAULT_MESSAGES = [
+  { id: 'm1', from: 'siddhi', text: 'Hey, did you finish the stats practice set?', time: new Date(Date.now() - 3600000 * 3).toISOString() },
+  { id: 'm2', from: 'me', text: 'Almost! I have 3 more problems left. The probability section took longer than expected.', time: new Date(Date.now() - 3600000 * 2.9).toISOString() },
+  { id: 'm3', from: 'siddhi', text: 'I found a great video that explains Bayes theorem really well, want me to share it?', time: new Date(Date.now() - 3600000 * 2.5).toISOString() },
+  { id: 'm4', from: 'me', text: 'Yes please! That would really help', time: new Date(Date.now() - 3600000 * 2.4).toISOString() },
+  { id: 'm5', from: 'siddhi', text: 'Sent! Also, want to do a study session tonight? I was thinking 8-10 PM', time: new Date(Date.now() - 3600000 * 2).toISOString() },
+  { id: 'm6', from: 'me', text: 'Perfect timing, I need to review chapter 5 too. See you at 8!', time: new Date(Date.now() - 3600000 * 1.8).toISOString() },
 ];
 
 export default function Chat() {
+  const [messages, setMessages] = useState(() => load('chat_messages', DEFAULT_MESSAGES));
   const [input, setInput] = useState('');
+  const listRef = useRef(null);
+
+  useEffect(() => { save('chat_messages', messages); }, [messages]);
+  useEffect(() => { listRef.current?.scrollTo(0, listRef.current.scrollHeight); }, [messages]);
+
+  const sendMessage = (text) => {
+    if (!text?.trim()) return;
+    setMessages(prev => [...prev, { id: uid(), from: 'me', text: text.trim(), time: new Date().toISOString() }]);
+    setInput('');
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+  };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{
-        padding: '16px 24px', borderBottom: '1px solid var(--line)',
-        display: 'flex', alignItems: 'center', gap: 12,
-      }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10, background: 'var(--ps)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 700, color: 'var(--p)',
-        }}>S</div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Sakura</div>
-          <div style={{ fontSize: 11, color: 'var(--g)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 5, height: 5, borderRadius: 3, background: 'var(--g)', display: 'inline-block' }} />
-            Online · Projects & Theory
-          </div>
+      <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--ps)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>S</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>Siddhi</div>
+          <div style={{ fontSize: 11, color: 'var(--g)' }}>Online · Studying</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}><Phone size={16} /></button>
+          <button style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}><Video size={16} /></button>
         </div>
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {MESSAGES.map((m, i) => {
-          if (m.from === 'system') {
-            return (
-              <div key={i} style={{
-                textAlign: 'center', padding: '8px 14px', borderRadius: 10,
-                background: 'var(--as)', fontSize: 11, color: 'var(--a)', fontWeight: 500,
-                alignSelf: 'center',
-              }}>
-                {m.text}
-              </div>
-            );
-          }
-
+      <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {messages.map((m, i) => {
           const isMe = m.from === 'me';
-
-          if (m.type === 'session') {
-            return (
-              <div key={i} style={{
-                padding: '14px 16px', borderRadius: 'var(--radius)',
-                border: '1px solid var(--line)', background: 'var(--card)',
-                maxWidth: 340,
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>{m.text}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>{m.detail}</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button style={{
-                    padding: '6px 16px', borderRadius: 8, border: 'none',
-                    background: 'var(--g)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  }}>Accept</button>
-                  <button style={{
-                    padding: '6px 16px', borderRadius: 8, border: '1px solid var(--line)',
-                    background: 'var(--card)', color: 'var(--muted)', fontSize: 11, cursor: 'pointer',
-                  }}>Maybe later</button>
-                </div>
-              </div>
-            );
-          }
-
-          if (m.type === 'voice') {
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                borderRadius: 14, background: isMe ? 'var(--gs)' : 'var(--alt)',
-                maxWidth: 240, alignSelf: isMe ? 'flex-end' : 'flex-start',
-              }}>
-                <button style={{
-                  width: 28, height: 28, borderRadius: 8, border: 'none',
-                  background: 'var(--g)', color: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>▶</button>
-                <div style={{ flex: 1 }}>
-                  <div style={{ height: 20, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {Array.from({ length: 24 }, (_, j) => (
-                      <div key={j} style={{
-                        width: 2, height: 4 + Math.random() * 12, borderRadius: 1,
-                        background: 'var(--g)', opacity: 0.5 + Math.random() * 0.5,
-                      }} />
-                    ))}
-                  </div>
-                </div>
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>{m.duration}</span>
-              </div>
-            );
-          }
-
+          const showTime = i === 0 || new Date(m.time).getTime() - new Date(messages[i - 1].time).getTime() > 600000;
           return (
-            <div key={i} style={{
-              alignSelf: isMe ? 'flex-end' : 'flex-start',
-              maxWidth: '70%',
-            }}>
-              <div style={{
-                padding: '10px 14px', borderRadius: 14,
-                background: isMe ? 'var(--g)' : 'var(--alt)',
-                color: isMe ? '#fff' : 'var(--fg)',
-                fontSize: 13, lineHeight: 1.5,
-                borderBottomRightRadius: isMe ? 4 : 14,
-                borderBottomLeftRadius: isMe ? 14 : 4,
-              }}>
-                {m.text}
+            <React.Fragment key={m.id}>
+              {showTime && (
+                <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', margin: '8px 0' }}>
+                  {formatTime(m.time)}
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '70%', padding: '10px 14px', borderRadius: 14,
+                  borderBottomRightRadius: isMe ? 4 : 14,
+                  borderBottomLeftRadius: isMe ? 14 : 4,
+                  background: isMe ? 'var(--g)' : 'var(--card)',
+                  color: isMe ? '#fff' : 'var(--fg)',
+                  fontSize: 13, lineHeight: 1.5,
+                  border: isMe ? 'none' : '1px solid var(--line)',
+                }}>
+                  {m.text}
+                </div>
               </div>
-              <div style={{
-                fontSize: 10, color: 'var(--muted)', marginTop: 3,
-                textAlign: isMe ? 'right' : 'left', padding: '0 4px',
-              }}>
-                {m.time}
-              </div>
-            </div>
+            </React.Fragment>
           );
         })}
       </div>
 
       {/* Quick replies */}
-      <div style={{ padding: '0 24px 8px', display: 'flex', gap: 6 }}>
-        {['On my way!', 'Give me 5 min', 'Sounds good 👍'].map(r => (
-          <button key={r} style={{
-            padding: '5px 12px', borderRadius: 8, border: '1px solid var(--line)',
-            background: 'var(--card)', fontSize: 11, color: 'var(--muted)', cursor: 'pointer',
-          }}>{r}</button>
+      <div style={{ padding: '8px 24px 0', display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+        {QUICK_REPLIES.map(r => (
+          <button key={r} onClick={() => sendMessage(r)} style={{
+            padding: '5px 12px', borderRadius: 20, border: '1px solid var(--line)',
+            background: 'var(--card)', fontSize: 11, color: 'var(--fg)', cursor: 'pointer',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--gs)'; e.currentTarget.style.borderColor = 'var(--g)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--card)'; e.currentTarget.style.borderColor = 'var(--line)'; }}
+          >
+            {r}
+          </button>
         ))}
       </div>
 
       {/* Input */}
-      <div style={{
-        padding: '12px 24px 16px', borderTop: '1px solid var(--line)',
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
-          <Paperclip size={18} />
-        </button>
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', padding: '8px 14px',
-          borderRadius: 12, background: 'var(--alt)', border: '1px solid var(--line)',
-        }}>
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="Message Sakura..."
-            style={{
-              flex: 1, border: 'none', background: 'transparent', outline: 'none',
-              fontSize: 13, color: 'var(--fg)',
-            }}
+      <div style={{ padding: '12px 24px 16px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 14, border: '1px solid var(--line)', background: 'var(--card)' }}>
+          <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}><Paperclip size={18} /></button>
+          <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}><Smile size={18} /></button>
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+            placeholder="Message Siddhi..."
+            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--fg)', padding: '4px 0' }}
           />
-          <SmilePlus size={16} style={{ color: 'var(--muted)', cursor: 'pointer' }} />
+          <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}><Mic size={18} /></button>
+          <button onClick={() => sendMessage(input)} disabled={!input.trim()} style={{
+            width: 32, height: 32, borderRadius: 8, border: 'none',
+            background: input.trim() ? 'var(--g)' : 'var(--alt)',
+            color: input.trim() ? '#fff' : 'var(--muted)',
+            cursor: input.trim() ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}><Send size={16} /></button>
         </div>
-        <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
-          <Mic size={18} />
-        </button>
-        <button style={{
-          width: 36, height: 36, borderRadius: 10, border: 'none',
-          background: 'var(--g)', color: '#fff', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Send size={16} />
-        </button>
       </div>
     </div>
   );

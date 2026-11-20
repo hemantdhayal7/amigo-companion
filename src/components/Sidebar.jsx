@@ -86,7 +86,7 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
           }}
         >
           <Zap size={16} />
-          <span style={{ flex: 1, textAlign: 'left' }}>Ping Sakura</span>
+          <span style={{ flex: 1, textAlign: 'left' }}>Ping Siddhi</span>
           <span style={{ fontSize: 10, opacity: 0.7 }}>Ctrl ⇧ P</span>
         </button>
       </div>
@@ -97,7 +97,7 @@ export default function Sidebar({ active, onNavigate, nickname = 'Hemant', platf
           <Flame size={16} style={{ color: '#F59E0B' }} />
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>12-day streak</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Shared with Sakura</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Shared with Siddhi</div>
           </div>
         </div>
       </div>

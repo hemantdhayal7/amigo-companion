@@ -1,78 +1,89 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Circle, Play, AlertTriangle, Clock, Mail, Bell, Plus, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle2, Circle, Play, AlertTriangle, Clock, Mail, Bell, Plus, Sparkles, X, Trash2 } from 'lucide-react';
+import { load, save, uid, today } from '../utils/store';
 
-const TASKS = [
-  { id: 1, text: 'Solve 10 practice exam questions', done: false, subject: 'Statistics', inFocus: true, focusLeft: '18:24', est: '45 min' },
-  { id: 2, text: 'Draft certification summary sheet', done: false, subject: 'Certification', est: '30 min', planned: '8:45 PM' },
-  { id: 3, text: 'Final project slides — outline', done: false, shared: true, note: 'She finished 2 of 5 sections' },
+const DEFAULT_TASKS = [
+  { id: 'dt1', text: 'Solve 10 practice exam questions', done: false, subject: 'Statistics', est: '45 min', createdAt: new Date().toISOString() },
+  { id: 'dt2', text: 'Draft certification summary sheet', done: false, subject: 'Certification', est: '30 min', createdAt: new Date().toISOString() },
 ];
 
-const DONE = [
-  { id: 4, text: 'Review Chapter 3 formulas', time: '40 min' },
-  { id: 5, text: 'Watch lecture 12 recording', time: '55 min' },
+const DEFAULT_DEADLINES = [
+  { id: 'dd1', label: 'ML Assignment submission', due: 'Tomorrow, 11:59 PM', urgent: true },
+  { id: 'dd2', label: 'Stats quiz', due: 'Tue · 3 days left', prep: '4h prep planned' },
+  { id: 'dd3', label: 'Final project presentation', due: 'Sat 28 Nov · 14 days', shared: true },
 ];
 
-const DEADLINES = [
-  { label: 'ML Assignment submission', due: 'Tomorrow, 11:59 PM · 29 hours left', urgent: true },
-  { label: 'Stats quiz', due: 'Tue 17 Nov · 3 days left', prep: '4h prep planned' },
-  { label: 'Final project presentation', due: 'Sat 28 Nov · 14 days left', shared: true },
-];
-
-const REMINDERS = [
-  { label: 'Submit ML assignment', due: 'Tomorrow, 6:00 PM', note: 'also reminds Sakura to check on you' },
-  { label: 'Review study group notes', due: 'Mon 16 Nov, 9:00 AM', snooze: true },
-  { label: 'Start final project slides', due: 'Wed 18 Nov, 3:00 PM · repeats weekly', snooze: true },
-];
-
-const EMAILS = [
-  { from: 'Registrar — Course registration', preview: 'Action required: confirm spring semester...', time: '5h ago', action: true },
-  { from: 'Prof. Sharma — Assignment exte...', preview: 'Re: Request for a 2-day extension on ML...', time: '2d ago', awaiting: true },
-  { from: 'Study group — Meeting notes', preview: "Shared notes from Thursday's session", time: '1d ago', replied: true },
+const DEFAULT_REMINDERS = [
+  { id: 'dr1', label: 'Submit ML assignment', due: 'Tomorrow, 6:00 PM', snoozed: false },
+  { id: 'dr2', label: 'Review study group notes', due: 'Mon, 9:00 AM', snoozed: false },
 ];
 
 const TABS = ['Tasks', 'Deadlines', 'Reminders', 'Email'];
 
 export default function Planner() {
   const [tab, setTab] = useState('Tasks');
-  const [tasks, setTasks] = useState(TASKS);
+  const [tasks, setTasks] = useState(() => load('planner_tasks', DEFAULT_TASKS));
+  const [deadlines, setDeadlines] = useState(() => load('planner_deadlines', DEFAULT_DEADLINES));
+  const [reminders, setReminders] = useState(() => load('planner_reminders', DEFAULT_REMINDERS));
+  const [newTask, setNewTask] = useState('');
+  const [newDeadline, setNewDeadline] = useState('');
+  const [newReminder, setNewReminder] = useState('');
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [showAddDeadline, setShowAddDeadline] = useState(false);
+  const [showAddReminder, setShowAddReminder] = useState(false);
 
-  const toggleTask = (id) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  useEffect(() => { save('planner_tasks', tasks); }, [tasks]);
+  useEffect(() => { save('planner_deadlines', deadlines); }, [deadlines]);
+  useEffect(() => { save('planner_reminders', reminders); }, [reminders]);
+
+  const toggleTask = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done, doneAt: !t.done ? new Date().toISOString() : null } : t));
+  const deleteTask = (id) => setTasks(prev => prev.filter(t => t.id !== id));
+  const addTask = () => {
+    if (!newTask.trim()) return;
+    setTasks(prev => [...prev, { id: uid(), text: newTask.trim(), done: false, createdAt: new Date().toISOString() }]);
+    setNewTask('');
+    setShowAddTask(false);
   };
+  const addDeadline = () => {
+    if (!newDeadline.trim()) return;
+    setDeadlines(prev => [...prev, { id: uid(), label: newDeadline.trim(), due: 'Set date...', urgent: false }]);
+    setNewDeadline('');
+    setShowAddDeadline(false);
+  };
+  const deleteDeadline = (id) => setDeadlines(prev => prev.filter(d => d.id !== id));
+  const addReminder = () => {
+    if (!newReminder.trim()) return;
+    setReminders(prev => [...prev, { id: uid(), label: newReminder.trim(), due: 'Set time...', snoozed: false }]);
+    setNewReminder('');
+    setShowAddReminder(false);
+  };
+  const deleteReminder = (id) => setReminders(prev => prev.filter(r => r.id !== id));
+  const snoozeReminder = (id) => setReminders(prev => prev.map(r => r.id === id ? { ...r, snoozed: !r.snoozed } : r));
+
+  const activeTasks = tasks.filter(t => !t.done);
+  const doneTasks = tasks.filter(t => t.done);
+  const pct = tasks.length ? Math.round((doneTasks.length / tasks.length) * 100) : 0;
 
   return (
     <div style={{ padding: '28px 32px', height: '100%', overflowY: 'auto' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: 'var(--fg)', margin: 0 }}>
-            Planner
-          </h1>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: 'var(--fg)', margin: 0 }}>Planner</h1>
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0' }}>
-            2 done · 2 left · 1 deadline tomorrow · 1 email needs action
+            {doneTasks.length} done · {activeTasks.length} left · {deadlines.filter(d => d.urgent).length} urgent
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <div style={{
-            height: 8, width: 100, borderRadius: 4, background: 'var(--alt)', overflow: 'hidden',
-            alignSelf: 'center',
-          }}>
-            <div style={{ height: '100%', width: '50%', borderRadius: 4, background: 'var(--g)' }} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ height: 8, width: 100, borderRadius: 4, background: 'var(--alt)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, borderRadius: 4, background: 'var(--g)', transition: 'width 0.3s' }} />
           </div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--g)' }}>50%</span>
-          <button style={{
-            padding: '8px 16px', borderRadius: 10, border: '1px solid var(--line)',
-            background: 'var(--card)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-            color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <Sparkles size={14} /> Plan my day
-          </button>
-          <button style={{
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--g)' }}>{pct}%</span>
+          <button onClick={() => setShowAddTask(true)} style={{
             padding: '8px 16px', borderRadius: 10, border: 'none',
             background: 'var(--g)', color: '#fff', fontSize: 12, fontWeight: 600,
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <Plus size={14} /> Add
+            <Plus size={14} /> Add task
           </button>
         </div>
       </div>
@@ -80,7 +91,6 @@ export default function Planner() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px 280px', gap: 20 }}>
         {/* Tasks column */}
         <div>
-          {/* Tab pills */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--alt)', padding: 3, borderRadius: 10, width: 'fit-content' }}>
             {TABS.map(t => (
               <button key={t} onClick={() => setTab(t)} style={{
@@ -90,178 +100,160 @@ export default function Planner() {
                 color: tab === t ? 'var(--fg)' : 'var(--muted)',
                 boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
               }}>
-                {t}
+                {t} {t === 'Tasks' && `(${activeTasks.length})`}
               </button>
             ))}
           </div>
 
           {tab === 'Tasks' && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 10 }}>Today</div>
+              {showAddTask && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <input value={newTask} onChange={e => setNewTask(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addTask()}
+                    placeholder="What do you need to do?" autoFocus
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--g)', background: 'var(--card)', fontSize: 13, color: 'var(--fg)', outline: 'none' }}
+                  />
+                  <button onClick={addTask} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--g)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                  <button onClick={() => { setShowAddTask(false); setNewTask(''); }} style={{ padding: '8px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', cursor: 'pointer', color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
+              {activeTasks.length === 0 && !showAddTask && (
+                <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                  All done for today! Add a new task to keep going.
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {tasks.map(t => (
-                  <div key={t.id} style={{
-                    padding: '14px 16px', borderRadius: 'var(--radius)',
-                    border: t.inFocus ? '2px solid var(--g)' : '1px solid var(--line)',
-                    background: 'var(--card)',
-                  }}>
+                {activeTasks.map(t => (
+                  <div key={t.id} style={{ padding: '14px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--card)' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                      <button onClick={() => toggleTask(t.id)} style={{
-                        border: 'none', background: 'none', cursor: 'pointer', padding: 0, marginTop: 1,
-                        color: t.done ? 'var(--g)' : 'var(--line)',
-                      }}>
-                        {t.done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                      <button onClick={() => toggleTask(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, marginTop: 1, color: 'var(--line)' }}>
+                        <Circle size={18} />
                       </button>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', textDecoration: t.done ? 'line-through' : 'none' }}>
-                          {t.text}
-                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{t.text}</div>
                         <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                          {t.inFocus && (
-                            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gt)', background: 'var(--gs)', padding: '2px 8px', borderRadius: 6 }}>
-                              In focus · {t.focusLeft} left
-                            </span>
-                          )}
-                          {t.subject && (
-                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', background: 'var(--alt)', padding: '2px 8px', borderRadius: 6 }}>
-                              {t.subject}
-                            </span>
-                          )}
-                          {t.est && (
-                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t.est} est.</span>
-                          )}
-                          {t.planned && (
-                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>· planned {t.planned}</span>
-                          )}
-                          {t.shared && (
-                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--p)', background: 'var(--ps)', padding: '2px 8px', borderRadius: 6 }}>
-                              Shared with Sakura
-                            </span>
-                          )}
+                          {t.subject && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', background: 'var(--alt)', padding: '2px 8px', borderRadius: 6 }}>{t.subject}</span>}
+                          {t.est && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t.est} est.</span>}
                         </div>
-                        {t.note && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{t.note}</div>}
                       </div>
-                      {t.planned && !t.inFocus && (
-                        <button style={{
-                          width: 28, height: 28, borderRadius: 8, border: '1px solid var(--line)',
-                          background: 'var(--card)', cursor: 'pointer', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', color: 'var(--g)',
-                        }}>
-                          <Play size={12} />
-                        </button>
-                      )}
+                      <button onClick={() => deleteTask(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, color: 'var(--muted)', opacity: 0.5 }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.5}>
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', margin: '20px 0 10px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Completed Today
-              </div>
-              {DONE.map((t, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
-                }}>
-                  <CheckCircle2 size={16} style={{ color: 'var(--g)' }} />
-                  <span style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'line-through', flex: 1 }}>{t.text}</span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t.time}</span>
-                </div>
-              ))}
+              {doneTasks.length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', margin: '20px 0 10px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Completed ({doneTasks.length})
+                  </div>
+                  {doneTasks.map(t => (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+                      <button onClick={() => toggleTask(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, color: 'var(--g)' }}>
+                        <CheckCircle2 size={16} />
+                      </button>
+                      <span style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'line-through', flex: 1 }}>{t.text}</span>
+                      <button onClick={() => deleteTask(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, color: 'var(--muted)', opacity: 0.4 }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
 
           {tab === 'Deadlines' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {DEADLINES.map((d, i) => (
-                <div key={i} style={{
-                  padding: '14px 16px', borderRadius: 'var(--radius)',
-                  border: `1px solid ${d.urgent ? 'var(--r)' : 'var(--line)'}`,
-                  background: 'var(--card)',
-                }}>
+              {deadlines.map(d => (
+                <div key={d.id} style={{ padding: '14px 16px', borderRadius: 'var(--radius)', border: `1px solid ${d.urgent ? 'var(--r)' : 'var(--line)'}`, background: 'var(--card)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{d.label}</div>
-                    {d.urgent && <span style={{ fontSize: 10, fontWeight: 600, color: '#fff', background: 'var(--r)', padding: '2px 8px', borderRadius: 6 }}>Urgent</span>}
-                    {d.shared && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--b)', background: 'var(--bs)', padding: '2px 8px', borderRadius: 6 }}>Shared</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {d.urgent && <span style={{ fontSize: 10, fontWeight: 600, color: '#fff', background: 'var(--r)', padding: '2px 8px', borderRadius: 6 }}>Urgent</span>}
+                      <button onClick={() => deleteDeadline(d.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, color: 'var(--muted)', opacity: 0.5 }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                   <div style={{ fontSize: 12, color: d.urgent ? 'var(--r)' : 'var(--muted)', marginTop: 4 }}>{d.due}</div>
-                  {d.prep && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{d.prep}</div>}
                 </div>
               ))}
+              {showAddDeadline ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={newDeadline} onChange={e => setNewDeadline(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeadline()}
+                    placeholder="Deadline name..." autoFocus
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--a)', background: 'var(--card)', fontSize: 13, color: 'var(--fg)', outline: 'none' }} />
+                  <button onClick={addDeadline} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--a)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                </div>
+              ) : (
+                <button onClick={() => setShowAddDeadline(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: '1px dashed var(--line)', background: 'transparent', color: 'var(--muted)', fontSize: 12, cursor: 'pointer', width: '100%', justifyContent: 'center' }}>
+                  <Plus size={14} /> Add deadline
+                </button>
+              )}
             </div>
           )}
 
           {tab === 'Reminders' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {REMINDERS.map((r, i) => (
-                <div key={i} style={{
-                  padding: '14px 16px', borderRadius: 'var(--radius)',
-                  border: '1px solid var(--line)', background: 'var(--card)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}>
+              {reminders.map(r => (
+                <div key={r.id} style={{ padding: '14px 16px', borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: r.snoozed ? 0.5 : 1 }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{r.label}</div>
-                    <div style={{ fontSize: 12, color: 'var(--a)', marginTop: 2 }}>{r.due}</div>
-                    {r.note && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{r.note}</div>}
+                    <div style={{ fontSize: 12, color: 'var(--a)', marginTop: 2 }}>{r.due}{r.snoozed ? ' · Snoozed' : ''}</div>
                   </div>
-                  {r.snooze && (
-                    <button style={{
-                      padding: '5px 12px', borderRadius: 8, border: '1px solid var(--line)',
-                      background: 'var(--card)', fontSize: 11, color: 'var(--muted)', cursor: 'pointer',
-                    }}>Snooze</button>
-                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => snoozeReminder(r.id)} style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--card)', fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>
+                      {r.snoozed ? 'Unsnooze' : 'Snooze'}
+                    </button>
+                    <button onClick={() => deleteReminder(r.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, color: 'var(--muted)' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
-              <button style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px',
-                borderRadius: 10, border: '1px dashed var(--line)', background: 'transparent',
-                color: 'var(--muted)', fontSize: 12, cursor: 'pointer', width: '100%', justifyContent: 'center',
-              }}>
-                <Bell size={14} /> Add reminder
-              </button>
+              {showAddReminder ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={newReminder} onChange={e => setNewReminder(e.target.value)} onKeyDown={e => e.key === 'Enter' && addReminder()}
+                    placeholder="Remind me to..." autoFocus
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--b)', background: 'var(--card)', fontSize: 13, color: 'var(--fg)', outline: 'none' }} />
+                  <button onClick={addReminder} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--b)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                </div>
+              ) : (
+                <button onClick={() => setShowAddReminder(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: '1px dashed var(--line)', background: 'transparent', color: 'var(--muted)', fontSize: 12, cursor: 'pointer', width: '100%', justifyContent: 'center' }}>
+                  <Bell size={14} /> Add reminder
+                </button>
+              )}
             </div>
           )}
 
           {tab === 'Email' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {EMAILS.map((e, i) => (
-                <div key={i} style={{
-                  padding: '14px 16px', borderRadius: 'var(--radius)',
-                  border: '1px solid var(--line)', background: 'var(--card)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{e.from}</span>
-                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{e.time}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>{e.preview}</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {e.action && <span style={{ fontSize: 10, fontWeight: 600, color: '#fff', background: 'var(--r)', padding: '2px 8px', borderRadius: 6 }}>Action needed</span>}
-                    {e.action && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--b)', cursor: 'pointer' }}>Make it a task</span>}
-                    {e.awaiting && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--a)', background: 'var(--as)', padding: '2px 8px', borderRadius: 6 }}>Awaiting reply</span>}
-                    {e.awaiting && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--b)', cursor: 'pointer' }}>Send follow-up</span>}
-                    {e.replied && <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--g)', background: 'var(--gs)', padding: '2px 8px', borderRadius: 6 }}>Replied</span>}
-                  </div>
-                </div>
-              ))}
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13, borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--card)' }}>
+              Connect Gmail in Settings to track emails here.
             </div>
           )}
         </div>
 
-        {/* Deadlines column */}
+        {/* Deadlines sidebar */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <AlertTriangle size={14} style={{ color: 'var(--a)' }} />
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Deadlines</span>
             </div>
-            <button style={{ fontSize: 11, color: 'var(--b)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Add</button>
+            <span style={{ fontSize: 11, color: 'var(--a)', fontWeight: 600 }}>{deadlines.filter(d => d.urgent).length} urgent</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {DEADLINES.map((d, i) => (
-              <div key={i} style={{
-                padding: '12px 14px', borderRadius: 10,
-                border: `1px solid ${d.urgent ? 'var(--r)' : 'var(--line)'}`,
-                background: 'var(--card)',
-              }}>
+            {deadlines.slice(0, 4).map(d => (
+              <div key={d.id} style={{ padding: '12px 14px', borderRadius: 10, border: `1px solid ${d.urgent ? 'var(--r)' : 'var(--line)'}`, background: 'var(--card)' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{d.label}</div>
                 <div style={{ fontSize: 11, color: d.urgent ? 'var(--r)' : 'var(--muted)', marginTop: 2 }}>{d.due}</div>
               </div>
@@ -271,14 +263,10 @@ export default function Planner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 20, marginBottom: 12 }}>
             <Bell size={14} style={{ color: 'var(--muted)' }} />
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Reminders</span>
-            <button style={{ fontSize: 11, color: 'var(--b)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, marginLeft: 'auto' }}>Add</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {REMINDERS.map((r, i) => (
-              <div key={i} style={{
-                padding: '12px 14px', borderRadius: 10,
-                border: '1px solid var(--line)', background: 'var(--card)',
-              }}>
+            {reminders.filter(r => !r.snoozed).slice(0, 3).map(r => (
+              <div key={r.id} style={{ padding: '12px 14px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{r.label}</div>
                 <div style={{ fontSize: 11, color: 'var(--a)', marginTop: 2 }}>{r.due}</div>
               </div>
@@ -286,34 +274,28 @@ export default function Planner() {
           </div>
         </div>
 
-        {/* Email tracker column */}
+        {/* Stats column */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-            <Mail size={14} style={{ color: 'var(--b)' }} />
-            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Email tracker</span>
-            <span style={{ fontSize: 10, color: 'var(--b)', background: 'var(--bs)', padding: '2px 8px', borderRadius: 6, fontWeight: 600, marginLeft: 'auto' }}>3 tracked</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14, textAlign: 'center' }}>
-            {[{ n: 5, l: 'Unread', c: 'var(--fg)' }, { n: 2, l: 'Awaiting', c: 'var(--a)' }, { n: 12, l: 'Resolved', c: 'var(--g)' }].map((s, i) => (
-              <div key={i} style={{ padding: '8px 0', borderRadius: 10, background: 'var(--alt)' }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: s.c, fontFamily: "'Space Grotesk', sans-serif" }}>{s.n}</div>
-                <div style={{ fontSize: 9, color: 'var(--muted)' }}>{s.l}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 12 }}>Today's Stats</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            {[
+              { n: activeTasks.length, l: 'Active', c: 'var(--b)' },
+              { n: doneTasks.length, l: 'Done', c: 'var(--g)' },
+              { n: deadlines.length, l: 'Deadlines', c: 'var(--a)' },
+              { n: reminders.filter(r => !r.snoozed).length, l: 'Reminders', c: 'var(--p)' },
+            ].map((s, i) => (
+              <div key={i} style={{ padding: '12px 0', borderRadius: 10, background: 'var(--alt)', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: s.c, fontFamily: "'Space Grotesk', sans-serif" }}>{s.n}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{s.l}</div>
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {EMAILS.map((e, i) => (
-              <div key={i} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>{e.from}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{e.preview}</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {e.action && <span style={{ fontSize: 9, fontWeight: 600, color: '#fff', background: 'var(--r)', padding: '2px 6px', borderRadius: 4 }}>Action needed</span>}
-                  {e.action && <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--b)', cursor: 'pointer' }}>Make it a task</span>}
-                  {e.awaiting && <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--a)', background: 'var(--as)', padding: '2px 6px', borderRadius: 4 }}>Awaiting reply</span>}
-                  {e.replied && <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--g)', background: 'var(--gs)', padding: '2px 6px', borderRadius: 4 }}>Replied</span>}
-                </div>
-              </div>
-            ))}
+          <div style={{ padding: 16, borderRadius: 'var(--radius)', background: 'var(--card)', border: '1px solid var(--line)' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>Progress</div>
+            <div style={{ height: 8, borderRadius: 4, background: 'var(--alt)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, borderRadius: 4, background: 'var(--g)', transition: 'width 0.3s' }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>{pct}% of tasks complete</div>
           </div>
         </div>
       </div>

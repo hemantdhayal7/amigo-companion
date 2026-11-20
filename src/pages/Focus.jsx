@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, RotateCcw, Coffee, Shield, Volume2 } from 'lucide-react';
+import { load, save, today } from '../utils/store';
 
 const MODES = [
   { id: 'pomodoro', label: 'Pomodoro', duration: 25 * 60, breakDur: 5 * 60 },
@@ -7,27 +8,66 @@ const MODES = [
   { id: 'sprint', label: 'Sprint', duration: 15 * 60, breakDur: 3 * 60 },
 ];
 
+const SOUNDS = ['Rain', 'Lo-fi', 'Forest', 'Cafe', 'White noise', 'Silent'];
+
 export default function Focus() {
-  const [mode, setMode] = useState('pomodoro');
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [mode, setMode] = useState(() => load('focus_mode', 'pomodoro'));
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const m = MODES.find(x => x.id === load('focus_mode', 'pomodoro'));
+    return m ? m.duration : 25 * 60;
+  });
   const [running, setRunning] = useState(false);
   const [round, setRound] = useState(1);
   const [isBreak, setIsBreak] = useState(false);
+  const [sound, setSound] = useState(() => load('focus_sound', 'Lo-fi'));
+  const [focusLog, setFocusLog] = useState(() => load('focus_log', { totalMinutes: 0, sessions: 0, longestMin: 0, breaks: 0, daily: {} }));
   const intervalRef = useRef(null);
+  const sessionStartRef = useRef(null);
 
   const currentMode = MODES.find(m => m.id === mode);
   const total = isBreak ? currentMode.breakDur : currentMode.duration;
 
+  useEffect(() => { save('focus_sound', sound); }, [sound]);
+  useEffect(() => { save('focus_log', focusLog); }, [focusLog]);
+
+  const logSession = (durationSec) => {
+    const mins = Math.round(durationSec / 60);
+    if (mins < 1) return;
+    const d = today();
+    setFocusLog(prev => {
+      const daily = { ...prev.daily };
+      daily[d] = (daily[d] || 0) + mins;
+      return {
+        totalMinutes: prev.totalMinutes + mins,
+        sessions: prev.sessions + 1,
+        longestMin: Math.max(prev.longestMin, mins),
+        breaks: prev.breaks,
+        daily,
+      };
+    });
+  };
+
+  const logBreak = () => {
+    setFocusLog(prev => ({ ...prev, breaks: prev.breaks + 1 }));
+  };
+
   useEffect(() => {
     if (running) {
+      if (!isBreak && !sessionStartRef.current) {
+        sessionStartRef.current = Date.now();
+      }
       intervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
             setRunning(false);
             if (!isBreak) {
+              const elapsed = sessionStartRef.current ? (Date.now() - sessionStartRef.current) / 1000 : currentMode.duration;
+              logSession(elapsed);
+              sessionStartRef.current = null;
               setIsBreak(true);
               return currentMode.breakDur;
             } else {
+              logBreak();
               setIsBreak(false);
               setRound(r => r + 1);
               return currentMode.duration;
@@ -41,18 +81,47 @@ export default function Focus() {
   }, [running, isBreak, currentMode]);
 
   const switchMode = (id) => {
+    if (running && sessionStartRef.current) {
+      const elapsed = (Date.now() - sessionStartRef.current) / 1000;
+      logSession(elapsed);
+      sessionStartRef.current = null;
+    }
     const m = MODES.find(x => x.id === id);
     setMode(id);
+    save('focus_mode', id);
     setTimeLeft(m.duration);
     setRunning(false);
     setIsBreak(false);
     setRound(1);
   };
 
+  const resetTimer = () => {
+    if (running && sessionStartRef.current && !isBreak) {
+      const elapsed = (Date.now() - sessionStartRef.current) / 1000;
+      logSession(elapsed);
+      sessionStartRef.current = null;
+    }
+    setTimeLeft(total);
+    setRunning(false);
+  };
+
+  const skipForward = () => {
+    if (!isBreak && sessionStartRef.current) {
+      const elapsed = (Date.now() - sessionStartRef.current) / 1000;
+      logSession(elapsed);
+      sessionStartRef.current = null;
+    }
+    setTimeLeft(0);
+  };
+
   const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const secs = String(timeLeft % 60).padStart(2, '0');
   const progress = 1 - timeLeft / total;
   const circumference = 2 * Math.PI * 120;
+
+  const todayMin = focusLog.daily?.[today()] || 0;
+  const todayH = Math.floor(todayMin / 60);
+  const todayM = todayMin % 60;
 
   return (
     <div style={{ padding: '28px 32px', height: '100%', overflowY: 'auto' }}>
@@ -117,7 +186,7 @@ export default function Focus() {
 
           {/* Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => { setTimeLeft(total); setRunning(false); }} style={{
+            <button onClick={resetTimer} style={{
               width: 40, height: 40, borderRadius: 10, border: '1px solid var(--line)',
               background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--muted)',
@@ -132,7 +201,7 @@ export default function Focus() {
             }}>
               {running ? <Pause size={24} /> : <Play size={24} style={{ marginLeft: 2 }} />}
             </button>
-            <button onClick={() => { setTimeLeft(0); }} style={{
+            <button onClick={skipForward} style={{
               width: 40, height: 40, borderRadius: 10, border: '1px solid var(--line)',
               background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--muted)',
@@ -160,7 +229,7 @@ export default function Focus() {
                 fontSize: 13, fontWeight: 700, color: 'var(--p)',
               }}>S</div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Sakura</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Siddhi</div>
                 <div style={{ fontSize: 11, color: 'var(--g)' }}>Also focusing · 18:42 left</div>
               </div>
             </div>
@@ -177,12 +246,12 @@ export default function Focus() {
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Soundscape</span>
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['Rain', 'Lo-fi', 'Forest', 'Cafe', 'White noise', 'Silent'].map(s => (
-                <button key={s} style={{
+              {SOUNDS.map(s => (
+                <button key={s} onClick={() => setSound(s)} style={{
                   padding: '5px 12px', borderRadius: 8, border: '1px solid var(--line)',
-                  background: s === 'Lo-fi' ? 'var(--gs)' : 'var(--card)',
-                  color: s === 'Lo-fi' ? 'var(--gt)' : 'var(--muted)',
-                  fontSize: 11, fontWeight: s === 'Lo-fi' ? 600 : 400, cursor: 'pointer',
+                  background: s === sound ? 'var(--gs)' : 'var(--card)',
+                  color: s === sound ? 'var(--gt)' : 'var(--muted)',
+                  fontSize: 11, fontWeight: s === sound ? 600 : 400, cursor: 'pointer',
                 }}>
                   {s}
                 </button>
@@ -213,10 +282,10 @@ export default function Focus() {
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 10 }}>Today</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
-                { label: 'Focus time', value: '3h 20m' },
-                { label: 'Sessions', value: '6' },
-                { label: 'Longest streak', value: '50 min' },
-                { label: 'Breaks taken', value: '5' },
+                { label: 'Focus time', value: `${todayH}h ${todayM}m` },
+                { label: 'Sessions', value: String(focusLog.sessions) },
+                { label: 'Longest streak', value: `${focusLog.longestMin} min` },
+                { label: 'Breaks taken', value: String(focusLog.breaks) },
               ].map((s, i) => (
                 <div key={i}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</div>
