@@ -5,16 +5,12 @@ export const isTauri = () =>
   Boolean(
     window.__TAURI_INTERNALS__ ||
     window.__TAURI__ ||
-    window.__TAURI_METADATA__ ||
-    window.__IS_DESKTOP__ ||
-    navigator.userAgent.includes('Tauri')
+    window.__TAURI_METADATA__
   );
 
-/**
- * Updates the native Tauri window hit-test regions so that clicks on
- * transparent or invisible areas fall through to background applications,
- * while clicks on the visible widgets and modals are fully handled.
- */
+export const isElectron = () =>
+  typeof window !== 'undefined' && Boolean(window.electronAPI?.isElectron);
+
 export function updateInteractiveRegions() {
   if (!isTauri()) return;
 
@@ -22,11 +18,6 @@ export function updateInteractiveRegions() {
   const regions = [];
 
   elements.forEach((el) => {
-    // Check if element is attached and visible
-    if (!el || el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0) {
-      // In case offsetParent is null due to fixed positioning, check rect directly
-    }
-
     const rect = el.getBoundingClientRect();
     if (rect.width > 2 && rect.height > 2) {
       regions.push({
@@ -38,7 +29,6 @@ export function updateInteractiveRegions() {
     }
   });
 
-  // Fallback if no specific data-amigo-interactive items are rendered yet
   if (regions.length === 0) {
     const container = document.getElementById('amigo-floating-container');
     if (container) {
@@ -55,30 +45,32 @@ export function updateInteractiveRegions() {
   }
 
   invoke('set_interactive_regions', { regions }).catch((err) => {
-    // Silently ignore if invoked during app unload
     console.debug('[HitTest] set_interactive_regions:', err);
   });
 }
 
-/**
- * Temporarily locks the window in interactive mode (e.g. during drag or modal opening)
- */
 export function setForceInteractive(force) {
+  if (isElectron()) {
+    if (force) {
+      window.electronAPI.setIgnoreMouseEvents(false);
+    } else {
+      window.electronAPI.setIgnoreMouseEvents(true, true);
+    }
+    return;
+  }
   if (!isTauri()) return;
   invoke('set_force_interactive', { force }).catch(() => {});
 }
 
-/**
- * Directly toggle window cursor ignore events
- */
 export function setIgnoreCursorEvents(ignore) {
+  if (isElectron()) {
+    window.electronAPI.setIgnoreMouseEvents(ignore, true);
+    return;
+  }
   if (!isTauri()) return;
   invoke('set_ignore_cursor_events', { ignore }).catch(() => {});
 }
 
-/**
- * Native desktop window hide/show for System Tray / Menu Bar Mode
- */
 export function hideAppWindow() {
   if (typeof window !== 'undefined' && window.electronAPI?.hideWindow) {
     window.electronAPI.hideWindow();
@@ -105,9 +97,6 @@ export function toggleAppWindowVisibility() {
   return invoke('toggle_window_visibility').catch(() => false);
 }
 
-/**
- * Dynamically resize window for screen sharing modes: 'fullscreen', 'theater', 'compact'
- */
 export function resizeWindowForScreenshare(mode) {
   if (typeof window !== 'undefined' && window.electronAPI?.resizeWindow) {
     window.electronAPI.resizeWindow(mode);
@@ -119,25 +108,95 @@ export function resizeWindowForScreenshare(mode) {
   });
 }
 
-/**
- * Automatically observes the DOM and syncs interactive regions on resize,
- * mutations, and periodic animations.
- */
+function setupElectronHitTest() {
+  const api = window.electronAPI;
+  if (!api?.setIgnoreMouseEvents) return () => {};
+
+  const onEnterInteractive = () => {
+    api.setIgnoreMouseEvents(false);
+  };
+
+  const onLeaveInteractive = () => {
+    api.setIgnoreMouseEvents(true, true);
+  };
+
+  const bindElement = (el) => {
+    el.addEventListener('mouseenter', onEnterInteractive);
+    el.addEventListener('mouseleave', onLeaveInteractive);
+  };
+
+  const unbindElement = (el) => {
+    el.removeEventListener('mouseenter', onEnterInteractive);
+    el.removeEventListener('mouseleave', onLeaveInteractive);
+  };
+
+  let boundElements = new Set();
+
+  const syncElements = () => {
+    const elements = document.querySelectorAll('[data-amigo-interactive="true"]');
+    const currentSet = new Set(elements);
+
+    boundElements.forEach((el) => {
+      if (!currentSet.has(el)) {
+        unbindElement(el);
+        boundElements.delete(el);
+      }
+    });
+
+    currentSet.forEach((el) => {
+      if (!boundElements.has(el)) {
+        bindElement(el);
+        boundElements.add(el);
+      }
+    });
+
+    if (boundElements.size === 0) {
+      const container = document.getElementById('amigo-floating-container');
+      if (container && !boundElements.has(container)) {
+        bindElement(container);
+        boundElements.add(container);
+      }
+    }
+  };
+
+  syncElements();
+
+  let mutationObserver = null;
+  if (typeof MutationObserver !== 'undefined') {
+    mutationObserver = new MutationObserver(() => syncElements());
+    const targetNode = document.getElementById('amigo-floating-container') || document.body;
+    if (targetNode) {
+      mutationObserver.observe(targetNode, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-amigo-interactive'],
+      });
+    }
+  }
+
+  const interval = setInterval(syncElements, 500);
+
+  return () => {
+    boundElements.forEach(unbindElement);
+    boundElements.clear();
+    if (mutationObserver) mutationObserver.disconnect();
+    clearInterval(interval);
+  };
+}
+
 export function setupHitTestSync() {
+  if (isElectron()) return setupElectronHitTest();
   if (!isTauri()) return () => {};
 
-  // Immediate initial sync
   updateInteractiveRegions();
 
-  // Sync on window resize
   const onResize = () => updateInteractiveRegions();
   window.addEventListener('resize', onResize);
 
-  // Release forced interactivity on global mouse up (e.g. drag released)
   const onMouseUp = () => setForceInteractive(false);
   window.addEventListener('mouseup', onMouseUp);
 
-  // ResizeObserver on body / container
   let resizeObserver = null;
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
@@ -152,7 +211,6 @@ export function setupHitTestSync() {
     }
   }
 
-  // MutationObserver on floating container
   let mutationObserver = null;
   if (typeof MutationObserver !== 'undefined') {
     mutationObserver = new MutationObserver(() => {
@@ -169,7 +227,6 @@ export function setupHitTestSync() {
     }
   }
 
-  // Periodic heartbeat sync (e.g. during dial expansion/collapse CSS transitions)
   const interval = setInterval(() => {
     updateInteractiveRegions();
   }, 250);

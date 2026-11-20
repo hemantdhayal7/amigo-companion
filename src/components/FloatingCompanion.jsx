@@ -404,6 +404,9 @@ export default function FloatingCompanion({
 
       let lastScreenX = e.screenX;
       let lastScreenY = e.screenY;
+      let dragFrame = null;
+      let accDx = 0;
+      let accDy = 0;
 
       const onPointerMove = (moveEvt) => {
         const dx = moveEvt.screenX - lastScreenX;
@@ -411,15 +414,39 @@ export default function FloatingCompanion({
         if (dx !== 0 || dy !== 0) {
           lastScreenX = moveEvt.screenX;
           lastScreenY = moveEvt.screenY;
-          if (window.electronAPI.dragMove) {
-            window.electronAPI.dragMove(dx, dy);
-          } else if (window.electronAPI.moveWindow) {
-            window.electronAPI.moveWindow(dx, dy);
+          accDx += dx;
+          accDy += dy;
+          if (!dragFrame) {
+            dragFrame = requestAnimationFrame(() => {
+              dragFrame = null;
+              const sendDx = accDx;
+              const sendDy = accDy;
+              accDx = 0;
+              accDy = 0;
+              if (window.electronAPI.dragMove) {
+                window.electronAPI.dragMove(sendDx, sendDy);
+              } else if (window.electronAPI.moveWindow) {
+                window.electronAPI.moveWindow(sendDx, sendDy);
+              }
+            });
           }
         }
       };
 
       const onPointerUp = (upEvt) => {
+        if (dragFrame) {
+          cancelAnimationFrame(dragFrame);
+          dragFrame = null;
+        }
+        if (accDx !== 0 || accDy !== 0) {
+          if (window.electronAPI.dragMove) {
+            window.electronAPI.dragMove(accDx, accDy);
+          } else if (window.electronAPI.moveWindow) {
+            window.electronAPI.moveWindow(accDx, accDy);
+          }
+          accDx = 0;
+          accDy = 0;
+        }
         if (hasPointerCapture && upEvt && upEvt.pointerId !== undefined) {
           try {
             targetEl.releasePointerCapture(upEvt.pointerId);
