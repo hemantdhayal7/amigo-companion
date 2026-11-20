@@ -126,14 +126,8 @@ export default function App() {
     return localStorage.getItem('study_ring_mode') || 'menu';
   });
 
-  // Resizable Circle scale: 0.7 to 1.6
-  const [companionScale, setCompanionScale] = useState(() => {
-    try {
-      const saved = localStorage.getItem('study_companion_scale');
-      return saved ? parseFloat(saved) : 1.0;
-    } catch {
-      return 1.0;
-    }
+  const [page, setPage] = useState(() => {
+    try { return localStorage.getItem('amigo_page') || 'home'; } catch { return 'home'; }
   });
 
   const [customizerTab, setCustomizerTab] = useState('emojis'); // 'emojis' | 'menu'
@@ -332,61 +326,13 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('study_quick_emojis', JSON.stringify(quickEmojis));
-  }, [quickEmojis]);
+    try { localStorage.setItem('amigo_page', page); } catch {}
+  }, [page]);
 
   useEffect(() => {
-    localStorage.setItem('study_room_id', roomId);
-    localStorage.setItem('study_room_secret', roomSecret);
-    localStorage.setItem('study_server_url', serverUrl);
-    localStorage.setItem('study_nickname', nickname);
-
-    // Keep URL query params in sync for easy sharing and refresh persistence
-    if (typeof window !== 'undefined' && window.history?.replaceState) {
-      try {
-        const u = new URL(window.location.href);
-        u.searchParams.set('room', roomId);
-        u.searchParams.set('secret', roomSecret);
-        u.searchParams.set('server', serverUrl);
-        window.history.replaceState(null, '', u.toString());
-      } catch {
-        // Ignored in non-browser env
-      }
+    if (window.electronAPI?.getPlatform) {
+      window.electronAPI.getPlatform().then(p => setPlatform(p));
     }
-  }, [roomId, roomSecret, serverUrl, nickname]);
-
-  useEffect(() => {
-    localStorage.setItem('study_today_target', target);
-    localStorage.setItem('study_today_tasks', JSON.stringify(tasks));
-  }, [target, tasks]);
-
-  // 10-Minute Hover / Nudge Timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSecondsToNextNudge((prev) => {
-        if (prev <= 1) {
-          setTimeout(() => {
-            setShowNudgeToast(true);
-            sounds.playGentleAlert();
-            triggerAutoPopout({
-              title: '10-Min Target Check-in ⏰',
-              detail: 'How is your goal progressing?',
-              icon: '🎯',
-            });
-          }, 0);
-          return reminderInterval * 60;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [reminderInterval, triggerAutoPopout]);
-
-  // Set up native hit testing sync so transparent areas let clicks pass through to background apps
-  useEffect(() => {
-    const cleanup = setupHitTestSync();
-    return cleanup;
   }, []);
 
   useEffect(() => {
@@ -416,27 +362,9 @@ export default function App() {
           });
         }
       }
-      if (peerCallManagerRef.current) {
-        const ctx = peerCallManagerRef.current.getAudioContext();
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
-      }
     };
-
-    window.addEventListener('click', unlockAudio, { passive: true });
-    window.addEventListener('keydown', unlockAudio, { passive: true });
-    window.addEventListener('touchstart', unlockAudio, { passive: true });
-    window.addEventListener('pointerdown', unlockAudio, { passive: true });
-    window.addEventListener('mousedown', unlockAudio, { passive: true });
-
-    return () => {
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
-      window.removeEventListener('pointerdown', unlockAudio);
-      window.removeEventListener('mousedown', unlockAudio);
-    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   // Shortcut: Option+V / Alt+V to toggle VisionOS Glass Studio
@@ -996,7 +924,7 @@ export default function App() {
     }
   }, [isConnected]);
 
-  // When partner's video stream is detected, ensure our camera is active if not already
+  // Set status based on current page
   useEffect(() => {
     if (isPeerVideoOn && !isVideoOn) {
       console.log('[App] Partner video detected, auto-starting local camera for two-way video...');
@@ -1314,46 +1242,28 @@ export default function App() {
         reject(new Error('AI explanation timed out'));
       }, 45000);
 
-      const onResult = (data) => {
-        if (data.requestId === reqId) {
-          clearTimeout(timeout);
-          socketRef.current?.off('quick-ai-result', onResult);
-          if (data.success) {
-            resolve(data.answer);
-          } else {
-            reject(new Error(data.error || 'Failed to generate answer'));
-          }
-        }
-      };
+  const hideSidebar = page === 'room';
 
-      socketRef.current.on('quick-ai-result', onResult);
-      socketRef.current.emit('ask-quick-ai', { prompt, requestId: reqId });
-    });
+  const fireProps = {
+    user, profile, partner, partnerPresence, partnerName, partnerInitial, setMyStatus,
   };
 
-  const getContainerStyle = () => {
-    if (isTauri) return {};
-    if (dockPosition === 'right') {
-      return {
-        position: 'fixed',
-        right: '16px',
-        bottom: '16px',
-        maxHeight: '96vh',
-      };
+  const renderPage = () => {
+    switch (page) {
+      case 'home': return <Home {...fireProps} />;
+      case 'focus': return <Focus {...fireProps} />;
+      case 'planner': return <Planner {...fireProps} />;
+      case 'calendar': return <Calendar {...fireProps} />;
+      case 'room': return <StudyRoom onBack={() => setPage('home')} {...fireProps} />;
+      case 'notes': return <Notes {...fireProps} />;
+      case 'chat': return <Chat {...fireProps} />;
+      case 'insights': return <Insights {...fireProps} />;
+      case 'goals': return <Goals {...fireProps} />;
+      case 'settings': return <Settings onNavigate={setPage} {...fireProps} />;
+      case 'ping': return <Ping onClose={() => setPage('home')} {...fireProps} />;
+      case 'notifications': return <Notifications {...fireProps} />;
+      default: return <Home {...fireProps} />;
     }
-    if (dockPosition === 'left') {
-      return {
-        position: 'fixed',
-        left: '16px',
-        bottom: '16px',
-        maxHeight: '96vh',
-      };
-    }
-    return {
-      position: 'fixed',
-      left: `${browserPos.x}px`,
-      top: `${browserPos.y}px`,
-    };
   };
 
   if (appMode === 'desktop') {

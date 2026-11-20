@@ -1,16 +1,17 @@
 {
   "name": "amigo-companion",
   "version": "1.0.0",
-  "description": "Amigo 🥬 - Always-on-top circular study date companion with cute cabbage mascot, video calls, emoji reactions, and goals",
+  "description": "Amigo — Study Companion for desktop (Mac & Linux)",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "server": "node server.js",
-    "electron": "electron electron-main.cjs --no-sandbox",
-    "start": "node server.js",
+    "electron": "electron electron-main.cjs",
+    "electron:linux": "electron electron-main.cjs --no-sandbox",
+    "start": "concurrently \"vite --host\" \"sleep 2 && electron electron-main.cjs\"",
+    "start:linux": "concurrently \"vite --host\" \"sleep 2 && electron electron-main.cjs --no-sandbox\"",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "express": "^4.21.1",
+    "firebase": "^13.4.0",
     "lucide-react": "^0.453.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

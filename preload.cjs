@@ -2,7 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
-  resizeWindow: (mode) => ipcRenderer.send('resize-window-for-screenshare', mode),
+  getPlatform: () => ipcRenderer.invoke('get-platform'),
+  resizeWindow: (mode) => ipcRenderer.send('resize-window', mode),
   showWindow: () => ipcRenderer.send('show-window'),
   hideWindow: () => ipcRenderer.send('hide-window'),
   toggleWindow: () => ipcRenderer.invoke('toggle-window'),
@@ -15,7 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAppMode: (mode) => ipcRenderer.send('set-app-mode', mode),
 });
 
-// Flag for desktop app mode in React
 window.__IS_DESKTOP__ = true;
 
 window.addEventListener('error', (event) => {

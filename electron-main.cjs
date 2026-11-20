@@ -8,17 +8,18 @@ const {
   session,
   desktopCapturer,
   nativeImage,
+  globalShortcut,
 } = require('electron');
 const path = require('path');
-const http = require('http');
-const { spawn } = require('child_process');
+const fs = require('fs');
 
 app.setName('Amigo');
 
-// 1. Prevent Linux GPU process crashes on Wayland/XWayland
-// Transparent frameless windows on Linux can trigger SIGSEGV (exit code 139) in GPU acceleration.
-// Using ozone-platform x11 ensures setPosition works smoothly on GNOME Wayland via XWayland.
-if (process.platform === 'linux') {
+const isMac = process.platform === 'darwin';
+const isLinux = process.platform === 'linux';
+
+// Linux GPU/Wayland fixes
+if (isLinux) {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('enable-transparent-visuals');
   app.commandLine.appendSwitch('disable-gpu');
@@ -28,7 +29,7 @@ if (process.platform === 'linux') {
 }
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
-// Enforce single instance so multiple launches focus the running floating companion
+// Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -37,142 +38,62 @@ if (!gotTheLock) {
 
 let mainWindow = null;
 let tray = null;
-let serverProcess = null;
 
-const iconPath = process.platform === 'win32'
-  ? path.join(__dirname, 'src-tauri/icons/icon.ico')
-  : path.join(__dirname, 'src-tauri/icons/icon.png');
-const APP_URL = process.env.AMIGO_URL || 'http://localhost:4000';
+const isDev = !app.isPackaged;
+const DEV_URL = 'http://localhost:5173';
 
-function ensureServerRunning() {
-  return new Promise((resolve) => {
-    let resolved = false;
-    const done = () => {
-      if (!resolved) {
-        resolved = true;
-        resolve();
-      }
-    };
-    const req = http.get('http://127.0.0.1:4000/api/health', (res) => {
-      if (res.statusCode === 200) {
-        console.log('[Electron] Server already active on port 4000');
-        return done();
-      }
-      spawnLocalServer(done);
-    });
-    req.setTimeout(2000, () => {
-      req.destroy();
-      spawnLocalServer(done);
-    });
-    req.on('error', () => {
-      spawnLocalServer(done);
-    });
-  });
-}
-
-function spawnLocalServer(callback) {
-  console.log('[Electron] Spawning Amigo server.js child process...');
-  const serverPath = path.join(__dirname, 'server.js');
-  try {
-    serverProcess = spawn(process.execPath, [serverPath], {
-      cwd: __dirname,
-      stdio: 'inherit',
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: '4000' },
-    });
-  } catch (err) {
-    try {
-      serverProcess = spawn('node', [serverPath], {
-        cwd: __dirname,
-        stdio: 'inherit',
-        env: { ...process.env, PORT: '4000' },
-      });
-    } catch (e) {
-      console.error('[Electron] Failed to spawn server.js:', e);
-    }
-  }
-
-  if (serverProcess) {
-    serverProcess.on('error', (err) => {
-      console.warn('[Electron] serverProcess warning:', err.message);
-    });
-  }
-
-  let attempts = 0;
-  const poll = setInterval(() => {
-    attempts++;
-    const req = http.get('http://127.0.0.1:4000/api/health', (res) => {
-      if (res.statusCode === 200) {
-        clearInterval(poll);
-        callback();
-      }
-    });
-    req.on('error', () => {});
-    if (attempts > 25) {
-      clearInterval(poll);
-      callback();
-    }
-  }, 200);
-}
+const iconPath = isLinux
+  ? path.join(__dirname, 'src-tauri/icons/icon.png')
+  : isMac
+    ? path.join(__dirname, 'src-tauri/icons/icon.png')
+    : path.join(__dirname, 'src-tauri/icons/icon.ico');
 
 function createWindow() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-
-  const initialWidth = 420;
-  const initialHeight = 740;
-  const posX = Math.max(10, screenWidth - initialWidth - 20);
-  const posY = Math.max(10, screenHeight - initialHeight - 20);
-
-  mainWindow = new BrowserWindow({
-    width: initialWidth,
-    height: initialHeight,
-    minWidth: 320,
-    minHeight: 480,
-    x: posX,
-    y: posY,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
+  const windowConfig = {
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    frame: !isMac, // frameless on Mac (custom title bar), standard frame on Linux/Windows
+    transparent: false,
+    alwaysOnTop: false,
     resizable: true,
-    hasShadow: false,
+    hasShadow: true,
     skipTaskbar: false,
-    backgroundColor: '#00000000',
+    backgroundColor: '#0F0F14',
     icon: iconPath,
-    title: 'Amigo Study Companion 🥬',
+    title: 'Amigo — Study Companion',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
-      backgroundThrottling: false, // Prevent timers and calls from freezing when unfocused
+      backgroundThrottling: false,
     },
-  });
+  };
 
-  // Keep floating overlay above all workspace windows
-  if (process.platform === 'darwin') {
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
-    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  } else {
-    mainWindow.setAlwaysOnTop(true);
+  // Mac-specific: hidden title bar with traffic lights
+  if (isMac) {
+    windowConfig.titleBarStyle = 'hiddenInset';
+    windowConfig.trafficLightPosition = { x: 16, y: 16 };
   }
 
-  // Grant camera, microphone, and screen share permissions seamlessly
+  mainWindow = new BrowserWindow(windowConfig);
+  mainWindow.center();
+
+  // Grant media permissions
   const ses = mainWindow.webContents.session;
   ses.setPermissionRequestHandler((webContents, permission, callback) => {
     const allowed = ['media', 'camera', 'microphone', 'notifications', 'display-capture'];
     callback(allowed.includes(permission));
   });
+  ses.setPermissionCheckHandler(() => true);
 
-  ses.setPermissionCheckHandler((webContents, permission) => {
-    return true;
-  });
-
-  // Handle getDisplayMedia (screen sharing)
+  // Screen sharing
   ses.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer
       .getSources({ types: ['screen', 'window'] })
       .then((sources) => {
         if (sources.length > 0) {
-          // Prefer entire primary display over arbitrary windows for full screen sharing
           const primaryScreen = sources.find((s) => s.id.startsWith('screen:')) || sources[0];
           callback({ video: primaryScreen });
         } else {
@@ -209,7 +130,18 @@ function createWindow() {
     }, 500);
   });
 
-  mainWindow.loadURL(APP_URL);
+  // Load app
+  if (isDev) {
+    mainWindow.loadURL(DEV_URL);
+    mainWindow.webContents.on('did-fail-load', () => {
+      setTimeout(() => {
+        if (mainWindow) mainWindow.loadURL(DEV_URL);
+      }, 1000);
+    });
+  } else {
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    mainWindow.loadFile(indexPath);
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -225,103 +157,41 @@ function createTray() {
       trayIcon = nativeImage.createFromPath(iconPath);
     }
 
+    // On Mac, resize tray icon to 16x16 for menu bar
+    if (isMac) {
+      trayIcon = trayIcon.resize({ width: 16, height: 16 });
+    }
+
     tray = new Tray(trayIcon);
-    tray.setToolTip('Amigo Study Companion 🥬');
+    tray.setToolTip('Amigo Study Companion');
 
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: 'Show/Hide Amigo 🥬',
+        label: 'Show/Hide Amigo',
         click: () => {
-          if (!mainWindow) {
-            createWindow();
-            return;
-          }
-          if (mainWindow.isVisible()) {
-            mainWindow.hide();
-          } else {
-            mainWindow.show();
-            mainWindow.focus();
-          }
+          if (!mainWindow) { createWindow(); return; }
+          mainWindow.isVisible() ? mainWindow.hide() : (mainWindow.show(), mainWindow.focus());
         },
       },
-      {
-        label: 'Reload App',
-        click: () => {
-          if (mainWindow) mainWindow.reload();
-        },
-      },
+      { label: 'Reload', click: () => mainWindow?.reload() },
       { type: 'separator' },
-      {
-        label: 'Quit Amigo',
-        click: () => {
-          app.isQuitting = true;
-          app.quit();
-        },
-      },
+      { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
     ]);
 
     tray.setContextMenu(contextMenu);
     tray.on('click', () => {
-      if (!mainWindow) {
-        createWindow();
-        return;
-      }
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        mainWindow.show();
-        mainWindow.focus();
-      }
+      if (!mainWindow) { createWindow(); return; }
+      mainWindow.isVisible() ? mainWindow.hide() : (mainWindow.show(), mainWindow.focus());
     });
   } catch (err) {
-    console.warn('[Electron] Tray initialization warning:', err.message);
+    console.warn('[Amigo] Tray init warning:', err.message);
   }
 }
 
-// IPC Handlers for Window Movement and Resizing
-let dragTargetPos = null;
+// IPC handlers
+ipcMain.handle('get-platform', () => process.platform);
 
-ipcMain.handle('get-window-position', () => {
-  if (!mainWindow) return [0, 0];
-  return mainWindow.getPosition();
-});
-
-ipcMain.on('start-window-drag', () => {
-  if (!mainWindow) return;
-  dragTargetPos = mainWindow.getPosition();
-});
-
-ipcMain.on('drag-move', (event, { deltaX, deltaY }) => {
-  if (!mainWindow) return;
-  if (!dragTargetPos) {
-    dragTargetPos = mainWindow.getPosition();
-  }
-  dragTargetPos[0] += deltaX;
-  dragTargetPos[1] += deltaY;
-  mainWindow.setPosition(Math.round(dragTargetPos[0]), Math.round(dragTargetPos[1]));
-});
-
-ipcMain.on('end-window-drag', () => {
-  dragTargetPos = null;
-});
-
-ipcMain.on('set-window-position', (event, { x, y }) => {
-  if (!mainWindow) return;
-  dragTargetPos = [Math.round(x), Math.round(y)];
-  mainWindow.setPosition(dragTargetPos[0], dragTargetPos[1]);
-});
-
-ipcMain.on('move-window', (event, { deltaX, deltaY }) => {
-  if (!mainWindow) return;
-  if (!dragTargetPos) {
-    dragTargetPos = mainWindow.getPosition();
-  }
-  dragTargetPos[0] += deltaX;
-  dragTargetPos[1] += deltaY;
-  mainWindow.setPosition(Math.round(dragTargetPos[0]), Math.round(dragTargetPos[1]));
-});
-
-ipcMain.on('resize-window-for-screenshare', (event, mode) => {
+ipcMain.on('resize-window', (event, mode) => {
   if (!mainWindow) return;
   if (mode === 'fullscreen' || mode === 'theater') {
     mainWindow.maximize();
@@ -364,60 +234,37 @@ ipcMain.on('show-window', () => {
   }
 });
 
-ipcMain.on('hide-window', () => {
-  if (mainWindow) {
-    mainWindow.hide();
-  }
-});
+ipcMain.handle('is-maximized', () => mainWindow?.isMaximized() ?? false);
+ipcMain.handle('is-fullscreen', () => mainWindow?.isFullScreen() ?? false);
 
-ipcMain.handle('toggle-window', () => {
-  if (!mainWindow) {
-    createWindow();
-    return true;
-  }
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-    return false;
-  } else {
-    mainWindow.show();
-    mainWindow.focus();
-    return true;
-  }
+ipcMain.on('window-minimize', () => mainWindow?.minimize());
+ipcMain.on('window-maximize', () => {
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
 });
+ipcMain.on('window-close', () => mainWindow?.close());
 
 app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     if (!mainWindow.isVisible()) mainWindow.show();
     mainWindow.focus();
-    mainWindow.reload();
   } else {
     createWindow();
   }
 });
 
 app.whenReady().then(async () => {
-  await ensureServerRunning();
+  if (isLinux) await new Promise((r) => setTimeout(r, 300));
+
   createWindow();
   createTray();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('will-quit', () => {
-  if (serverProcess) {
-    try {
-      serverProcess.kill();
-    } catch {}
-  }
-});
-
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (!isMac) app.quit();
 });
